@@ -11,6 +11,8 @@ pub(crate) enum Error {
     ConfigWriteFailure(Box<std::io::Error>),
     ConfigDirCreateFailure(Box<std::io::Error>),
     JsonSerializeFailure(Box<serde_json::error::Error>),
+    TerminalIoInitFailure(Box<std::io::Error>),
+    TerminalInitFailure(Box<std::io::Error>),
 }
 
 impl std::fmt::Display for Error {
@@ -29,6 +31,8 @@ impl std::fmt::Display for Error {
             Error::ConfigDirCreateFailure(e) => {
                 write!(f, "Error creating configuration directory: {}", e)
             }
+            Error::TerminalIoInitFailure(e) => write!(f, "Error initializing terminal: {}", e),
+            Error::TerminalInitFailure(e) => write!(f, "Error initializing terminal: {}", e),
         }
     }
 }
@@ -48,6 +52,8 @@ impl std::error::Error for Error {
             Error::ConfigWriteFailure(e) => Some(e),
             Error::JsonSerializeFailure(e) => Some(e),
             Error::ConfigDirCreateFailure(e) => Some(e),
+            Error::TerminalIoInitFailure(e) => Some(e),
+            Error::TerminalInitFailure(e) => Some(e),
         }
     }
 }

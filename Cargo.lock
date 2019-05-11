@@ -934,6 +934,7 @@ dependencies = [
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "simplemad 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-info 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "termion 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tui 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

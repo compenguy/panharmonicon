@@ -7,7 +7,15 @@ use errors::{Error, Result};
 mod config;
 use config::Config;
 
+mod term;
+use term::TerminalWin;
+
+mod pandora;
+use pandora::PandoraPane;
+
 use std::boxed::Box;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -60,5 +68,10 @@ fn main() -> Result<()> {
     );
 
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
+    let conf_ref = Rc::new(RefCell::new(conf));
+
+    let mut term = TerminalWin::new()?;
+    let pandora = PandoraPane::new(conf_ref.clone())?;
+    term.add_pane(pandora)?;
     Ok(())
 }
