@@ -45,10 +45,28 @@ fn main() -> Result<()> {
                 .hidden(true)
                 .help("Enable debug-level output"),
         )
+        .arg(
+            clap::Arg::with_name("debug-log")
+                .short("l")
+                .long("debug-log")
+                .hidden(true)
+                .help("File to write log output to."),
+        )
         .get_matches();
 
-    loggerv::init_with_verbosity(matches.occurrences_of("debug"))
-        .map_err(|e| Error::LoggerFailure(Box::new(e)))?;
+    tui_logger::init_logger(match matches.occurrences_of("debug") {
+        0 => log::LevelFilter::Off,
+        1 => log::LevelFilter::Error,
+        2 => log::LevelFilter::Warn,
+        3 => log::LevelFilter::Info,
+        4 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    })
+    .map_err(|e| Error::LoggerFailure(Box::new(e)))?;
+
+    if let Some(log_file) = matches.value_of("debug-log") {
+        tui_logger::set_log_file(log_file).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
+    }
 
     debug!("{} version {}", crate_name!(), crate_version!());
     debug!(

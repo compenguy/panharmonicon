@@ -7,6 +7,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 pub(crate) enum Error {
     ConfigDirNotFound,
     LoggerFailure(Box<log::SetLoggerError>),
+    LoggerFileFailure(Box<std::io::Error>),
     ConfigParseFailure(Box<serde_json::error::Error>),
     ConfigWriteFailure(Box<std::io::Error>),
     ConfigDirCreateFailure(Box<std::io::Error>),
@@ -24,6 +25,7 @@ impl std::fmt::Display for Error {
                 "Unable to identify platform-appropriate configuration directory."
             ),
             Error::LoggerFailure(e) => write!(f, "Error initializing logging: {}", e),
+            Error::LoggerFileFailure(e) => write!(f, "Error opening log file: {}", e),
             Error::ConfigParseFailure(e) => write!(f, "Error parsing configuration file: {}", e),
             Error::ConfigWriteFailure(e) => write!(f, "Error writing configuration file: {}", e),
             Error::JsonSerializeFailure(e) => {
@@ -50,6 +52,7 @@ impl std::error::Error for Error {
         match self {
             Error::ConfigDirNotFound => None,
             Error::LoggerFailure(e) => Some(e),
+            Error::LoggerFileFailure(e) => Some(e),
             Error::ConfigParseFailure(e) => Some(e),
             Error::ConfigWriteFailure(e) => Some(e),
             Error::JsonSerializeFailure(e) => Some(e),

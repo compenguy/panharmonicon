@@ -17,8 +17,11 @@ impl TerminalWin {
             .into_raw_mode()
             .map_err(|e| Error::TerminalIoInitFailure(Box::new(e)))?;
         let backend = TermionBackend::new(stdout);
-        let terminal =
+        let mut terminal =
             tui::Terminal::new(backend).map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
+        terminal
+            .clear()
+            .map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
         Ok(TerminalWin {
             terminal: RefCell::new(terminal),
             children: RefCell::new(Vec::new()),
