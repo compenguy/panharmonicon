@@ -31,7 +31,7 @@ impl PandoraPane {
 impl TerminalPane for PandoraPane {
     fn render(
         &mut self,
-        frame: &mut Frame<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>,
+        frame: &mut Frame<TermionBackend<Box<std::io::Write>>>,
     ) {
         let chunks = self.layout.clone().split(frame.size());
         let (login, now_playing) = (chunks[0], chunks[1]);

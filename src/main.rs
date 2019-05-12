@@ -54,15 +54,19 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    tui_logger::init_logger(match matches.occurrences_of("debug") {
+    let log_level = match matches.occurrences_of("debug") {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
         2 => log::LevelFilter::Warn,
         3 => log::LevelFilter::Info,
         4 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
-    })
-    .map_err(|e| Error::LoggerFailure(Box::new(e)))?;
+    };
+    // Unless the user specifically requested debug or trace level logging, we cap
+    // logging level at Info
+    let max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
+    tui_logger::init_logger(max_log_level).map_err(|e| Error::LoggerFailure(Box::new(e)))?;
+    tui_logger::set_default_level(log_level);
 
     if let Some(log_file) = matches.value_of("debug-log") {
         tui_logger::set_log_file(log_file).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
@@ -88,7 +92,7 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let mut term = TerminalWin::new()?;
+    let mut term = TerminalWin::new(conf_ref.clone())?;
     let pandora = PandoraPane::new(conf_ref.clone())?;
     term.add_pane(pandora)?;
     term.render()?;

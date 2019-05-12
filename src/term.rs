@@ -1,26 +1,39 @@
 use termion::raw::IntoRawMode;
+use termion::input::MouseTerminal;
+use termion::screen::AlternateScreen;
 use tui::backend::TermionBackend;
 use tui::terminal::Frame;
 
 use crate::errors::{Error, Result};
+use crate::config::Config;
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub(crate) struct TerminalWin {
-    terminal: RefCell<tui::Terminal<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>>,
+    terminal: RefCell<tui::Terminal<TermionBackend<Box<std::io::Write>>>>,
     children: RefCell<Vec<Box<dyn TerminalPane>>>,
 }
 
 impl TerminalWin {
-    pub fn new() -> Result<Self> {
+    pub fn new(config: Rc<RefCell<Config>>) -> Result<Self> {
         let stdout = std::io::stdout()
             .into_raw_mode()
             .map_err(|e| Error::TerminalIoInitFailure(Box::new(e)))?;
+        // Not sure yet how troublesome MouseTerminal might end up being
+        let mut stdout: Box<std::io::Write> = Box::new(AlternateScreen::from(stdout));
+        if config.borrow().mouse_mode {
+            stdout = Box::new(MouseTerminal::from(stdout));
+        }
         let backend = TermionBackend::new(stdout);
+
         let mut terminal =
             tui::Terminal::new(backend).map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
         terminal
             .clear()
+            .map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
+        terminal
+            .hide_cursor()
             .map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
         Ok(TerminalWin {
             terminal: RefCell::new(terminal),
@@ -48,6 +61,6 @@ impl TerminalWin {
 pub(crate) trait TerminalPane {
     fn render(
         &mut self,
-        frame: &mut Frame<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>,
+        frame: &mut Frame<TermionBackend<Box<std::io::Write>>>,
     );
 }

@@ -9,17 +9,17 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct PartialConfig {
-    fun_mode: Option<bool>,
+    mouse_mode: Option<bool>,
 }
 
 #[derive(Serialize, Debug)]
 pub(crate) struct Config {
-    fun_mode: bool,
+    pub(crate) mouse_mode: bool,
 }
 
 impl std::default::Default for Config {
     fn default() -> Self {
-        Config { fun_mode: true }
+        Config { mouse_mode: true }
     }
 }
 
@@ -50,8 +50,8 @@ impl Config {
     }
 
     pub fn update_from(&mut self, other: &PartialConfig) -> Result<()> {
-        if let Some(fun_mode) = other.fun_mode {
-            self.fun_mode = fun_mode;
+        if let Some(mouse_mode) = other.mouse_mode {
+            self.mouse_mode = mouse_mode;
         }
         Ok(())
     }
