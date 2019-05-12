@@ -1,5 +1,6 @@
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
-use log::debug;
+use log::{debug, trace};
+use termion::input::TermRead;
 
 mod errors;
 use errors::{Error, Result};
@@ -10,12 +11,16 @@ use config::Config;
 mod term;
 use term::TerminalWin;
 
+mod logger;
+use logger::LogPane;
+
 mod pandora;
 use pandora::PandoraPane;
 
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::thread;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -93,8 +98,35 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     let mut term = TerminalWin::new(conf_ref.clone())?;
+    let log = LogPane::new(conf_ref.clone())?;
+    term.add_pane(log)?;
     let pandora = PandoraPane::new(conf_ref.clone())?;
     term.add_pane(pandora)?;
-    term.render()?;
+
+    let stdin = std::io::stdin();
+    let (tx, rx) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        for c in stdin.events() {
+            trace!(target:"INPUT", "Stdin event received {:?}", c);
+            // TODO: Error handling
+            tx.send(c.unwrap()).unwrap();
+        }
+    });
+    // Main event loop
+    'main: loop {
+        // Process all pending input events
+        for evt in rx.try_iter() {
+            trace!(target: "Event rx", "{:?}", evt);
+            if let termion::event::Event::Key(key) = evt {
+                match key {
+                    termion::event::Key::Char('q') => break 'main,
+                    _ => trace!(target: "Key rx", "Unhandled key event {:?}", key),
+                }
+            }
+        }
+
+        term.render()?;
+        thread::sleep(std::time::Duration::from_millis(100));
+    }
     Ok(())
 }

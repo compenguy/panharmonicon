@@ -20,7 +20,10 @@ impl TerminalWin {
         let stdout = std::io::stdout()
             .into_raw_mode()
             .map_err(|e| Error::TerminalIoInitFailure(Box::new(e)))?;
-        // Not sure yet how troublesome MouseTerminal might end up being
+
+        // Type erasure using Box lets us nest Termion writers to our heart's content
+        // It also lets us compose them arbitrarily, such as optionally having a mouse
+        // writer
         let mut stdout: Box<std::io::Write> = Box::new(AlternateScreen::from(stdout));
         if config.borrow().mouse_mode {
             stdout = Box::new(MouseTerminal::from(stdout));
