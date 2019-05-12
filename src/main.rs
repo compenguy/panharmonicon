@@ -73,5 +73,6 @@ fn main() -> Result<()> {
     let mut term = TerminalWin::new()?;
     let pandora = PandoraPane::new(conf_ref.clone())?;
     term.add_pane(pandora)?;
+    term.render()?;
     Ok(())
 }

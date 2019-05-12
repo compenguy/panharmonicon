@@ -1,12 +1,14 @@
 use termion::raw::IntoRawMode;
 use tui::backend::TermionBackend;
-use tui::layout::Layout;
+use tui::terminal::Frame;
 
 use crate::errors::{Error, Result};
 
+use std::cell::RefCell;
+
 pub(crate) struct TerminalWin {
-    terminal: tui::Terminal<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>,
-    children: Vec<Box<dyn TerminalPane>>,
+    terminal: RefCell<tui::Terminal<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>>,
+    children: RefCell<Vec<Box<dyn TerminalPane>>>,
 }
 
 impl TerminalWin {
@@ -18,18 +20,31 @@ impl TerminalWin {
         let terminal =
             tui::Terminal::new(backend).map_err(|e| Error::TerminalInitFailure(Box::new(e)))?;
         Ok(TerminalWin {
-            terminal,
-            children: Vec::new(),
+            terminal: RefCell::new(terminal),
+            children: RefCell::new(Vec::new()),
         })
     }
 
     pub fn add_pane(&mut self, pane: impl TerminalPane + 'static) -> Result<()> {
-        let termpane = Box::new(pane);
-        self.children.push(termpane);
+        self.children.borrow_mut().push(Box::new(pane));
         Ok(())
+    }
+
+    pub fn render(&mut self) -> Result<()> {
+        self.terminal
+            .borrow_mut()
+            .draw(|mut f| {
+                for wrapped_child in self.children.borrow_mut().as_mut_slice() {
+                    wrapped_child.render(&mut f);
+                }
+            })
+            .map_err(|e| Error::TerminalDrawFailure(Box::new(e)))
     }
 }
 
 pub(crate) trait TerminalPane {
-    fn get_layout(&self) -> &Layout;
+    fn render(
+        &mut self,
+        frame: &mut Frame<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>,
+    );
 }

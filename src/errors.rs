@@ -13,6 +13,7 @@ pub(crate) enum Error {
     JsonSerializeFailure(Box<serde_json::error::Error>),
     TerminalIoInitFailure(Box<std::io::Error>),
     TerminalInitFailure(Box<std::io::Error>),
+    TerminalDrawFailure(Box<std::io::Error>),
 }
 
 impl std::fmt::Display for Error {
@@ -33,6 +34,7 @@ impl std::fmt::Display for Error {
             }
             Error::TerminalIoInitFailure(e) => write!(f, "Error initializing terminal: {}", e),
             Error::TerminalInitFailure(e) => write!(f, "Error initializing terminal: {}", e),
+            Error::TerminalDrawFailure(e) => write!(f, "Error drawing to terminal: {}", e),
         }
     }
 }
@@ -54,6 +56,7 @@ impl std::error::Error for Error {
             Error::ConfigDirCreateFailure(e) => Some(e),
             Error::TerminalIoInitFailure(e) => Some(e),
             Error::TerminalInitFailure(e) => Some(e),
+            Error::TerminalDrawFailure(e) => Some(e),
         }
     }
 }

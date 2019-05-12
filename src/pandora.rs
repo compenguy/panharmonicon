@@ -1,4 +1,8 @@
+use tui::backend::TermionBackend;
 use tui::layout::{Constraint, Direction, Layout};
+use tui::terminal::Frame;
+use tui::widgets::Widget;
+use tui::widgets::{Block, Borders};
 
 use crate::config::Config;
 use crate::errors::Result;
@@ -18,14 +22,26 @@ impl PandoraPane {
         // At least four lines for playlist + now playing
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .margin(1)
-            .constraints([Constraint::Length(2), Constraint::Min(4)].as_ref());
+            .margin(0)
+            .constraints([Constraint::Length(4), Constraint::Min(6)].as_ref());
         Ok(PandoraPane { layout, config })
     }
 }
 
 impl TerminalPane for PandoraPane {
-    fn get_layout(&self) -> &Layout {
-        &self.layout
+    fn render(
+        &mut self,
+        frame: &mut Frame<TermionBackend<termion::raw::RawTerminal<std::io::Stdout>>>,
+    ) {
+        let chunks = self.layout.clone().split(frame.size());
+        let (login, now_playing) = (chunks[0], chunks[1]);
+        Block::default()
+            .title("Login")
+            .borders(Borders::ALL)
+            .render(frame, login);
+        Block::default()
+            .title("Now Playing")
+            .borders(Borders::ALL)
+            .render(frame, now_playing);
     }
 }
