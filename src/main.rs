@@ -1,6 +1,7 @@
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use log::{debug, trace};
 use termion::input::TermRead;
+use termion::event::{Event, Key};
 
 mod errors;
 use errors::{Error, Result};
@@ -117,11 +118,9 @@ fn main() -> Result<()> {
         // Process all pending input events
         for evt in rx.try_iter() {
             trace!(target: "Event rx", "{:?}", evt);
-            if let termion::event::Event::Key(key) = evt {
-                match key {
-                    termion::event::Key::Char('q') => break 'main,
-                    _ => trace!(target: "Key rx", "Unhandled key event {:?}", key),
-                }
+            match &evt {
+                Event::Key(Key::Char('q')) => break 'main,
+                _ => term.handle_input(&evt),
             }
         }
 
