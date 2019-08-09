@@ -1,5 +1,5 @@
 [package]
-name = "musbox"
+name = "panharmonicon"
 version = "0.1.0"
 authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
@@ -7,18 +7,18 @@ edition = "2018"
 [dependencies]
 clap = "2.33"
 log = { version = "0.4", default-features = true, features = ["std"] }
+flexi_logger = "0.13"
+mktemp-rs = "0.2"
 sys-info = "0.5"
 dirs = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 keyring = "0.7"
-termion = "1.5"
-# tui-logger 0.3 requires that we use tui 0.4, because its API leaks tui objects
-tui = "0.4"
-tui-logger = "0.3"
+cursive = { version = "0.12", default-features = false, features = ["crossterm-backend"] }
 glob = "0.3"
 pandora-rs2 = "0.1"
 reqwest = "0.9"
 id3 = "0.3"
 simplemad = "0.9"
+

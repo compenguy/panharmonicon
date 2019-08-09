@@ -1,7 +1,7 @@
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
+use flexi_logger::Logger;
 use log::{debug, trace};
-use termion::input::TermRead;
-use termion::event::{Event, Key};
+use mktemp::TempDir;
 
 mod errors;
 use errors::{Error, Result};
@@ -9,14 +9,7 @@ use errors::{Error, Result};
 mod config;
 use config::Config;
 
-mod term;
-use term::TerminalWin;
-
-mod logger;
-use logger::LogPane;
-
-mod pandora;
-use pandora::PandoraPane;
+mod panharmonicon;
 
 use std::boxed::Box;
 use std::cell::RefCell;
@@ -71,12 +64,19 @@ fn main() -> Result<()> {
     // Unless the user specifically requested debug or trace level logging, we cap
     // logging level at Info
     let max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
-    tui_logger::init_logger(max_log_level).map_err(|e| Error::LoggerFailure(Box::new(e)))?;
-    tui_logger::set_default_level(log_level);
+    let mut log_builder = Logger::with_env();
 
     if let Some(log_file) = matches.value_of("debug-log") {
-        tui_logger::set_log_file(log_file).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
+        let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
+        log_builder = log_builder
+            .log_to_file()
+            .suppress_timestamp()
+            .directory(td.path());
     }
+
+    log_builder
+        .start()
+        .map_err(|e| Error::FlexiLoggerFailure(Box::new(e)))?;
 
     debug!("{} version {}", crate_name!(), crate_version!());
     debug!(
@@ -98,34 +98,9 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let mut term = TerminalWin::new(conf_ref.clone())?;
-    let log = LogPane::new(conf_ref.clone())?;
-    term.add_pane(log)?;
-    let pandora = PandoraPane::new(conf_ref.clone())?;
-    term.add_pane(pandora)?;
+    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone())?;
 
-    let stdin = std::io::stdin();
-    let (tx, rx) = std::sync::mpsc::channel();
-    thread::spawn(move || {
-        for c in stdin.events() {
-            trace!(target:"INPUT", "Stdin event received {:?}", c);
-            // TODO: Error handling
-            tx.send(c.unwrap()).unwrap();
-        }
-    });
-    // Main event loop
-    'main: loop {
-        // Process all pending input events
-        for evt in rx.try_iter() {
-            trace!(target: "Event rx", "{:?}", evt);
-            match &evt {
-                Event::Key(Key::Char('q')) => break 'main,
-                _ => term.handle_input(&evt),
-            }
-        }
+    panharmonicon.run();
 
-        term.render()?;
-        thread::sleep(std::time::Duration::from_millis(100));
-    }
     Ok(())
 }
