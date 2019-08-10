@@ -1,6 +1,6 @@
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
-use log::{debug, trace};
+use log::debug;
 use mktemp::TempDir;
 
 mod errors;
@@ -14,7 +14,6 @@ mod panharmonicon;
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::thread;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -63,10 +62,10 @@ fn main() -> Result<()> {
     };
     // Unless the user specifically requested debug or trace level logging, we cap
     // logging level at Info
-    let max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
+    let _max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
     let mut log_builder = Logger::with_env();
 
-    if let Some(log_file) = matches.value_of("debug-log") {
+    if let Some(_log_file) = matches.value_of("debug-log") {
         let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
         log_builder = log_builder
             .log_to_file()
@@ -98,7 +97,7 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone())?;
+    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone());
 
     panharmonicon.run();
 

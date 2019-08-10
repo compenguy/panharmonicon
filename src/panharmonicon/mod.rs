@@ -1,12 +1,10 @@
 use cursive::direction::Orientation;
+use cursive::traits::*;
 use cursive::view::{ScrollStrategy, SizeConstraint};
 use cursive::views::{BoxView, LinearLayout, Panel, ProgressBar, ScrollView, SelectView, TextView};
 use cursive::{Cursive, ScreenId};
 
-use log::trace;
-
 use crate::config::Config;
-use crate::errors::{Error, Result};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -17,14 +15,14 @@ pub(crate) struct Panharmonicon {
 }
 
 impl Panharmonicon {
-    pub fn new(_config: Rc<RefCell<Config>>) -> Result<Self> {
+    pub fn new(_config: Rc<RefCell<Config>>) -> Self {
         let mut terminal = Self {
             win: Cursive::default(),
             playing_screen: None,
         };
 
         terminal.init_views();
-        Ok(terminal)
+        terminal
     }
 
     fn init_views(&mut self) {
@@ -40,12 +38,8 @@ impl Panharmonicon {
                             SizeConstraint::Free,
                             SizeConstraint::Full,
                             Panel::new(
-                                ScrollView::new({
-                                    let mut v = SelectView::new();
-                                    v.add_item("", 0);
-                                    v
-                                })
-                                .scroll_strategy(ScrollStrategy::StickToBottom),
+                                ScrollView::new(SelectView::<String>::new().with_id("Playlist"))
+                                    .scroll_strategy(ScrollStrategy::StickToBottom),
                             )
                             .title("Playlist"),
                         )
@@ -55,7 +49,8 @@ impl Panharmonicon {
                         BoxView::new(
                             SizeConstraint::Full,
                             SizeConstraint::Full,
-                            Panel::new(ScrollView::new(TextView::empty())).title(""),
+                            Panel::new(ScrollView::new(TextView::empty().with_id("Info")))
+                                .title(""),
                         )
                         .squishable(),
                     ),
@@ -64,12 +59,15 @@ impl Panharmonicon {
                 BoxView::new(
                     SizeConstraint::Full,
                     SizeConstraint::AtLeast(4),
-                    Panel::new(ProgressBar::new()).title(""),
+                    Panel::new(ProgressBar::new().with_id("PlayingProgress"))
+                        .title("")
+                        .with_id("NowPlaying"),
                 )
                 .squishable(),
             );
 
         self.win.add_fullscreen_layer(top);
+        self.win.add_global_callback('q', |s| s.quit())
     }
 
     pub fn run(&mut self) {
