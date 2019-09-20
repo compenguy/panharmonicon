@@ -5,7 +5,7 @@ authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-clap = "2.33"
+clap = "2.32"
 log = { version = "0.4", default-features = true, features = ["std"] }
 #async-std = "0.99"
 #flexi_logger = "0.13"
