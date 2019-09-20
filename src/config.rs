@@ -1,8 +1,8 @@
-use std::fs::{File, create_dir_all};
+use std::fs::{create_dir_all, File};
 use std::io::BufReader;
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
 use std::mem;
+use std::path::{Path, PathBuf};
 
 use clap::crate_name;
 use serde_derive::{Deserialize, Serialize};
@@ -28,14 +28,20 @@ pub(crate) mod serde_session {
     use serde::de::Deserializer;
     use serde::ser::Serializer;
 
-    pub(crate) fn serialize<S>(_: &Option<String>, _: &Option<String>, s: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    pub(crate) fn serialize<S>(
+        _: &Option<String>,
+        _: &Option<String>,
+        s: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
     {
         s.serialize_unit()
     }
 
     pub(crate) fn deserialize<'de, D>(_: D) -> Result<(Option<String>, Option<String>), D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         Ok((None, None))
     }
@@ -126,10 +132,11 @@ impl Credentials {
     fn set_on_keyring(username: &str, password: &str) -> Result<()> {
         let service = String::from(crate_name!());
         let keyring = keyring::Keyring::new(&service, username);
-        keyring.set_password(password).map_err(|e| Error::KeyringFailure(Box::new(e)))
+        keyring
+            .set_password(password)
+            .map_err(|e| Error::KeyringFailure(Box::new(e)))
     }
 }
-
 
 impl std::default::Default for Config {
     fn default() -> Self {
@@ -142,13 +149,16 @@ impl std::default::Default for Config {
 }
 
 impl Config {
-    pub(crate) fn get_config<P: AsRef<Path> + Clone>(file_path: P, write_back: bool) -> Result<Self> {
+    pub(crate) fn get_config<P: AsRef<Path> + Clone>(
+        file_path: P,
+        write_back: bool,
+    ) -> Result<Self> {
         let mut config = Self::default();
         config.path = Some(file_path.as_ref().to_path_buf());
         if let Ok(config_file) = File::open(file_path.as_ref()) {
             config.update_from(
                 &serde_json::from_reader(BufReader::new(config_file))
-                    .map_err(|e| Error::ConfigParseFailure(Box::new(e)))?
+                    .map_err(|e| Error::ConfigParseFailure(Box::new(e)))?,
             )?;
         }
         if write_back {

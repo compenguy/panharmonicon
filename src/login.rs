@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::errors::Result;
 use crate::config::Config;
+use crate::errors::Result;
 
 use cursive::traits::*;
 use cursive::views::{Dialog, EditView};
@@ -35,9 +35,9 @@ pub(crate) fn request_username(win: Rc<RefCell<Cursive>>) {
                     })
                     .with_id("login::request_username")
                     // Wrap in a fixed-with BoxView
-                    .fixed_width(20)
-            )
-        );
+                    .fixed_width(20),
+            ),
+    );
     win.borrow_mut().run();
 }
 
@@ -60,9 +60,8 @@ pub(crate) fn request_password(win: Rc<RefCell<Cursive>>) {
                     })
                     .with_id("login::request_password")
                     // Wrap in a fixed-with BoxView
-                    .fixed_width(20)
-            )
-        );
+                    .fixed_width(20),
+            ),
+    );
     win.borrow_mut().run();
 }
-
