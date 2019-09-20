@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use cursive::align::Align;
 use cursive::traits::*;
-use cursive::views::{Dialog, EditView, LinearLayout, SelectView};
+use cursive::view::Selector;
+use cursive::views::{Dialog, EditView, LinearLayout, SelectView, TextView};
 use cursive::Cursive;
 use log::debug;
 
@@ -119,20 +121,32 @@ pub(crate) fn login_prompt(config: Rc<RefCell<Config>>, win: Rc<RefCell<Cursive>
         Dialog::around(
             LinearLayout::vertical()
                 .child(
-                    EditView::new()
-                        .content(current_username)
-                        .on_submit(|win, _| login_submit(win))
-                        .with_id(USERNAME_CONTROL_ID),
+                    LinearLayout::horizontal()
+                        .child(TextView::new("Username").no_wrap().fixed_size((8, 1)))
+                        .child(
+                            EditView::new()
+                                .content(current_username.clone())
+                                .on_submit(|win, _| login_submit(win))
+                                .with_id(USERNAME_CONTROL_ID),
+                        )
+                        .fixed_size((30, 1)),
                 )
                 .child(
-                    EditView::new()
-                        .secret()
-                        .content(current_password)
-                        .on_submit(|win, _| login_submit(win))
-                        .with_id(PASSWORD_CONTROL_ID),
+                    LinearLayout::horizontal()
+                        .child(TextView::new("Password").no_wrap().fixed_size((8, 1)))
+                        .child(
+                            EditView::new()
+                                .secret()
+                                .content(current_password.clone())
+                                .on_submit(|win, _| login_submit(win))
+                                .with_id(PASSWORD_CONTROL_ID),
+                        )
+                        .fixed_size((30, 1)),
                 )
+                .child(TextView::new("Save to:").no_wrap())
                 .child(
                     SelectView::<CredentialsEntry>::new()
+                        .align(Align::top_right())
                         .item(
                             CredentialsEntry::ConfigFile.to_string(),
                             CredentialsEntry::ConfigFile,
@@ -154,6 +168,17 @@ pub(crate) fn login_prompt(config: Rc<RefCell<Config>>, win: Rc<RefCell<Cursive>
         .padding((1, 1, 1, 0))
         .title("Pandora Login"),
     );
+
+    if current_username.is_empty() {
+        win.borrow_mut()
+            .focus(&Selector::Id(USERNAME_CONTROL_ID))
+            .expect("Failed to locate username entry control.");
+    } else if current_password.is_empty() {
+        win.borrow_mut()
+            .focus(&Selector::Id(PASSWORD_CONTROL_ID))
+            .expect("Failed to locate password entry control.");
+    }
+
     win.borrow_mut().run();
 }
 
