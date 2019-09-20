@@ -10,14 +10,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub(crate) struct Panharmonicon {
-    win: Cursive,
+    win: Rc<RefCell<Cursive>>,
     playing_screen: Option<ScreenId>,
 }
 
 impl Panharmonicon {
-    pub fn new(_config: Rc<RefCell<Config>>) -> Self {
+    pub fn new(_config: Rc<RefCell<Config>>, win: Rc<RefCell<Cursive>>) -> Self {
         let mut terminal = Self {
-            win: Cursive::default(),
+            win,
             playing_screen: None,
         };
 
@@ -29,7 +29,7 @@ impl Panharmonicon {
         if self.playing_screen.is_some() {
             return;
         }
-        self.playing_screen = Some(self.win.add_screen());
+        self.playing_screen = Some(self.win.borrow_mut().add_screen());
         let top = LinearLayout::new(Orientation::Vertical)
             .child(
                 LinearLayout::new(Orientation::Horizontal)
@@ -66,11 +66,11 @@ impl Panharmonicon {
                 .squishable(),
             );
 
-        self.win.add_fullscreen_layer(top);
-        self.win.add_global_callback('q', |s| s.quit())
+        self.win.borrow_mut().add_fullscreen_layer(top);
+        self.win.borrow_mut().add_global_callback('q', |s| s.quit())
     }
 
     pub fn run(&mut self) {
-        self.win.run()
+        self.win.borrow_mut().run()
     }
 }

@@ -7,7 +7,8 @@ edition = "2018"
 [dependencies]
 clap = "2.33"
 log = { version = "0.4", default-features = true, features = ["std"] }
-flexi_logger = "0.13"
+#async-std = "0.99"
+#flexi_logger = "0.13"
 mktemp-rs = "0.2"
 sys-info = "0.5"
 dirs = "1.0"

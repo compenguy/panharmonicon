@@ -1,7 +1,7 @@
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
-use flexi_logger::Logger;
+//use flexi_logger::Logger;
+//use mktemp::TempDir;
 use log::debug;
-use mktemp::TempDir;
 
 mod errors;
 use errors::{Error, Result};
@@ -9,11 +9,15 @@ use errors::{Error, Result};
 mod config;
 use config::Config;
 
+mod login;
+
 mod panharmonicon;
 
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use cursive::Cursive;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -52,6 +56,7 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
+    /*
     let log_level = match matches.occurrences_of("debug") {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
@@ -60,11 +65,13 @@ fn main() -> Result<()> {
         4 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
+    */
     // Unless the user specifically requested debug or trace level logging, we cap
     // logging level at Info
-    let _max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
-    let mut log_builder = Logger::with_env();
+    //let _max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
+    //let mut log_builder = Logger::with_env();
 
+    /*
     if let Some(_log_file) = matches.value_of("debug-log") {
         let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
         log_builder = log_builder
@@ -76,6 +83,8 @@ fn main() -> Result<()> {
     log_builder
         .start()
         .map_err(|e| Error::FlexiLoggerFailure(Box::new(e)))?;
+    */
+    cursive::logger::init();
 
     debug!("{} version {}", crate_name!(), crate_version!());
     debug!(
@@ -97,7 +106,17 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone());
+    let mut window = Cursive::default();
+    window.add_global_callback('~', cursive::Cursive::toggle_debug_console);
+    window.add_global_callback('q', |s| s.quit());
+
+    window.set_user_data(conf_ref.clone());
+    let window_ref = Rc::new(RefCell::new(window));
+
+    login::login_cursive(conf_ref.clone(), window_ref.clone())?;
+    conf_ref.borrow_mut().flush()?;
+
+    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone(), window_ref.clone());
 
     panharmonicon.run();
 
