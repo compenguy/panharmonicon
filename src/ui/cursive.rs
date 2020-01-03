@@ -1,69 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use cursive::align::Align;
-use cursive::traits::*;
-use cursive::view::Selector;
-use cursive::views::{Dialog, EditView, LinearLayout, SelectView, TextView};
-use cursive::Cursive;
 use log::debug;
 
 use crate::config::{Config, Credentials};
 use crate::errors::Result;
-
-// login control names
-const USERNAME_CONTROL_ID: &str = "login::request_username";
-const PASSWORD_CONTROL_ID: &str = "login::request_password";
-const SAVE_TO_CONTROL_ID: &str = "login::save_to";
-
-// SelectView entry IDs
-#[derive(Clone)]
-enum CredentialsEntry {
-    ConfigFile,
-    UserKeyring,
-    SessionOnly,
-}
-
-impl From<&Credentials> for CredentialsEntry {
-    fn from(cred: &Credentials) -> Self {
-        match cred {
-            Credentials::ConfigFile(_, _) => CredentialsEntry::ConfigFile,
-            Credentials::Keyring(_) => CredentialsEntry::UserKeyring,
-            Credentials::Session(_, _) => CredentialsEntry::SessionOnly,
-        }
-    }
-}
-
-impl From<usize> for CredentialsEntry {
-    fn from(id: usize) -> Self {
-        match id {
-            0 => CredentialsEntry::ConfigFile,
-            1 => CredentialsEntry::UserKeyring,
-            2 => CredentialsEntry::SessionOnly,
-            _ => CredentialsEntry::SessionOnly,
-        }
-    }
-}
-
-impl Into<usize> for CredentialsEntry {
-    fn into(self) -> usize {
-        match self {
-            CredentialsEntry::ConfigFile => 0,
-            CredentialsEntry::UserKeyring => 1,
-            CredentialsEntry::SessionOnly => 2,
-        }
-    }
-}
-
-impl ToString for CredentialsEntry {
-    fn to_string(&self) -> String {
-        match self {
-            CredentialsEntry::ConfigFile => "Config File".to_string(),
-            CredentialsEntry::UserKeyring => "User Keyring".to_string(),
-            CredentialsEntry::SessionOnly => "Don't Save".to_string(),
-        }
-    }
-}
 
 fn make_credentials(entry: CredentialsEntry, user: String, pass: String) -> Result<Credentials> {
     // TODO: check for empty string?
@@ -95,6 +36,7 @@ fn login_submit(win: &mut Cursive) {
         .selection()
         .expect("Credential storage selection control incorrectly populated.");
     win.with_user_data(|config: &mut Rc<RefCell<Config>>| {
+        debug!("username: {}, password: {}, saved to {}", username, password, cred_entry_rc.to_string());
         match make_credentials((*cred_entry_rc).clone(), username, password) {
             Ok(cred) => config.borrow_mut().login = cred,
             Err(_) => {
@@ -107,7 +49,8 @@ fn login_submit(win: &mut Cursive) {
     win.quit();
 }
 
-pub(crate) fn login_prompt(config: Rc<RefCell<Config>>, win: Rc<RefCell<Cursive>>) {
+pub(crate) fn login_prompt_cursive(win: Rc<RefCell<Cursive>>, auth: SessionAuth) {
+    // TODO: correctly handle auth param
     let current_username = config.borrow().login.get_username().unwrap_or_default();
     let current_password = config
         .borrow()
@@ -190,3 +133,4 @@ pub(crate) fn login_cursive(config: Rc<RefCell<Config>>, win: Rc<RefCell<Cursive
     }
     Ok(())
 }
+

@@ -83,7 +83,6 @@ impl Credentials {
         }
     }
 
-    /*
     pub(crate) fn update_username(&mut self, username: &str) {
         match self {
             Credentials::Keyring(ref mut u) => {
@@ -97,7 +96,6 @@ impl Credentials {
             }
         }
     }
-    */
 
     pub(crate) fn get_password(&self) -> Result<Option<String>> {
         match self {

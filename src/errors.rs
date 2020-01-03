@@ -11,6 +11,8 @@ pub(crate) enum Error {
     ConfigDirCreateFailure(Box<std::io::Error>),
     JsonSerializeFailure(Box<serde_json::error::Error>),
     KeyringFailure(Box<keyring::KeyringError>),
+    ThreadChannelFailure(Box<std::sync::mpsc::RecvError>),
+    ThreadChannelTryFailure(Box<std::sync::mpsc::TryRecvError>),
 }
 
 impl PartialEq<Error> for Error {
@@ -39,6 +41,12 @@ impl std::fmt::Display for Error {
             Error::KeyringFailure(e) => {
                 write!(f, "Error reading password from system keyring: {}", e)
             }
+            Error::ThreadChannelFailure(e) => {
+                write!(f, "Thread communication channel error: {}", e)
+            }
+            Error::ThreadChannelTryFailure(e) => {
+                write!(f, "Thread communication channel error: {}", e)
+            }
         }
     }
 }
@@ -60,6 +68,26 @@ impl std::error::Error for Error {
             Error::JsonSerializeFailure(e) => Some(e),
             Error::ConfigDirCreateFailure(e) => Some(e),
             Error::KeyringFailure(e) => Some(e),
+            Error::ThreadChannelFailure(e) => Some(e),
+            Error::ThreadChannelTryFailure(e) => Some(e),
         }
+    }
+}
+
+impl From<keyring::KeyringError> for Error {
+    fn from(err: keyring::KeyringError) -> Self {
+        Error::KeyringFailure(Box::new(err))
+    }
+}
+
+impl From<std::sync::mpsc::RecvError> for Error {
+    fn from(err: std::sync::mpsc::RecvError) -> Self {
+        Error::ThreadChannelFailure(Box::new(err))
+    }
+}
+
+impl From<std::sync::mpsc::TryRecvError> for Error {
+    fn from(err: std::sync::mpsc::TryRecvError) -> Self {
+        Error::ThreadChannelTryFailure(Box::new(err))
     }
 }

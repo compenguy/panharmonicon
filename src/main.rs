@@ -1,23 +1,22 @@
+use std::boxed::Box;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 //use flexi_logger::Logger;
 //use mktemp::TempDir;
 use log::debug;
 
 mod errors;
-use errors::{Error, Result};
+use crate::errors::{Error, Result};
 
 mod config;
-use config::Config;
+use crate::config::Config;
 
-mod login;
+mod ui;
 
+mod app;
 mod panharmonicon;
-
-use std::boxed::Box;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use cursive::Cursive;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -84,8 +83,6 @@ fn main() -> Result<()> {
         .start()
         .map_err(|e| Error::FlexiLoggerFailure(Box::new(e)))?;
     */
-    cursive::logger::init();
-
     debug!("{} version {}", crate_name!(), crate_version!());
     debug!(
         "{:<10} {}",
@@ -106,19 +103,12 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let mut window = Cursive::default();
-    window.add_global_callback('~', cursive::Cursive::toggle_debug_console);
-    window.add_global_callback('q', |s| s.quit());
-
-    window.set_user_data(conf_ref.clone());
-    let window_ref = Rc::new(RefCell::new(window));
-
-    login::login_cursive(conf_ref.clone(), window_ref.clone())?;
+    let session = ui::Session::new_dumb_terminal(conf_ref.clone());
+    session.login(ui::SessionAuth::UseSaved);
     conf_ref.borrow_mut().flush()?;
 
-    let mut panharmonicon = panharmonicon::Panharmonicon::new(conf_ref.clone(), window_ref.clone());
-
-    panharmonicon.run();
+    let mut app = app::App::new(conf_ref.clone());
+    app.run();
 
     Ok(())
 }
