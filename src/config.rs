@@ -87,6 +87,7 @@ impl Credentials {
         match self {
             Credentials::Keyring(ref mut u) => {
                 mem::replace::<String>(u, username.to_string());
+                todo!("Keyring not being updated with new username.");
             }
             Credentials::ConfigFile(ref mut u, _) => {
                 mem::replace::<String>(u, username.to_string());

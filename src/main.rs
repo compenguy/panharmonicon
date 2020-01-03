@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
-//use flexi_logger::Logger;
-//use mktemp::TempDir;
+use flexi_logger::Logger;
 use log::debug;
+use mktemp::TempDir;
 
 mod errors;
 use crate::errors::{Error, Result};
@@ -16,7 +16,7 @@ use crate::config::Config;
 mod ui;
 
 mod app;
-mod panharmonicon;
+mod player;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -55,7 +55,6 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    /*
     let log_level = match matches.occurrences_of("debug") {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
@@ -64,13 +63,8 @@ fn main() -> Result<()> {
         4 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
-    */
-    // Unless the user specifically requested debug or trace level logging, we cap
-    // logging level at Info
-    //let _max_log_level = std::cmp::max(log::LevelFilter::Info, log_level);
-    //let mut log_builder = Logger::with_env();
+    let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
 
-    /*
     if let Some(_log_file) = matches.value_of("debug-log") {
         let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
         log_builder = log_builder
@@ -82,7 +76,7 @@ fn main() -> Result<()> {
     log_builder
         .start()
         .map_err(|e| Error::FlexiLoggerFailure(Box::new(e)))?;
-    */
+
     debug!("{} version {}", crate_name!(), crate_version!());
     debug!(
         "{:<10} {}",
@@ -104,11 +98,8 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     let session = ui::Session::new_dumb_terminal(conf_ref.clone());
-    session.login(ui::SessionAuth::UseSaved);
-    conf_ref.borrow_mut().flush()?;
-
-    let mut app = app::App::new(conf_ref.clone());
-    app.run();
+    let mut app = app::App::new(conf_ref, session);
+    app.run()?;
 
     Ok(())
 }

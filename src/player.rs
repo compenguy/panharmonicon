@@ -1,11 +1,12 @@
 use std::sync::mpsc;
 
-use crate::errors::{Result, Error};
+use crate::errors::{Error, Result};
+use pandora_rs2;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ToPandora {
     Reset,
-    Login,
+    Login(String, String),
     ReqStationList,
     ReqStationInfo,
     PlayStation,
@@ -24,13 +25,77 @@ pub(crate) enum FromPandora {
     Reset,
     AuthAccepted,
     AuthFailed,
-    StationList,
-    StationInfo,
-    SongList,
-    SongInfo,
-    SongProgress,
-    AddToPlaylist,
+    StationList(Vec<StationInfo>),
+    StationInfo(StationInfo),
+    SongList(Vec<SongInfo>),
+    SongInfo(SongInfo),
+    SongProgress(u8),
     Error(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct StationInfo {
+    id: String,
+    name: String,
+}
+
+impl std::fmt::Display for StationInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+impl From<pandora_rs2::stations::Station> for StationInfo {
+    fn from(station: pandora_rs2::stations::Station) -> Self {
+        Self {
+            id: station.station_id,
+            name: station.station_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SongInfo {
+    is_ad: bool,
+    track_token: Option<String>,
+    artist_name: Option<String>,
+    album_name: Option<String>,
+    song_name: Option<String>,
+    song_rating: Option<u32>,
+}
+
+impl std::fmt::Display for SongInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_ad {
+            write!(f, "<Ad> ")?;
+        }
+        if let Some(name) = &self.song_name {
+            write!(f, "{} ", name)?;
+        }
+        if let Some(artist) = &self.artist_name {
+            write!(f, "by {} ", artist)?;
+        }
+        if let Some(album) = &self.album_name {
+            write!(f, "on {} ", album)?;
+        }
+        if let Some(rating) = &self.song_rating {
+            write!(f, "[{}]", rating)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<pandora_rs2::playlist::Track> for SongInfo {
+    fn from(song: pandora_rs2::playlist::Track) -> Self {
+        Self {
+            is_ad: song.ad_token.is_some(),
+            track_token: song.track_token,
+            artist_name: song.artist_name,
+            album_name: song.album_name,
+            song_name: song.song_name,
+            song_rating: song.song_rating,
+        }
+    }
 }
 
 impl From<Error> for FromPandora {
@@ -39,7 +104,7 @@ impl From<Error> for FromPandora {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum PandoraState {
     LoggedOut,
     Authenticated,
@@ -47,7 +112,7 @@ pub(crate) enum PandoraState {
     Exiting,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PandoraConfig {
     muted: bool,
     volume: u8,
@@ -65,15 +130,21 @@ impl Default for PandoraConfig {
 #[derive(Debug)]
 pub(crate) struct Pandora {
     state: PandoraState,
+    connection: Option<pandora_rs2::Pandora>,
     config: PandoraConfig,
     recv_channel: mpsc::Receiver<ToPandora>,
     send_channel: mpsc::Sender<FromPandora>,
 }
 
 impl Pandora {
-    pub(crate) fn new(send_channel: mpsc::Sender<FromPandora>, recv_channel: mpsc::Receiver<ToPandora>, config: Option<PandoraConfig>) -> Self {
+    pub(crate) fn new(
+        send_channel: mpsc::Sender<FromPandora>,
+        recv_channel: mpsc::Receiver<ToPandora>,
+        config: Option<PandoraConfig>,
+    ) -> Self {
         Self {
             state: PandoraState::LoggedOut,
+            connection: None,
             config: config.unwrap_or_default(),
             recv_channel,
             send_channel,
@@ -91,7 +162,7 @@ impl Pandora {
     pub(crate) fn process_message(&mut self) {
         match self.recv_channel.recv() {
             Ok(ToPandora::Reset) => self.reset(),
-            Ok(ToPandora::Login) => self.login(),
+            Ok(ToPandora::Login(u, p)) => self.login(&u, &p),
             Ok(ToPandora::ReqStationList) => self.send_station_list(),
             Ok(ToPandora::ReqStationInfo) => self.send_station_info(),
             Ok(ToPandora::PlayStation) => self.play(),
@@ -108,11 +179,18 @@ impl Pandora {
     }
 
     fn reset(&mut self) {
-        todo!()
+        self.state = PandoraState::LoggedOut;
+        todo!("Actually log out of pandora")
     }
 
-    fn login(&mut self) {
-        todo!()
+    fn login(&mut self, username: &str, password: &str) {
+        match pandora_rs2::Pandora::new(username, password) {
+            Ok(pandora) => {
+                self.connection = Some(pandora);
+                self.state = PandoraState::Authenticated;
+            }
+            Err(e) => self.send_message(FromPandora::from(Error::from(e))),
+        }
     }
 
     fn send_station_list(&mut self) {
@@ -160,7 +238,11 @@ impl Pandora {
     }
 }
 
-pub(crate) fn run(send_channel: mpsc::Sender<FromPandora>, recv_channel: mpsc::Receiver<ToPandora>, config: Option<PandoraConfig>) {
+pub(crate) fn run(
+    send_channel: mpsc::Sender<FromPandora>,
+    recv_channel: mpsc::Receiver<ToPandora>,
+    config: Option<PandoraConfig>,
+) {
     let mut pandora = Pandora::new(send_channel, recv_channel, config);
     while pandora.state != PandoraState::Exiting {
         pandora.process_message();
