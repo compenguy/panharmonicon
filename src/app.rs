@@ -2,25 +2,29 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::config::Config;
 use crate::errors::{Error, Result};
 use crate::player;
 use crate::ui;
 
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AppState {
     Reset,
     Connected,
     Play,
     Pause,
+    Quit,
 }
 
+#[derive(Debug)]
 pub(crate) struct App {
     last_activity: std::time::Instant,
     state: AppState,
     ui: ui::Session,
     config: Rc<RefCell<Config>>,
+    // TODO: make this an Option<JoinHandle> so that reset can respawn the thread?
     thread_handle: std::thread::JoinHandle<()>,
     recv_channel: mpsc::Receiver<player::FromPandora>,
     send_channel: mpsc::Sender<player::ToPandora>,
@@ -33,8 +37,9 @@ impl App {
 
         let builder = std::thread::Builder::new();
 
+        trace!("Spawning audio playback thread");
         let handle = builder
-            .name("player_player".to_string())
+            .name("panharmonicon_player".to_string())
             .spawn(move || {
                 player::run(send_to_ui, recv_from_ui, None);
             })
@@ -62,6 +67,7 @@ impl App {
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(e) => Err(e)?,
             };
+            trace!("Processed message from player thread");
             self.update_watchdog();
         }
         Ok(())
@@ -69,17 +75,17 @@ impl App {
 
     pub(crate) fn run(&mut self) -> Result<()> {
         // Run through all pending messages
-        self.try_run()?;
-        // Then block on next message
-        // TODO: before blocking on message, check to see if watchdog expired
-        // else we could be waiting a *very* long time
-        self.process_msg(self.recv_channel.recv().map_err(Error::from)?)?;
-        self.update_watchdog();
+        while self.state != AppState::Quit {
+            trace!("Spinning on messages from player thread");
+            self.try_run()?;
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            // TODO: check to see if watchdog expired
+        }
         Ok(())
     }
 
     fn process_msg(&mut self, msg: player::FromPandora) -> Result<()> {
-        debug!("UI update message: {:?}", msg);
+        trace!("UI update message: {:?}", msg);
         match msg {
             player::FromPandora::Reset => self.msg_reset()?,
             player::FromPandora::AuthAccepted => self.msg_auth_accepted()?,
@@ -90,16 +96,19 @@ impl App {
             player::FromPandora::SongInfo(si) => self.msg_song_info(&si)?,
             player::FromPandora::SongProgress(p) => self.msg_song_progress(p)?,
             player::FromPandora::Error(e) => self.msg_error(&e)?,
+            player::FromPandora::Quit => self.msg_quit()?,
         }
         Ok(())
     }
 
     fn msg_error(&mut self, msg: &str) -> Result<()> {
+        trace!("Calling UI to display error");
         self.ui.display_error(msg);
         Ok(())
     }
 
     fn msg_reset(&mut self) -> Result<()> {
+        trace!("Resetting application state");
         self.state = AppState::Reset;
         self.ui.login(ui::SessionAuth::UseSaved);
         todo!();
@@ -107,6 +116,7 @@ impl App {
     }
 
     fn msg_auth_accepted(&mut self) -> Result<()> {
+        trace!("Pandora authentication complete");
         self.state = AppState::Connected;
         // Ensure that login credentials are commited to config
         self.config.borrow_mut().flush()?;
@@ -115,6 +125,8 @@ impl App {
     }
 
     fn msg_auth_failed(&mut self) -> Result<()> {
+        // TODO: Updated auth failed message with explanation?
+        trace!("Pandora authentication failed");
         self.state = AppState::Reset;
         self.ui.login(ui::SessionAuth::ForceReauth);
         todo!();
@@ -122,27 +134,38 @@ impl App {
     }
 
     fn msg_station_list(&mut self, stations: &[player::StationInfo]) -> Result<()> {
+        trace!("Calling UI to display station list");
         self.ui.display_station_list(stations);
         Ok(())
     }
 
     fn msg_station_info(&mut self, station: &player::StationInfo) -> Result<()> {
+        trace!("Calling UI to display station info");
         self.ui.display_station_info(station);
         Ok(())
     }
 
     fn msg_song_list(&mut self, songs: &[player::SongInfo]) -> Result<()> {
+        trace!("Calling UI to display song list");
         self.ui.display_song_list(songs);
         Ok(())
     }
 
     fn msg_song_info(&mut self, song: &player::SongInfo) -> Result<()> {
+        trace!("Calling UI to display song info");
         self.ui.display_song_info(song);
         Ok(())
     }
 
     fn msg_song_progress(&mut self, progress: u8) -> Result<()> {
+        trace!("Calling UI to update song progress");
         self.ui.update_song_progress(progress);
+        Ok(())
+    }
+
+    fn msg_quit(&mut self) -> Result<()> {
+        trace!("Quitting application");
+        self.state = AppState::Quit;
         Ok(())
     }
 }

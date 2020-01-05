@@ -1,4 +1,5 @@
 use std::sync::mpsc;
+use log::{debug, trace};
 
 use crate::errors::{Error, Result};
 use pandora_rs2;
@@ -30,6 +31,7 @@ pub(crate) enum FromPandora {
     SongList(Vec<SongInfo>),
     SongInfo(SongInfo),
     SongProgress(u8),
+    Quit,
     Error(String),
 }
 
@@ -151,7 +153,38 @@ impl Pandora {
         }
     }
 
+    pub(crate) fn try_run(&mut self) {
+        loop {
+            match self.recv_channel.try_recv() {
+                Ok(msg) => self.process_msg(msg),
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(e) => self.send_message(FromPandora::from(Error::from(e))),
+            };
+            trace!("Processed message from application thread");
+        }
+    }
+
+    pub(crate) fn process_msg(&mut self, msg: ToPandora) {
+        trace!("Action request message: {:?}", msg);
+        match msg {
+            ToPandora::Reset => self.reset(),
+            ToPandora::Login(u, p) => self.login(&u, &p),
+            ToPandora::ReqStationList => self.send_station_list(),
+            ToPandora::ReqStationInfo => self.send_station_info(),
+            ToPandora::PlayStation => self.play(),
+            ToPandora::PauseStation => self.pause(),
+            ToPandora::ReqSongList => self.send_song_list(),
+            ToPandora::ReqSongInfo => self.send_song_info(),
+            ToPandora::LikeSong => self.like_playing(),
+            ToPandora::DislikeSong => self.dislike_playing(),
+            ToPandora::TiredSong => self.tired_playing(),
+            ToPandora::SkipSong => self.skip_playing(),
+            ToPandora::Quit => self.quit(),
+        }
+    }
+
     pub(crate) fn send_message(&mut self, msg: FromPandora) {
+        trace!("Sending message to application thread: {:?}", msg);
         if let Err(e) = self.send_channel.send(msg) {
             println!("Error communicating with main thread: {:?}", e);
             println!("Playback thread exiting...");
@@ -159,82 +192,78 @@ impl Pandora {
         }
     }
 
-    pub(crate) fn process_message(&mut self) {
-        match self.recv_channel.recv() {
-            Ok(ToPandora::Reset) => self.reset(),
-            Ok(ToPandora::Login(u, p)) => self.login(&u, &p),
-            Ok(ToPandora::ReqStationList) => self.send_station_list(),
-            Ok(ToPandora::ReqStationInfo) => self.send_station_info(),
-            Ok(ToPandora::PlayStation) => self.play(),
-            Ok(ToPandora::PauseStation) => self.pause(),
-            Ok(ToPandora::ReqSongList) => self.send_song_list(),
-            Ok(ToPandora::ReqSongInfo) => self.send_song_info(),
-            Ok(ToPandora::LikeSong) => self.like_playing(),
-            Ok(ToPandora::DislikeSong) => self.dislike_playing(),
-            Ok(ToPandora::TiredSong) => self.tired_playing(),
-            Ok(ToPandora::SkipSong) => self.skip_playing(),
-            Ok(ToPandora::Quit) => self.quit(),
-            Err(e) => self.send_message(FromPandora::from(Error::from(e))),
-        }
-    }
-
     fn reset(&mut self) {
+        trace!("Resetting player");
         self.state = PandoraState::LoggedOut;
         todo!("Actually log out of pandora")
     }
 
     fn login(&mut self, username: &str, password: &str) {
+        trace!("Attempting Pandora login");
         match pandora_rs2::Pandora::new(username, password) {
             Ok(pandora) => {
                 self.connection = Some(pandora);
                 self.state = PandoraState::Authenticated;
+                trace!("Pandora login successful");
             }
             Err(e) => self.send_message(FromPandora::from(Error::from(e))),
         }
     }
 
     fn send_station_list(&mut self) {
+        trace!("Sending station list to UI");
         todo!()
     }
 
     fn send_station_info(&mut self) {
+        trace!("Sending station info to UI");
         todo!()
     }
 
     fn send_song_list(&mut self) {
+        trace!("Sending playlist to UI");
         todo!()
     }
 
     fn send_song_info(&mut self) {
+        trace!("Sending song info to UI");
         todo!()
     }
 
     fn play(&mut self) {
+        trace!("Starting playback");
         todo!()
     }
 
     fn pause(&mut self) {
+        trace!("Pausing playback");
         todo!()
     }
 
     fn like_playing(&mut self) {
+        trace!("Like song");
         todo!()
     }
 
     fn dislike_playing(&mut self) {
+        trace!("Dislike song");
         todo!()
     }
 
     fn tired_playing(&mut self) {
+        trace!("Tired of song");
         todo!()
     }
 
     fn skip_playing(&mut self) {
+        trace!("Skip current song");
         todo!()
     }
 
     pub(crate) fn quit(&mut self) {
-        todo!()
+        trace!("Quit player");
+        self.state = PandoraState::Exiting;
+        self.send_message(FromPandora::Quit);
     }
 }
 
@@ -245,6 +274,9 @@ pub(crate) fn run(
 ) {
     let mut pandora = Pandora::new(send_channel, recv_channel, config);
     while pandora.state != PandoraState::Exiting {
-        pandora.process_message();
+        trace!("Spinning on messages from ui thread");
+        pandora.try_run();
+        debug!("TODO: process playing song");
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }

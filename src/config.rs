@@ -4,6 +4,7 @@ use std::io::BufWriter;
 use std::mem;
 use std::path::{Path, PathBuf};
 
+use log::trace;
 use clap::crate_name;
 use serde_derive::{Deserialize, Serialize};
 
@@ -157,12 +158,14 @@ impl Config {
         let mut config = Self::default();
         config.path = Some(file_path.as_ref().to_path_buf());
         if let Ok(config_file) = File::open(file_path.as_ref()) {
+            trace!("Reading config file");
             config.update_from(
                 &serde_json::from_reader(BufReader::new(config_file))
                     .map_err(|e| Error::ConfigParseFailure(Box::new(e)))?,
             )?;
         }
         if write_back {
+            trace!("Updating config file for newly-added options");
             config.flush()?;
         }
         Ok(config)
@@ -181,6 +184,7 @@ impl Config {
     pub(crate) fn flush(&mut self) -> Result<()> {
         if let Some(path) = self.path.as_ref() {
             if self.dirty || !path.exists() {
+                trace!("Current settings differ from those on disk, writing updated settings to disk");
                 self.write(&path)?;
             }
             self.dirty = false;

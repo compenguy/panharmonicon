@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
-use log::debug;
+use log::{debug, trace};
 use mktemp::TempDir;
 
 mod errors;
@@ -94,11 +94,14 @@ fn main() -> Result<()> {
         sys_info::hostname().unwrap_or_else(|_| String::from("Unknown"))
     );
 
+    trace!("Loading user config");
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
     let session = ui::Session::new_dumb_terminal(conf_ref.clone());
+    trace!("Initialing app interface");
     let mut app = app::App::new(conf_ref, session);
+    trace!("Starting app");
     app.run()?;
 
     Ok(())
