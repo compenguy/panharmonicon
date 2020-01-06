@@ -99,7 +99,7 @@ impl Panharmonicon {
                 self.play_track()?;
             } else if self.has_playlist() {
                 self.advance_playlist()?;
-            } else if self.has_station() {
+            } else if self.has_station() && self.has_connection() {
                 self.refill_playlist()?;
             } else if self.has_connection() {
                 self.select_station()?;
@@ -235,6 +235,7 @@ impl Panharmonicon {
                     std::fs::create_dir_all(&dir)
                         .map_err(|e| Error::CacheDirCreateFailure(Box::new(e)))?;
                 }
+                // TODO: if error, be sure to remove the created file
                 let mut cached = std::io::BufWriter::new(
                     std::fs::File::create(&cache_file)
                         .map_err(|e| Error::FileCachingFailure(Box::new(e)))?,
