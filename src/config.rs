@@ -13,9 +13,9 @@ use crate::errors::{Error, Result};
 #[derive(Deserialize, Debug)]
 #[serde(rename = "Config")]
 pub(crate) struct PartialConfig {
-    login: Option<Credentials>,
-    station_id: Option<Option<String>>,
-    save_station: Option<bool>,
+    pub(crate) login: Option<Credentials>,
+    pub(crate) station_id: Option<Option<String>>,
+    pub(crate) save_station: Option<bool>,
 }
 
 pub(crate) mod serde_session {

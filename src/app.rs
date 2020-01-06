@@ -7,7 +7,7 @@ use clap::crate_name;
 use log::trace;
 use reqwest;
 
-use crate::config::Config;
+use crate::config::{Config, PartialConfig};
 use crate::errors::{Error, Result};
 use crate::ui;
 
@@ -79,12 +79,15 @@ pub(crate) struct Panharmonicon {
 
 impl Panharmonicon {
     pub(crate) fn new(config: Rc<RefCell<Config>>, ui: ui::Session) -> Self {
-        // TODO: get saved station from config to init struct
+        let station = config.borrow().station_id.clone().map(|id| Station {
+            station_id: id,
+            station_name: String::new(),
+        });
         Self {
             ui,
             config,
             connection: None,
-            station: None,
+            station: station,
             playlist: std::collections::VecDeque::with_capacity(6),
             playing: None,
         }
@@ -161,7 +164,17 @@ impl Panharmonicon {
         }
         let station = self.ui.select_station();
         self.ui.display_station_info(&station);
-        self.station = Some(station);
+        self.station = Some(station.clone());
+
+        if self.config.borrow().save_station {
+            let partial_update = PartialConfig {
+                login: None,
+                station_id: Some(Some(station.station_id)),
+                save_station: None,
+            };
+            self.config.borrow_mut().update_from(&partial_update)?;
+            self.config.borrow_mut().flush()?;
+        }
         Ok(())
     }
 
@@ -243,11 +256,18 @@ impl Panharmonicon {
     fn play_track(&mut self) -> Result<()> {
         trace!("Playing active track");
         if let Some(playing) = self.playing.as_mut() {
-            if playing.remaining > std::time::Duration::from_millis(0) {
+            let zero = std::time::Duration::from_millis(0);
+            if playing.remaining > zero {
                 trace!("playing active track");
                 let cur = std::time::Instant::now();
                 std::thread::sleep(std::time::Duration::from_millis(100));
-                playing.remaining -= cur.elapsed();
+                let elapsed = cur.elapsed();
+                if elapsed < playing.remaining {
+                    playing.remaining -= elapsed;
+                } else {
+                    playing.remaining = zero;
+                }
+
                 self.ui.update_song_progress(&playing.remaining);
             } else {
                 trace!("active track completed");
