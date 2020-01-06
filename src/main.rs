@@ -16,7 +16,6 @@ use crate::config::Config;
 mod ui;
 
 mod app;
-mod player;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
@@ -99,8 +98,8 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     let session = ui::Session::new_dumb_terminal(conf_ref.clone());
-    trace!("Initialing app interface");
-    let mut app = app::App::new(conf_ref, session);
+    trace!("Initializing app interface");
+    let mut app = app::Panharmonicon::new(conf_ref, session);
     trace!("Starting app");
     app.run()?;
 

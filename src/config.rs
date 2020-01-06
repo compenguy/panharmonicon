@@ -4,8 +4,8 @@ use std::io::BufWriter;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use log::trace;
 use clap::crate_name;
+use log::trace;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
@@ -13,16 +13,9 @@ use crate::errors::{Error, Result};
 #[derive(Deserialize, Debug)]
 #[serde(rename = "Config")]
 pub(crate) struct PartialConfig {
-    login: Credentials,
-}
-
-#[derive(Serialize, Debug)]
-pub(crate) struct Config {
-    pub(crate) login: Credentials,
-    #[serde(skip)]
-    pub(crate) path: Option<PathBuf>,
-    #[serde(skip)]
-    pub(crate) dirty: bool,
+    login: Option<Credentials>,
+    station_id: Option<Option<String>>,
+    save_station: Option<bool>,
 }
 
 pub(crate) mod serde_session {
@@ -140,10 +133,24 @@ impl Credentials {
     }
 }
 
+#[derive(Serialize, Debug)]
+pub(crate) struct Config {
+    #[serde(skip)]
+    pub(crate) path: Option<PathBuf>,
+    #[serde(skip)]
+    pub(crate) dirty: bool,
+    pub(crate) login: Credentials,
+    pub(crate) station_id: Option<String>,
+    pub(crate) save_station: bool,
+}
+
 impl std::default::Default for Config {
     fn default() -> Self {
         Self {
-            login: Credentials::Session(None, None),
+            //login: Credentials::Session(None, None),
+            login: Credentials::Keyring(String::from("compenguy@gmail.com")),
+            station_id: None,
+            save_station: true,
             path: None,
             dirty: false,
         }
@@ -184,7 +191,9 @@ impl Config {
     pub(crate) fn flush(&mut self) -> Result<()> {
         if let Some(path) = self.path.as_ref() {
             if self.dirty || !path.exists() {
-                trace!("Current settings differ from those on disk, writing updated settings to disk");
+                trace!(
+                    "Current settings differ from those on disk, writing updated settings to disk"
+                );
                 self.write(&path)?;
             }
             self.dirty = false;
@@ -193,11 +202,26 @@ impl Config {
     }
 
     pub(crate) fn update_from(&mut self, other: &PartialConfig) -> Result<()> {
-        if self.login != other.login {
-            self.dirty |= true;
-            self.login = other.login.clone();
+        if let Some(login) = &other.login {
+            if self.login != *login {
+                self.dirty |= true;
+                self.login = login.clone();
+            }
         }
 
+        if let Some(station_id) = &other.station_id {
+            if self.station_id != *station_id {
+                self.dirty |= true;
+                self.station_id = station_id.clone();
+            }
+        }
+
+        if let Some(save_station) = other.save_station {
+            if self.save_station != save_station {
+                self.dirty |= true;
+                self.save_station = save_station;
+            }
+        }
         Ok(())
     }
 }

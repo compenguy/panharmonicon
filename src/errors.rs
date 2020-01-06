@@ -6,16 +6,25 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) enum Error {
     ConfigDirNotFound,
+    ConfigDirCreateFailure(Box<std::io::Error>),
+    CacheDirNotFound,
+    CacheDirCreateFailure(Box<std::io::Error>),
     FlexiLoggerFailure(Box<flexi_logger::FlexiLoggerError>),
     LoggerFileFailure(Box<std::io::Error>),
     ConfigParseFailure(Box<serde_json::error::Error>),
     ConfigWriteFailure(Box<std::io::Error>),
-    ConfigDirCreateFailure(Box<std::io::Error>),
     JsonSerializeFailure(Box<serde_json::error::Error>),
     KeyringFailure(Box<keyring::KeyringError>),
-    ThreadChannelFailure(Box<std::sync::mpsc::RecvError>),
-    ThreadChannelTryFailure(Box<std::sync::mpsc::TryRecvError>),
     PandoraFailure(Box<pandora_rs2::error::Error>),
+    FileCachingFailure(Box<std::io::Error>),
+    HttpRequestFailure(Box<reqwest::Error>),
+    PanharmoniconNotConnected,
+    PanharmoniconNoStationSelected,
+    PanharmoniconMissingAuthToken,
+    PanharmoniconTrackHasNoId,
+    PanharmoniconTrackHasNoName,
+    PanharmoniconTrackHasNoArtist,
+    PanharmoniconTrackHasNoAudio,
 }
 
 impl PartialEq<Error> for Error {
@@ -31,6 +40,14 @@ impl std::fmt::Display for Error {
                 f,
                 "Unable to identify platform-appropriate configuration directory."
             ),
+            Error::ConfigDirCreateFailure(e) => {
+                write!(f, "Error creating configuration directory: {}", e)
+            }
+            Error::CacheDirNotFound => write!(
+                f,
+                "Unable to identify platform-appropriate cache directory."
+            ),
+            Error::CacheDirCreateFailure(e) => write!(f, "Error creating cache directory: {}", e),
             Error::FlexiLoggerFailure(e) => write!(f, "Error initializing flexi-logger: {}", e),
             Error::LoggerFileFailure(e) => write!(f, "Error opening log file: {}", e),
             Error::ConfigParseFailure(e) => write!(f, "Error parsing configuration file: {}", e),
@@ -38,19 +55,29 @@ impl std::fmt::Display for Error {
             Error::JsonSerializeFailure(e) => {
                 write!(f, "Error converting structure to json for writing: {}", e)
             }
-            Error::ConfigDirCreateFailure(e) => {
-                write!(f, "Error creating configuration directory: {}", e)
-            }
             Error::KeyringFailure(e) => {
                 write!(f, "Error reading password from system keyring: {}", e)
             }
-            Error::ThreadChannelFailure(e) => {
-                write!(f, "Thread communication channel error: {}", e)
-            }
-            Error::ThreadChannelTryFailure(e) => {
-                write!(f, "Thread communication channel error: {}", e)
-            }
             Error::PandoraFailure(e) => write!(f, "Pandora connection error: {}", e),
+            Error::FileCachingFailure(e) => write!(f, "File caching error: {}", e),
+            Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
+            Error::PanharmoniconNotConnected => {
+                write!(f, "Unable to complete action, not connected to Pandora")
+            }
+            Error::PanharmoniconNoStationSelected => {
+                write!(f, "Unable to complete action, no station selected")
+            }
+            Error::PanharmoniconMissingAuthToken => {
+                write!(f, "Pandora login credentials incomplete")
+            }
+            Error::PanharmoniconTrackHasNoId => write!(f, "Pandora track is missing track id"),
+            Error::PanharmoniconTrackHasNoName => write!(f, "Pandora track is missing track name"),
+            Error::PanharmoniconTrackHasNoArtist => {
+                write!(f, "Pandora track is missing track artist")
+            }
+            Error::PanharmoniconTrackHasNoAudio => {
+                write!(f, "Pandora track is missing track audio")
+            }
         }
     }
 }
@@ -65,16 +92,25 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::ConfigDirNotFound => None,
+            Error::ConfigDirCreateFailure(e) => Some(e),
+            Error::CacheDirNotFound => None,
+            Error::CacheDirCreateFailure(e) => Some(e),
             Error::FlexiLoggerFailure(e) => Some(e),
             Error::LoggerFileFailure(e) => Some(e),
             Error::ConfigParseFailure(e) => Some(e),
             Error::ConfigWriteFailure(e) => Some(e),
             Error::JsonSerializeFailure(e) => Some(e),
-            Error::ConfigDirCreateFailure(e) => Some(e),
             Error::KeyringFailure(e) => Some(e),
-            Error::ThreadChannelFailure(e) => Some(e),
-            Error::ThreadChannelTryFailure(e) => Some(e),
             Error::PandoraFailure(e) => Some(e),
+            Error::FileCachingFailure(e) => Some(e),
+            Error::HttpRequestFailure(e) => Some(e),
+            Error::PanharmoniconNotConnected => None,
+            Error::PanharmoniconNoStationSelected => None,
+            Error::PanharmoniconMissingAuthToken => None,
+            Error::PanharmoniconTrackHasNoId => None,
+            Error::PanharmoniconTrackHasNoName => None,
+            Error::PanharmoniconTrackHasNoArtist => None,
+            Error::PanharmoniconTrackHasNoAudio => None,
         }
     }
 }
@@ -85,20 +121,14 @@ impl From<keyring::KeyringError> for Error {
     }
 }
 
-impl From<std::sync::mpsc::RecvError> for Error {
-    fn from(err: std::sync::mpsc::RecvError) -> Self {
-        Error::ThreadChannelFailure(Box::new(err))
-    }
-}
-
-impl From<std::sync::mpsc::TryRecvError> for Error {
-    fn from(err: std::sync::mpsc::TryRecvError) -> Self {
-        Error::ThreadChannelTryFailure(Box::new(err))
-    }
-}
-
 impl From<pandora_rs2::error::Error> for Error {
     fn from(err: pandora_rs2::error::Error) -> Self {
         Error::PandoraFailure(Box::new(err))
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::HttpRequestFailure(Box::new(err))
     }
 }

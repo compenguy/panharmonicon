@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 mod dumbterm;
 // mod cursive;
+use crate::app;
 use crate::config::Config;
-use crate::player;
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,38 +55,45 @@ impl Session {
         }
     }
 
-    pub(crate) fn display_station_list(&self, stations: &[player::StationInfo]) {
+    pub(crate) fn display_station_list(&self, stations: &[app::Station]) {
         match self {
             Session::DumbTerminal(_) => ui::dumbterm::display_station_list(stations),
             // Session::Cursive(cu) => ui::cursive::display_station_list(cu.clone(), stations),
         }
     }
 
-    pub(crate) fn display_station_info(&self, station: &player::StationInfo) {
+    pub(crate) fn display_station_info(&self, station: &app::Station) {
         match self {
             Session::DumbTerminal(_) => ui::dumbterm::display_station_info(station),
             // Session::Cursive(cu) => ui::cursive::display_station_info(cu.clone(), station),
         }
     }
 
-    pub(crate) fn display_song_list(&self, songs: &[player::SongInfo]) {
+    pub(crate) fn display_song_list(&self, songs: &[app::SongInfo]) {
         match self {
             Session::DumbTerminal(_) => ui::dumbterm::display_song_list(songs),
             // Session::Cursive(cu) => ui::cursive::display_song_list(cu.clone(), songs),
         }
     }
 
-    pub(crate) fn display_song_info(&self, song: &player::SongInfo) {
+    pub(crate) fn display_song_info(&self, song: &app::SongInfo) {
         match self {
             Session::DumbTerminal(_) => ui::dumbterm::display_song_info(song),
             // Session::Cursive(cu) => ui::cursive::display_song_info(cu.clone(), song),
         }
     }
 
-    pub(crate) fn update_song_progress(&self, progress: u8) {
+    pub(crate) fn update_song_progress(&self, remaining: &std::time::Duration) {
         match self {
-            Session::DumbTerminal(_) => ui::dumbterm::display_song_progress(progress),
-            // Session::Cursive(cu) => ui::cursive::display_song_progress(cu.clone(), progress),
+            Session::DumbTerminal(_) => ui::dumbterm::display_song_progress(remaining),
+            // Session::Cursive(cu) => ui::cursive::display_song_progress(cu.clone(), remaining),
+        }
+    }
+
+    pub(crate) fn select_station(&self) -> app::Station {
+        match self {
+            Session::DumbTerminal(_) => ui::dumbterm::station_prompt(),
+            // Session::Cursive(cu) => ui::cursive::select_station(cu.clone()),
         }
     }
 }
