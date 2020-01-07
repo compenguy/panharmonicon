@@ -9,6 +9,7 @@ pub(crate) enum Error {
     ConfigDirCreateFailure(Box<std::io::Error>),
     CacheDirNotFound,
     FileWriteFailure(Box<dyn std::error::Error>),
+    FileReadFailure(Box<dyn std::error::Error>),
     FlexiLoggerFailure(Box<flexi_logger::FlexiLoggerError>),
     LoggerFileFailure(Box<std::io::Error>),
     ConfigParseFailure(Box<serde_json::error::Error>),
@@ -19,6 +20,8 @@ pub(crate) enum Error {
     HttpRequestFailure(Box<reqwest::Error>),
     InputFailure(Box<std::io::Error>),
     OutputFailure(Box<std::io::Error>),
+    MediaParseFailure(Box<mp4parse::Error>),
+    InvalidMedia,
     PanharmoniconNotConnected,
     PanharmoniconNoStationSelected,
     PanharmoniconMissingAuthToken,
@@ -49,6 +52,7 @@ impl std::fmt::Display for Error {
                 "Unable to identify platform-appropriate cache directory."
             ),
             Error::FileWriteFailure(e) => write!(f, "Error writing to file: {}", e),
+            Error::FileReadFailure(e) => write!(f, "Error reading from file: {}", e),
             Error::FlexiLoggerFailure(e) => write!(f, "Error initializing flexi-logger: {}", e),
             Error::LoggerFileFailure(e) => write!(f, "Error opening log file: {}", e),
             Error::ConfigParseFailure(e) => write!(f, "Error parsing configuration file: {}", e),
@@ -63,6 +67,8 @@ impl std::fmt::Display for Error {
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
             Error::InputFailure(e) => write!(f, "Input read error: {}", e),
             Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
+            Error::MediaParseFailure(e) => write!(f, "Media parse error: {:?}", e),
+            Error::InvalidMedia => write!(f, "Invalid media stream"),
             Error::PanharmoniconNotConnected => {
                 write!(f, "Unable to complete action, not connected to Pandora")
             }
@@ -97,6 +103,7 @@ impl std::error::Error for Error {
             Error::ConfigDirCreateFailure(e) => Some(e),
             Error::CacheDirNotFound => None,
             Error::FileWriteFailure(_) => None,
+            Error::FileReadFailure(_) => None,
             Error::FlexiLoggerFailure(e) => Some(e),
             Error::LoggerFileFailure(e) => Some(e),
             Error::ConfigParseFailure(e) => Some(e),
@@ -107,6 +114,8 @@ impl std::error::Error for Error {
             Error::HttpRequestFailure(e) => Some(e),
             Error::InputFailure(e) => Some(e),
             Error::OutputFailure(e) => Some(e),
+            Error::MediaParseFailure(_) => None,
+            Error::InvalidMedia => None,
             Error::PanharmoniconNotConnected => None,
             Error::PanharmoniconNoStationSelected => None,
             Error::PanharmoniconMissingAuthToken => None,
@@ -133,5 +142,11 @@ impl From<pandora_rs2::error::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
         Error::HttpRequestFailure(Box::new(err))
+    }
+}
+
+impl From<mp4parse::Error> for Error {
+    fn from(err: mp4parse::Error) -> Self {
+        Error::MediaParseFailure(Box::new(err))
     }
 }

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 // Traits included to add required methods to types
-use std::convert::TryInto;
 use std::io::BufRead;
 use std::io::Write;
 
 use log::error;
+use pbr::ProgressBar;
 use termion::{async_stdin, color, color::Fg, cursor, screen};
 
 use crate::app;
@@ -86,15 +86,22 @@ pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
     outp: screen::AlternateScreen<std::io::Stdout>,
     inp: std::io::BufReader<termion::AsyncReader>,
+    now_playing: Option<app::SongInfo>,
+    progress: Option<ProgressBar<std::io::Stdout>>,
 }
 
 impl Terminal {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        Terminal {
+        let mut term = Terminal {
             config,
             outp: screen::AlternateScreen::from(std::io::stdout()),
             inp: std::io::BufReader::new(async_stdin()),
-        }
+            now_playing: None,
+            progress: None,
+        };
+
+        term.hide_cursor();
+        term
     }
 
     pub(crate) fn handle_result<T>(&mut self, result: Result<T>) {
@@ -105,6 +112,28 @@ impl Terminal {
 
     pub(crate) fn display_error(&mut self, msg: &str) {
         display_main(&mut self.outp, msg, Some(log::LevelFilter::Error));
+    }
+
+    pub(crate) fn hide_cursor(&mut self) {
+        let result =
+            write!(self.outp, "{}", cursor::Hide).map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+        let result = self
+            .outp
+            .flush()
+            .map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+    }
+
+    pub(crate) fn show_cursor(&mut self) {
+        let result =
+            write!(self.outp, "{}", cursor::Show).map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+        let result = self
+            .outp
+            .flush()
+            .map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
     }
 
     pub(crate) fn login(&mut self, auth: SessionAuth) -> Result<()> {
@@ -119,11 +148,13 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            self.show_cursor();
             let result = self
                 .inp
                 .read_line(&mut username)
                 .map_err(|e| Error::InputFailure(Box::new(e)));
             self.handle_result(result);
+            self.hide_cursor();
             self.config.borrow_mut().login.update_username(&username);
             // Ensure that we retry if the updated credentials are blank
             tmp_auth = SessionAuth::UseSaved;
@@ -140,11 +171,13 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            self.show_cursor();
             let result = self
                 .inp
                 .read_line(&mut password)
                 .map_err(|e| Error::InputFailure(Box::new(e)));
             self.handle_result(result);
+            self.hide_cursor();
             let result = self.config.borrow_mut().login.update_password(&password);
             if let Err(e) = result {
                 self.display_error(format!("Error updating password: {:?}", e).as_str());
@@ -162,6 +195,8 @@ impl Terminal {
         for station in stations {
             self.display_station_info(station);
         }
+        let result = writeln!(self.outp).map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
     }
 
     pub(crate) fn display_station_info(&mut self, station: &app::Station) {
@@ -181,6 +216,8 @@ impl Terminal {
         for song in songs {
             self.display_song_info(song);
         }
+        let result = writeln!(self.outp).map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
     }
 
     pub(crate) fn display_song_info(&mut self, song: &app::SongInfo) {
@@ -189,9 +226,38 @@ impl Terminal {
         self.handle_result(result);
     }
 
-    pub(crate) fn display_song_progress(&mut self, remaining: &std::time::Duration) {
-        let secs = remaining.as_secs();
-        let msg = format!("remaining: {:2}m {:2}s", secs / 60, secs % 60);
+    pub(crate) fn display_playing(&mut self, song: &app::SongInfo, duration: &std::time::Duration) {
+        if let Some(progress) = &mut self.progress {
+            progress.finish();
+        }
+        self.now_playing = Some(song.clone());
+        let mut progress = ProgressBar::new(duration.as_secs());
+        progress.format("╢▌▌░╟");
+        progress.show_speed = false;
+        progress.show_percent = false;
+        progress.show_counter = false;
+        progress.message(format!("{} - {} ", song.name, song.artist).as_str());
+        self.progress = Some(progress);
+    }
+
+    pub(crate) fn update_playing_progress(
+        &mut self,
+        duration: &std::time::Duration,
+        remaining: &std::time::Duration,
+    ) {
+        if let Some(progress) = &mut self.progress {
+            let dur_secs = duration.as_secs();
+            let remain_secs = remaining.as_secs();
+            progress.set(dur_secs - remain_secs);
+        }
+        /*
+        let msg = format!(
+            "{:2}:{:02}/{:2}:{:02}",
+            remain_secs / 60,
+            remain_secs % 60,
+            dur_secs / 60,
+            dur_secs % 60
+        );
         let result = write!(
             self.outp,
             "{}{}",
@@ -209,6 +275,7 @@ impl Terminal {
             .flush()
             .map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
+        */
     }
 
     pub(crate) fn station_prompt(&mut self) -> app::Station {
@@ -222,11 +289,13 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            self.show_cursor();
             let result = self
                 .inp
                 .read_line(&mut station_id)
                 .map_err(|e| Error::InputFailure(Box::new(e)));
             self.handle_result(result);
+            self.hide_cursor();
         }
 
         app::Station {

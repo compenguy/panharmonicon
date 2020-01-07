@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use clap::crate_name;
@@ -18,6 +17,7 @@ pub use pandora_rs2::stations::Station;
 pub(crate) struct SongInfo {
     pub(crate) name: String,
     pub(crate) artist: String,
+    pub(crate) album: Option<String>,
     pub(crate) rating: Option<u32>,
 }
 
@@ -28,6 +28,7 @@ pub(crate) struct Playing {
     encoding: String,
     url: String,
     protocol: String,
+    duration: std::time::Duration,
     remaining: std::time::Duration,
     info: SongInfo,
 }
@@ -58,10 +59,12 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
             encoding: audio.high_quality.encoding.to_string(),
             url: audio.high_quality.audio_url.to_string(),
             protocol: audio.high_quality.protocol.to_string(),
+            duration: std::time::Duration::from_millis(0),
             remaining: std::time::Duration::from_millis(0),
             info: SongInfo {
                 name: name.to_string(),
                 artist: artist.to_string(),
+                album: track.album_name.clone(),
                 rating: track.song_rating,
             },
         })
@@ -208,38 +211,44 @@ impl Panharmonicon {
         trace!("Advancing playlist");
         if let Some(track) = self.playlist.pop_front() {
             trace!("Getting another song off the playlist");
-            let playing = Playing::try_from(&track)?;
-            self.ui.display_song_info(&playing.info);
+            let mut playing = Playing::try_from(&track)?;
+            let cached_media = self.get_cached_media(&playing)?;
+            let reader = std::io::BufReader::new(
+                std::fs::File::open(cached_media)
+                    .map_err(|e| Error::FileReadFailure(Box::new(e)))?,
+            );
+            let duration = read_media_duration(reader)?;
+            playing.duration = duration;
+            playing.remaining = duration;
+            self.ui.display_playing(&playing.info, &duration);
             self.playing = Some(playing);
-            self.cache_playing()?;
         }
         Ok(())
     }
 
-    fn cache_playing(&mut self) -> Result<()> {
+    fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
         trace!("Caching active track");
-        if let Some(playing) = self.playing.as_mut() {
-            trace!("Sufficient track information to cache song");
-            let filename = format!("{} - {}.mp3", playing.info.artist, playing.info.name);
+        let filename = format!("{} - {}.m4a", playing.info.artist, playing.info.name);
 
-            let cache_file = dirs::cache_dir()
-                .ok_or_else(|| Error::CacheDirNotFound)?
-                .join(crate_name!())
-                .join(playing.track_token.clone())
-                .join(filename);
-            if cache_file.exists() {
-                trace!("Song already in cache.");
-            } else {
-                trace!("Caching song.");
-                if let Err(e) = write_url_body_to_file(&playing.url, &cache_file) {
-                    error!("Error caching track for playback: {:?}", e);
-                } else {
-                    trace!("Song added to cache.");
-                }
-            }
-            playing.remaining = std::time::Duration::from_secs(5 * 60);
+        let mut cache_file = dirs::cache_dir()
+            .ok_or_else(|| Error::CacheDirNotFound)?
+            .join(crate_name!())
+            .join(playing.info.artist.clone());
+        if let Some(album) = &playing.info.album {
+            cache_file = cache_file.join(album);
         }
-        Ok(())
+        cache_file = cache_file.join(filename);
+        if cache_file.exists() {
+            trace!("Song already in cache.");
+        } else {
+            trace!("Caching song.");
+            if let Err(e) = save_url_to_file(&playing.url, &cache_file) {
+                error!("Error caching track for playback: {:?}", e);
+            } else {
+                trace!("Song added to cache.");
+            }
+        }
+        Ok(cache_file)
     }
 
     fn has_track(&self) -> bool {
@@ -263,7 +272,8 @@ impl Panharmonicon {
                     playing.remaining = zero;
                 }
 
-                self.ui.display_song_progress(&playing.remaining);
+                self.ui
+                    .update_playing_progress(&playing.duration, &playing.remaining);
                 trace!(
                     "Playback timeslice ended ({}s remaining)",
                     playing.remaining.as_secs()
@@ -277,8 +287,22 @@ impl Panharmonicon {
     }
 }
 
-fn write_url_body_to_file(url: &str, file: &Path) -> Result<()> {
-    if let Err(e) = _write_url_body_to_file(url, file) {
+fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<std::time::Duration> {
+    let mut context = mp4parse::MediaContext::new();
+    mp4parse::read_mp4(&mut stream, &mut context).map_err(Error::from)?;
+    let track = context
+        .tracks
+        .iter()
+        .find(|t| t.track_type == mp4parse::TrackType::Audio)
+        .ok_or(Error::InvalidMedia)?;
+    let timescale = track.timescale.ok_or(Error::InvalidMedia)?;
+    let unscaled_duration = track.duration.ok_or(Error::InvalidMedia)?;
+    let duration = std::time::Duration::from_secs(unscaled_duration.0 / timescale.0);
+    Ok(duration)
+}
+
+fn save_url_to_file(url: &str, file: &Path) -> Result<()> {
+    if let Err(e) = _save_url_to_file(url, file) {
         // We suppress the result of attempting to remove the file because
         // 1. The file may not have been created in the first place
         // 2. We're too busy trying to return the original error anyway
@@ -289,7 +313,7 @@ fn write_url_body_to_file(url: &str, file: &Path) -> Result<()> {
     }
 }
 
-fn _write_url_body_to_file(url: &str, file: &Path) -> Result<()> {
+fn _save_url_to_file(url: &str, file: &Path) -> Result<()> {
     // Ensure that target directory exists
     if let Some(dir) = file.parent() {
         std::fs::create_dir_all(&dir).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
