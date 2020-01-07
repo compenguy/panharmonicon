@@ -1,15 +1,16 @@
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::io::Write;
+use std::path::Path;
 use std::rc::Rc;
 
 use clap::crate_name;
-use log::trace;
+use log::{error, trace};
 use reqwest;
 
 use crate::config::{Config, PartialConfig};
 use crate::errors::{Error, Result};
-use crate::ui;
+use crate::term;
 
 pub use pandora_rs2::stations::Station;
 
@@ -67,9 +68,8 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct Panharmonicon {
-    ui: ui::Session,
+    ui: term::Terminal,
     config: Rc<RefCell<Config>>,
     connection: Option<pandora_rs2::Pandora>,
     station: Option<Station>,
@@ -78,7 +78,7 @@ pub(crate) struct Panharmonicon {
 }
 
 impl Panharmonicon {
-    pub(crate) fn new(config: Rc<RefCell<Config>>, ui: ui::Session) -> Self {
+    pub(crate) fn new(config: Rc<RefCell<Config>>, ui: term::Terminal) -> Self {
         let station = config.borrow().station_id.clone().map(|id| Station {
             station_id: id,
             station_name: String::new(),
@@ -87,7 +87,7 @@ impl Panharmonicon {
             ui,
             config,
             connection: None,
-            station: station,
+            station,
             playlist: std::collections::VecDeque::with_capacity(6),
             playing: None,
         }
@@ -126,12 +126,12 @@ impl Panharmonicon {
         false
     }
 
-    fn update_credentials(&self, retry: bool) -> Result<()> {
+    fn update_credentials(&mut self, retry: bool) -> Result<()> {
         trace!("Requesting login credentials");
         if retry {
-            self.ui.login(ui::SessionAuth::ForceReauth);
+            self.ui.login(term::SessionAuth::ForceReauth)?;
         } else {
-            self.ui.login(ui::SessionAuth::UseSaved);
+            self.ui.login(term::SessionAuth::UseSaved)?;
         }
         Ok(())
     }
@@ -162,7 +162,7 @@ impl Panharmonicon {
         if let Some(connection) = self.connection.as_ref() {
             self.ui.display_station_list(&connection.stations().list()?);
         }
-        let station = self.ui.select_station();
+        let station = self.ui.station_prompt();
         self.ui.display_station_info(&station);
         self.station = Some(station.clone());
 
@@ -231,19 +231,11 @@ impl Panharmonicon {
                 trace!("Song already in cache.");
             } else {
                 trace!("Caching song.");
-                if let Some(dir) = cache_file.parent() {
-                    std::fs::create_dir_all(&dir)
-                        .map_err(|e| Error::CacheDirCreateFailure(Box::new(e)))?;
+                if let Err(e) = write_url_body_to_file(&playing.url, &cache_file) {
+                    error!("Error caching track for playback: {:?}", e);
+                } else {
+                    trace!("Song added to cache.");
                 }
-                // TODO: if error, be sure to remove the created file
-                let mut cached = std::io::BufWriter::new(
-                    std::fs::File::create(&cache_file)
-                        .map_err(|e| Error::FileCachingFailure(Box::new(e)))?,
-                );
-
-                let mut resp = reqwest::blocking::get(&playing.url).map_err(Error::from)?;
-                resp.copy_to(&mut cached).map_err(Error::from)?;
-                trace!("Song added to cache.");
             }
             playing.remaining = std::time::Duration::from_secs(5 * 60);
         }
@@ -255,11 +247,13 @@ impl Panharmonicon {
     }
 
     fn play_track(&mut self) -> Result<()> {
-        trace!("Playing active track");
         if let Some(playing) = self.playing.as_mut() {
             let zero = std::time::Duration::from_millis(0);
             if playing.remaining > zero {
-                trace!("playing active track");
+                trace!(
+                    "Playing active track ({}s remaining)",
+                    playing.remaining.as_secs()
+                );
                 let cur = std::time::Instant::now();
                 std::thread::sleep(std::time::Duration::from_millis(100));
                 let elapsed = cur.elapsed();
@@ -269,12 +263,45 @@ impl Panharmonicon {
                     playing.remaining = zero;
                 }
 
-                self.ui.update_song_progress(&playing.remaining);
+                self.ui.display_song_progress(&playing.remaining);
+                trace!(
+                    "Playback timeslice ended ({}s remaining)",
+                    playing.remaining.as_secs()
+                );
             } else {
-                trace!("active track completed");
                 self.playing = None;
+                trace!("Playback of Active track completed");
             }
         }
         Ok(())
     }
+}
+
+fn write_url_body_to_file(url: &str, file: &Path) -> Result<()> {
+    if let Err(e) = _write_url_body_to_file(url, file) {
+        // We suppress the result of attempting to remove the file because
+        // 1. The file may not have been created in the first place
+        // 2. We're too busy trying to return the original error anyway
+        let _ = std::fs::remove_file(file);
+        Err(e)
+    } else {
+        Ok(())
+    }
+}
+
+fn _write_url_body_to_file(url: &str, file: &Path) -> Result<()> {
+    // Ensure that target directory exists
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(&dir).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    }
+
+    let mut writer = std::io::BufWriter::new(
+        std::fs::File::create(&file).map_err(|e| Error::FileWriteFailure(Box::new(e)))?,
+    );
+
+    // Fetch the url and write the body to the open file
+    let mut resp = reqwest::blocking::get(url).map_err(Error::from)?;
+    resp.copy_to(&mut writer)
+        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    Ok(())
 }

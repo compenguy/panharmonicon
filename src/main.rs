@@ -13,7 +13,7 @@ use crate::errors::{Error, Result};
 mod config;
 use crate::config::Config;
 
-mod ui;
+mod term;
 
 mod app;
 
@@ -50,7 +50,7 @@ fn main() -> Result<()> {
                 .short("l")
                 .long("debug-log")
                 .hidden(true)
-                .help("File to write log output to."),
+                .help("Whether to write a debug log file."),
         )
         .get_matches();
 
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     };
     let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
 
-    if let Some(_log_file) = matches.value_of("debug-log") {
+    if matches.is_present("debug-log") {
         let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
         log_builder = log_builder
             .log_to_file()
@@ -97,7 +97,7 @@ fn main() -> Result<()> {
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let session = ui::Session::new_dumb_terminal(conf_ref.clone());
+    let session = term::Terminal::new(conf_ref.clone());
     trace!("Initializing app interface");
     let mut app = app::Panharmonicon::new(conf_ref, session);
     trace!("Starting app");

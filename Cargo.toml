@@ -18,3 +18,4 @@ keyring = "0.7"
 glob = "0.3"
 pandora-rs2 = "0.1"
 reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
+termion = "1.5"

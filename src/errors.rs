@@ -8,7 +8,7 @@ pub(crate) enum Error {
     ConfigDirNotFound,
     ConfigDirCreateFailure(Box<std::io::Error>),
     CacheDirNotFound,
-    CacheDirCreateFailure(Box<std::io::Error>),
+    FileWriteFailure(Box<dyn std::error::Error>),
     FlexiLoggerFailure(Box<flexi_logger::FlexiLoggerError>),
     LoggerFileFailure(Box<std::io::Error>),
     ConfigParseFailure(Box<serde_json::error::Error>),
@@ -16,8 +16,9 @@ pub(crate) enum Error {
     JsonSerializeFailure(Box<serde_json::error::Error>),
     KeyringFailure(Box<keyring::KeyringError>),
     PandoraFailure(Box<pandora_rs2::error::Error>),
-    FileCachingFailure(Box<std::io::Error>),
     HttpRequestFailure(Box<reqwest::Error>),
+    InputFailure(Box<std::io::Error>),
+    OutputFailure(Box<std::io::Error>),
     PanharmoniconNotConnected,
     PanharmoniconNoStationSelected,
     PanharmoniconMissingAuthToken,
@@ -47,7 +48,7 @@ impl std::fmt::Display for Error {
                 f,
                 "Unable to identify platform-appropriate cache directory."
             ),
-            Error::CacheDirCreateFailure(e) => write!(f, "Error creating cache directory: {}", e),
+            Error::FileWriteFailure(e) => write!(f, "Error writing to file: {}", e),
             Error::FlexiLoggerFailure(e) => write!(f, "Error initializing flexi-logger: {}", e),
             Error::LoggerFileFailure(e) => write!(f, "Error opening log file: {}", e),
             Error::ConfigParseFailure(e) => write!(f, "Error parsing configuration file: {}", e),
@@ -59,8 +60,9 @@ impl std::fmt::Display for Error {
                 write!(f, "Error reading password from system keyring: {}", e)
             }
             Error::PandoraFailure(e) => write!(f, "Pandora connection error: {}", e),
-            Error::FileCachingFailure(e) => write!(f, "File caching error: {}", e),
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
+            Error::InputFailure(e) => write!(f, "Input read error: {}", e),
+            Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
             Error::PanharmoniconNotConnected => {
                 write!(f, "Unable to complete action, not connected to Pandora")
             }
@@ -94,7 +96,7 @@ impl std::error::Error for Error {
             Error::ConfigDirNotFound => None,
             Error::ConfigDirCreateFailure(e) => Some(e),
             Error::CacheDirNotFound => None,
-            Error::CacheDirCreateFailure(e) => Some(e),
+            Error::FileWriteFailure(_) => None,
             Error::FlexiLoggerFailure(e) => Some(e),
             Error::LoggerFileFailure(e) => Some(e),
             Error::ConfigParseFailure(e) => Some(e),
@@ -102,8 +104,9 @@ impl std::error::Error for Error {
             Error::JsonSerializeFailure(e) => Some(e),
             Error::KeyringFailure(e) => Some(e),
             Error::PandoraFailure(e) => Some(e),
-            Error::FileCachingFailure(e) => Some(e),
             Error::HttpRequestFailure(e) => Some(e),
+            Error::InputFailure(e) => Some(e),
+            Error::OutputFailure(e) => Some(e),
             Error::PanharmoniconNotConnected => None,
             Error::PanharmoniconNoStationSelected => None,
             Error::PanharmoniconMissingAuthToken => None,
