@@ -97,6 +97,7 @@ impl Panharmonicon {
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
+        // TODO: add a way to quit
         loop {
             if self.has_track() {
                 self.play_track()?;
@@ -259,10 +260,6 @@ impl Panharmonicon {
         if let Some(playing) = self.playing.as_mut() {
             let zero = std::time::Duration::from_millis(0);
             if playing.remaining > zero {
-                trace!(
-                    "Playing active track ({}s remaining)",
-                    playing.remaining.as_secs()
-                );
                 let cur = std::time::Instant::now();
                 std::thread::sleep(std::time::Duration::from_millis(100));
                 let elapsed = cur.elapsed();
@@ -274,10 +271,6 @@ impl Panharmonicon {
 
                 self.ui
                     .update_playing_progress(&playing.duration, &playing.remaining);
-                trace!(
-                    "Playback timeslice ended ({}s remaining)",
-                    playing.remaining.as_secs()
-                );
             } else {
                 self.playing = None;
                 trace!("Playback of Active track completed");

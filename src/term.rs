@@ -2,11 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 // Traits included to add required methods to types
 use std::io::BufRead;
+use std::io::Read;
 use std::io::Write;
 
 use log::error;
 use pbr::ProgressBar;
-use termion::{async_stdin, color, color::Fg, cursor, screen};
+use termion::{async_stdin, color, color::Fg, cursor};
 
 use crate::app;
 use crate::config::Config;
@@ -22,23 +23,9 @@ fn display_main<W: std::io::Write>(outp: &mut W, msg: &str, level: Option<log::L
             log::LevelFilter::Debug => Box::new(Fg(color::Green)),
             log::LevelFilter::Trace => Box::new(Fg(color::LightBlack)),
         };
-        format!(
-            "{}{}[{}] {}{}{}",
-            screen::ToMainScreen,
-            msg_color,
-            level,
-            msg,
-            Fg(color::Reset),
-            screen::ToAlternateScreen,
-        )
+        format!("{}[{}] {}{}", msg_color, level, msg, Fg(color::Reset),)
     } else {
-        format!(
-            "{}{}{}{}",
-            screen::ToMainScreen,
-            Fg(color::Reset),
-            msg,
-            screen::ToAlternateScreen,
-        )
+        format!("{}{}", Fg(color::Reset), msg,)
     };
 
     if let Err(e) = writeln!(outp, "{}", formatted_msg) {
@@ -84,7 +71,7 @@ fn password_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
 
 pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
-    outp: screen::AlternateScreen<std::io::Stdout>,
+    outp: std::io::Stdout,
     inp: std::io::BufReader<termion::AsyncReader>,
     now_playing: Option<app::SongInfo>,
     progress: Option<ProgressBar<std::io::Stdout>>,
@@ -92,16 +79,24 @@ pub(crate) struct Terminal {
 
 impl Terminal {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        let mut term = Terminal {
+        Terminal {
             config,
-            outp: screen::AlternateScreen::from(std::io::stdout()),
+            outp: std::io::stdout(),
             inp: std::io::BufReader::new(async_stdin()),
             now_playing: None,
             progress: None,
-        };
+        }
+    }
 
-        term.hide_cursor();
-        term
+    pub(crate) fn drain_input(&mut self) {
+        let mut buffer = [0u8; 16];
+        loop {
+            if let Ok(count) = self.inp.read(&mut buffer) {
+                if count < buffer.len() {
+                    break;
+                }
+            }
+        }
     }
 
     pub(crate) fn handle_result<T>(&mut self, result: Result<T>) {
@@ -148,6 +143,9 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            // We don't want to read stale input from before we prompt the user
+            // for input
+            self.drain_input();
             self.show_cursor();
             let result = self
                 .inp
@@ -171,6 +169,9 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            // We don't want to read stale input from before we prompt the user
+            // for input
+            self.drain_input();
             self.show_cursor();
             let result = self
                 .inp
@@ -250,32 +251,6 @@ impl Terminal {
             let remain_secs = remaining.as_secs();
             progress.set(dur_secs - remain_secs);
         }
-        /*
-        let msg = format!(
-            "{:2}:{:02}/{:2}:{:02}",
-            remain_secs / 60,
-            remain_secs % 60,
-            dur_secs / 60,
-            dur_secs % 60
-        );
-        let result = write!(
-            self.outp,
-            "{}{}",
-            msg,
-            cursor::Left(
-                msg.len()
-                    .try_into()
-                    .expect("Message length exceeded valid line size")
-            ),
-        )
-        .map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-        let result = self
-            .outp
-            .flush()
-            .map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-        */
     }
 
     pub(crate) fn station_prompt(&mut self) -> app::Station {
@@ -289,6 +264,9 @@ impl Terminal {
                 .flush()
                 .map_err(|e| Error::OutputFailure(Box::new(e)));
             self.handle_result(result);
+            // We don't want to read stale input from before we prompt the user
+            // for input
+            self.drain_input();
             self.show_cursor();
             let result = self
                 .inp

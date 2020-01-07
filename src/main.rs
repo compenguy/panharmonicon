@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use mktemp::TempDir;
 
 mod errors;
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let log_level = match matches.occurrences_of("debug") {
+    let crate_log_level = match matches.occurrences_of("debug") {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
         2 => log::LevelFilter::Warn,
@@ -62,7 +62,18 @@ fn main() -> Result<()> {
         4 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
-    let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
+    let general_log_level = match crate_log_level {
+        log::LevelFilter::Trace | log::LevelFilter::Debug => log::LevelFilter::Error,
+        _ => log::LevelFilter::Off,
+    };
+    let spec = format!(
+        "{}, {} = {}",
+        general_log_level,
+        crate_name!(),
+        crate_log_level
+    );
+    let mut log_builder = Logger::with_str(&spec);
+    //let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
 
     if matches.is_present("debug-log") {
         let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
@@ -101,7 +112,9 @@ fn main() -> Result<()> {
     trace!("Initializing app interface");
     let mut app = app::Panharmonicon::new(conf_ref, session);
     trace!("Starting app");
-    app.run()?;
+    while let Err(e) = app.run() {
+        error!("{:?}", e);
+    }
 
     Ok(())
 }
