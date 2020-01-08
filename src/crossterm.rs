@@ -1,11 +1,10 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Duration;
 // Traits included to add required methods to types
 use std::io::Write;
 
-use crossterm::{cursor, event, style, QueueableCommand};
+use crossterm::{event, style, QueueableCommand};
 use log::{error, trace};
 use pbr::ProgressBar;
 
@@ -76,7 +75,6 @@ fn password_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
 pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
     outp: std::io::Stdout,
-    events: VecDeque<event::Event>,
     now_playing: Option<app::SongInfo>,
     progress: Option<ProgressBar<std::io::Stdout>>,
 }
@@ -86,7 +84,6 @@ impl Terminal {
         Terminal {
             config,
             outp: std::io::stdout(),
-            events: VecDeque::new(),
             now_playing: None,
             progress: None,
         }

@@ -10,9 +10,8 @@ use reqwest;
 
 use crate::config;
 use crate::config::{Config, PartialConfig};
-use crate::errors::{Error, Result};
-//use crate::simpleterm as term;
 use crate::crossterm as term;
+use crate::errors::{Error, Result};
 
 pub use pandora_rs2::stations::Station;
 
