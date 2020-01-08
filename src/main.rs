@@ -5,7 +5,6 @@ use std::rc::Rc;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
 use log::{debug, error, trace};
-use mktemp::TempDir;
 
 mod errors;
 use crate::errors::{Error, Result};
@@ -21,7 +20,7 @@ mod app;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
-        .ok_or_else(|| Error::ConfigDirNotFound)?
+        .ok_or_else(|| Error::AppDirNotFound)?
         .join(crate_name!())
         .join("config.json");
     let matches = app_from_crate!("")
@@ -78,11 +77,20 @@ fn main() -> Result<()> {
     //let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
 
     if matches.is_present("debug-log") {
-        let td = TempDir::new(crate_name!()).map_err(|e| Error::LoggerFileFailure(Box::new(e)))?;
+        let data_local_dir = dirs::data_local_dir()
+            .ok_or_else(|| Error::AppDirNotFound)?
+            .join(crate_name!());
+        let log_dir = data_local_dir
+            .join("logs")
+            .join(format!("{}", chrono::offset::Utc::now()));
+        if !log_dir.is_dir() {
+            std::fs::create_dir_all(&log_dir)
+                .map_err(|e| Error::AppDirCreateFailure(Box::new(e)))?;
+        }
         log_builder = log_builder
             .log_to_file()
             .suppress_timestamp()
-            .directory(td.path());
+            .directory(&log_dir);
     }
 
     log_builder

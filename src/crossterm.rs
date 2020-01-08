@@ -1,13 +1,13 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::time::Duration;
 // Traits included to add required methods to types
 use std::io::Write;
 
+use crossterm::{cursor, event, style, QueueableCommand};
 use log::{error, trace};
 use pbr::ProgressBar;
-use crossterm::{QueueableCommand, cursor, event, style};
 
 use crate::app;
 use crate::config::Config;
@@ -112,11 +112,20 @@ impl Terminal {
         self.drain_events();
         loop {
             match event::read().map_err(Error::from) {
-                Ok(event::Event::Key(event::KeyEvent { code : event::KeyCode::Char(c), .. } )) => input.push(c),
-                Ok(event::Event::Key(event::KeyEvent { code : event::KeyCode::Backspace, .. } )) => {
+                Ok(event::Event::Key(event::KeyEvent {
+                    code: event::KeyCode::Char(c),
+                    ..
+                })) => input.push(c),
+                Ok(event::Event::Key(event::KeyEvent {
+                    code: event::KeyCode::Backspace,
+                    ..
+                })) => {
                     let _ = input.pop();
-                },
-                Ok(event::Event::Key(event::KeyEvent { code : event::KeyCode::Enter, .. } )) => break,
+                }
+                Ok(event::Event::Key(event::KeyEvent {
+                    code: event::KeyCode::Enter,
+                    ..
+                })) => break,
                 err => self.handle_result(err),
             }
         }
@@ -172,15 +181,21 @@ impl Terminal {
             .map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
 
-        let _ = self.outp.queue(style::SetForegroundColor(style::Color::Grey));
+        let _ = self
+            .outp
+            .queue(style::SetForegroundColor(style::Color::Grey));
 
         let result = writeln!(self.outp, "({})", station.station_id)
             .map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
 
-        let _ = self.outp.queue(style::SetForegroundColor(style::Color::Reset));
+        let _ = self
+            .outp
+            .queue(style::SetForegroundColor(style::Color::Reset));
 
-        let result = self.outp.flush()
+        let result = self
+            .outp
+            .flush()
             .map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
     }
@@ -205,7 +220,7 @@ impl Terminal {
         }
         self.now_playing = Some(song.clone());
         let mut progress = ProgressBar::new(duration.as_secs());
-        progress.format("╢▌▌░╟");
+        progress.format("╢█▌ ╟");
         progress.show_speed = false;
         progress.show_percent = false;
         progress.show_counter = false;
@@ -213,11 +228,7 @@ impl Terminal {
         self.progress = Some(progress);
     }
 
-    pub(crate) fn update_playing_progress(
-        &mut self,
-        duration: &Duration,
-        remaining: &Duration,
-    ) {
+    pub(crate) fn update_playing_progress(&mut self, duration: &Duration, remaining: &Duration) {
         if let Some(progress) = &mut self.progress {
             let dur_secs = duration.as_secs();
             let remain_secs = remaining.as_secs();
@@ -229,7 +240,7 @@ impl Terminal {
         let station_id = self.prompt_input("Station id: ");
 
         app::Station {
-            station_id: station_id,
+            station_id,
             station_name: String::new(),
         }
     }

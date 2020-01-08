@@ -10,6 +10,12 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub(crate) enum AudioQuality {
+    PreferMp3,
+    PreferBest,
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename = "Config")]
 pub(crate) struct PartialConfig {
@@ -142,6 +148,7 @@ pub(crate) struct Config {
     pub(crate) login: Credentials,
     pub(crate) station_id: Option<String>,
     pub(crate) save_station: bool,
+    pub(crate) audio_quality: AudioQuality,
 }
 
 impl std::default::Default for Config {
@@ -153,6 +160,7 @@ impl std::default::Default for Config {
             save_station: true,
             path: None,
             dirty: false,
+            audio_quality: AudioQuality::PreferBest,
         }
     }
 }
@@ -180,7 +188,7 @@ impl Config {
 
     pub(crate) fn write<P: AsRef<Path>>(&self, file_path: P) -> Result<()> {
         if let Some(dir) = file_path.as_ref().parent() {
-            create_dir_all(dir).map_err(|e| Error::ConfigDirCreateFailure(Box::new(e)))?;
+            create_dir_all(dir).map_err(|e| Error::AppDirCreateFailure(Box::new(e)))?;
         }
         let updated_config_file =
             std::fs::File::create(file_path).map_err(|e| Error::ConfigWriteFailure(Box::new(e)))?;

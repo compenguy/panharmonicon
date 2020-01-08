@@ -8,6 +8,7 @@ use clap::crate_name;
 use log::{error, trace};
 use reqwest;
 
+use crate::config;
 use crate::config::{Config, PartialConfig};
 use crate::errors::{Error, Result};
 //use crate::simpleterm as term;
@@ -23,13 +24,81 @@ pub(crate) struct SongInfo {
     pub(crate) rating: Option<u32>,
 }
 
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) enum Quality {
+    High,
+    Medium,
+    Low,
+    Alternate,
+}
+
+impl Quality {
+    pub(crate) fn get_extension(&self) -> String {
+        match self {
+            Quality::High => String::from("m4a"),
+            Quality::Medium => String::from("m4a"),
+            Quality::Low => String::from("m4a"),
+            Quality::Alternate => String::from("mp3"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) struct Audio {
+    quality: Quality,
+    url: String,
+    bitrate: Option<String>,
+    encoding: Option<String>,
+}
+
+impl Audio {
+    fn from_track(track: &pandora_rs2::playlist::Track) -> Vec<Audio> {
+        let mut sorted_audio_list: Vec<Audio> = Vec::with_capacity(4);
+        if let Some(track_audio) = &track.track_audio {
+            sorted_audio_list.push(Audio {
+                quality: Quality::High,
+                url: track_audio.high_quality.audio_url.clone(),
+                bitrate: Some(track_audio.high_quality.bitrate.clone()),
+                encoding: Some(track_audio.high_quality.encoding.clone()),
+            });
+            sorted_audio_list.push(Audio {
+                quality: Quality::Medium,
+                url: track_audio.medium_quality.audio_url.clone(),
+                bitrate: Some(track_audio.medium_quality.bitrate.clone()),
+                encoding: Some(track_audio.medium_quality.encoding.clone()),
+            });
+            sorted_audio_list.push(Audio {
+                quality: Quality::Low,
+                url: track_audio.low_quality.audio_url.clone(),
+                bitrate: Some(track_audio.low_quality.bitrate.clone()),
+                encoding: Some(track_audio.low_quality.encoding.clone()),
+            });
+        }
+        if let Some(url) = &track.additional_audio_url {
+            sorted_audio_list.push(Audio {
+                quality: Quality::Alternate,
+                url: url.to_string(),
+                bitrate: None,
+                encoding: None,
+            });
+        }
+        sorted_audio_list
+    }
+
+    pub(crate) fn get_extension(&self) -> String {
+        if let Some(encoding) = &self.encoding {
+            if encoding == "aacplus" {
+                return String::from("m4a");
+            }
+        }
+        self.quality.get_extension()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Playing {
     track_token: String,
-    bitrate: String,
-    encoding: String,
-    url: String,
-    protocol: String,
+    audio: Vec<Audio>,
     duration: Duration,
     remaining: Duration,
     info: SongInfo,
@@ -39,14 +108,11 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
     type Error = crate::errors::Error;
 
     fn try_from(track: &pandora_rs2::playlist::Track) -> std::result::Result<Self, Self::Error> {
+        trace!("Parsing playlist track {:?}", track);
         let track_token = track
             .track_token
             .as_ref()
             .ok_or_else(|| Error::PanharmoniconTrackHasNoId)?;
-        let audio = track
-            .track_audio
-            .as_ref()
-            .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?;
         let name = track
             .song_name
             .as_ref()
@@ -57,10 +123,7 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
             .ok_or_else(|| Error::PanharmoniconTrackHasNoArtist)?;
         Ok(Self {
             track_token: track_token.to_string(),
-            bitrate: audio.high_quality.bitrate.to_string(),
-            encoding: audio.high_quality.encoding.to_string(),
-            url: audio.high_quality.audio_url.to_string(),
-            protocol: audio.high_quality.protocol.to_string(),
+            audio: Audio::from_track(&track),
             duration: Duration::from_millis(0),
             remaining: Duration::from_millis(0),
             info: SongInfo {
@@ -70,6 +133,21 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
                 rating: track.song_rating,
             },
         })
+    }
+}
+
+impl Playing {
+    pub(crate) fn get_audio(&self, quality: Quality) -> Option<Audio> {
+        self.audio.iter().find(|&a| a.quality == quality).cloned()
+    }
+
+    pub(crate) fn get_best_audio(&self) -> Option<Audio> {
+        self.audio.first().cloned()
+    }
+
+    pub(crate) fn get_alternate_or_best_audio(&self) -> Option<Audio> {
+        self.get_audio(Quality::Alternate)
+            .or_else(|| self.get_best_audio())
     }
 }
 
@@ -216,11 +294,7 @@ impl Panharmonicon {
             trace!("Getting another song off the playlist");
             let mut playing = Playing::try_from(&track)?;
             let cached_media = self.get_cached_media(&playing)?;
-            let reader = std::io::BufReader::new(
-                std::fs::File::open(cached_media)
-                    .map_err(|e| Error::FileReadFailure(Box::new(e)))?,
-            );
-            let duration = read_media_duration(reader)?;
+            let duration = read_media_duration(&cached_media)?;
             playing.duration = duration;
             playing.remaining = duration;
             self.ui.display_playing(&playing.info, &duration);
@@ -230,16 +304,31 @@ impl Panharmonicon {
     }
 
     fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
-        trace!("Caching active track");
+        trace!("Caching active track {}", playing.track_token);
+        // TODO: Add config option to select between mp3 wherever possible or
+        // best available
+        let audio = match self.config.borrow().audio_quality {
+            config::AudioQuality::PreferBest => playing
+                .get_best_audio()
+                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?,
+            config::AudioQuality::PreferMp3 => playing
+                .get_alternate_or_best_audio()
+                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?,
+        };
         // Adjust track metadata so that it's path/filename-safe
         let artist_filename = filename_formatter(&playing.info.artist);
         let album_filename = playing.info.album.clone().map(|n| filename_formatter(&n));
         let song_filename = filename_formatter(&playing.info.name);
-        let filename = format!("{} - {}.m4a", artist_filename, song_filename);
+        let filename = format!(
+            "{} - {}.{}",
+            artist_filename,
+            song_filename,
+            audio.get_extension()
+        );
 
         // Construct full path to the cached file
         let mut cache_file = dirs::cache_dir()
-            .ok_or_else(|| Error::CacheDirNotFound)?
+            .ok_or_else(|| Error::AppDirNotFound)?
             .join(crate_name!())
             .join(playing.info.artist.clone());
         if let Some(album) = &album_filename {
@@ -248,11 +337,11 @@ impl Panharmonicon {
         cache_file = cache_file.join(filename);
 
         // Check cache, and if track isn't in the cache, add it
-        if cache_file.exists() || cache_file.with_extension("mp3").exists() {
+        if cache_file.exists() {
             trace!("Song already in cache.");
         } else {
             trace!("Caching song.");
-            if let Err(e) = save_url_to_file(&playing.url, &cache_file) {
+            if let Err(e) = save_url_to_file(&audio.url, &cache_file) {
                 error!("Error caching track for playback: {:?}", e);
             } else {
                 trace!("Song added to cache.");
@@ -289,7 +378,26 @@ impl Panharmonicon {
     }
 }
 
-fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
+fn read_media_duration(media_path: &Path) -> Result<Duration> {
+    let reader = std::io::BufReader::new(
+        std::fs::File::open(media_path).map_err(|e| Error::FileReadFailure(Box::new(e)))?,
+    );
+    if let Some(extension) = media_path.extension() {
+        match extension
+            .to_str()
+            .ok_or_else(|| Error::FilenameEncodingFailure)?
+        {
+            "m4a" => read_mp4_media_duration(reader),
+            "mp4" => read_mp4_media_duration(reader),
+            "mp3" => read_mp3_media_duration(reader),
+            _ => Err(Error::UnspecifiedOrUnsupportedMediaType),
+        }
+    } else {
+        Err(Error::UnspecifiedOrUnsupportedMediaType)
+    }
+}
+
+fn read_mp4_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
     let mut context = mp4parse::MediaContext::new();
     mp4parse::read_mp4(&mut stream, &mut context).map_err(Error::from)?;
     let track = context
@@ -301,6 +409,10 @@ fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
     let unscaled_duration = track.duration.ok_or(Error::InvalidMedia)?;
     let duration = Duration::from_secs(unscaled_duration.0 / timescale.0);
     Ok(duration)
+}
+
+fn read_mp3_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
+    mp3_duration::from_read(&mut stream).map_err(Error::from)
 }
 
 fn save_url_to_file(url: &str, file: &Path) -> Result<()> {
