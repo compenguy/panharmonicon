@@ -19,5 +19,6 @@ glob = "0.3"
 pandora-rs2 = "0.1"
 reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
 termion = "1.5"
+crossterm = "0.14"
 pbr = "1.0"
 mp4parse = "0.11"

@@ -18,7 +18,7 @@ pub(crate) enum Error {
     KeyringFailure(Box<keyring::KeyringError>),
     PandoraFailure(Box<pandora_rs2::error::Error>),
     HttpRequestFailure(Box<reqwest::Error>),
-    InputFailure(Box<std::io::Error>),
+    CrosstermFailure(Box<crossterm::ErrorKind>),
     OutputFailure(Box<std::io::Error>),
     MediaParseFailure(Box<mp4parse::Error>),
     InvalidMedia,
@@ -65,7 +65,7 @@ impl std::fmt::Display for Error {
             }
             Error::PandoraFailure(e) => write!(f, "Pandora connection error: {}", e),
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
-            Error::InputFailure(e) => write!(f, "Input read error: {}", e),
+            Error::CrosstermFailure(e) => write!(f, "Crossterm output error: {}", e),
             Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
             Error::MediaParseFailure(e) => write!(f, "Media parse error: {:?}", e),
             Error::InvalidMedia => write!(f, "Invalid media stream"),
@@ -112,7 +112,7 @@ impl std::error::Error for Error {
             Error::KeyringFailure(e) => Some(e),
             Error::PandoraFailure(e) => Some(e),
             Error::HttpRequestFailure(e) => Some(e),
-            Error::InputFailure(e) => Some(e),
+            Error::CrosstermFailure(e) => Some(e),
             Error::OutputFailure(e) => Some(e),
             Error::MediaParseFailure(_) => None,
             Error::InvalidMedia => None,
@@ -142,6 +142,12 @@ impl From<pandora_rs2::error::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
         Error::HttpRequestFailure(Box::new(err))
+    }
+}
+
+impl From<crossterm::ErrorKind> for Error {
+    fn from(err: crossterm::ErrorKind) -> Self {
+        Error::CrosstermFailure(Box::new(err))
     }
 }
 

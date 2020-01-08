@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use clap::crate_name;
 use log::{error, trace};
@@ -9,7 +10,8 @@ use reqwest;
 
 use crate::config::{Config, PartialConfig};
 use crate::errors::{Error, Result};
-use crate::term;
+//use crate::simpleterm as term;
+use crate::crossterm as term;
 
 pub use pandora_rs2::stations::Station;
 
@@ -28,8 +30,8 @@ pub(crate) struct Playing {
     encoding: String,
     url: String,
     protocol: String,
-    duration: std::time::Duration,
-    remaining: std::time::Duration,
+    duration: Duration,
+    remaining: Duration,
     info: SongInfo,
 }
 
@@ -59,8 +61,8 @@ impl TryFrom<&pandora_rs2::playlist::Track> for Playing {
             encoding: audio.high_quality.encoding.to_string(),
             url: audio.high_quality.audio_url.to_string(),
             protocol: audio.high_quality.protocol.to_string(),
-            duration: std::time::Duration::from_millis(0),
-            remaining: std::time::Duration::from_millis(0),
+            duration: Duration::from_millis(0),
+            remaining: Duration::from_millis(0),
             info: SongInfo {
                 name: name.to_string(),
                 artist: artist.to_string(),
@@ -117,7 +119,7 @@ impl Panharmonicon {
             } else {
                 self.update_credentials(false)?;
             }
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(Duration::from_millis(100));
         }
     }
 
@@ -229,17 +231,24 @@ impl Panharmonicon {
 
     fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
         trace!("Caching active track");
-        let filename = format!("{} - {}.m4a", playing.info.artist, playing.info.name);
+        // Adjust track metadata so that it's path/filename-safe
+        let artist_filename = filename_formatter(&playing.info.artist);
+        let album_filename = playing.info.album.clone().map(|n| filename_formatter(&n));
+        let song_filename = filename_formatter(&playing.info.name);
+        let filename = format!("{} - {}.m4a", artist_filename, song_filename);
 
+        // Construct full path to the cached file
         let mut cache_file = dirs::cache_dir()
             .ok_or_else(|| Error::CacheDirNotFound)?
             .join(crate_name!())
             .join(playing.info.artist.clone());
-        if let Some(album) = &playing.info.album {
+        if let Some(album) = &album_filename {
             cache_file = cache_file.join(album);
         }
         cache_file = cache_file.join(filename);
-        if cache_file.exists() {
+
+        // Check cache, and if track isn't in the cache, add it
+        if cache_file.exists() || cache_file.with_extension("mp3").exists() {
             trace!("Song already in cache.");
         } else {
             trace!("Caching song.");
@@ -258,10 +267,10 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
-            let zero = std::time::Duration::from_millis(0);
+            let zero = Duration::from_millis(0);
             if playing.remaining > zero {
-                let cur = std::time::Instant::now();
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                let cur = Instant::now();
+                std::thread::sleep(Duration::from_millis(100));
                 let elapsed = cur.elapsed();
                 if elapsed < playing.remaining {
                     playing.remaining -= elapsed;
@@ -280,7 +289,7 @@ impl Panharmonicon {
     }
 }
 
-fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<std::time::Duration> {
+fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
     let mut context = mp4parse::MediaContext::new();
     mp4parse::read_mp4(&mut stream, &mut context).map_err(Error::from)?;
     let track = context
@@ -290,7 +299,7 @@ fn read_media_duration<R: std::io::Read>(mut stream: R) -> Result<std::time::Dur
         .ok_or(Error::InvalidMedia)?;
     let timescale = track.timescale.ok_or(Error::InvalidMedia)?;
     let unscaled_duration = track.duration.ok_or(Error::InvalidMedia)?;
-    let duration = std::time::Duration::from_secs(unscaled_duration.0 / timescale.0);
+    let duration = Duration::from_secs(unscaled_duration.0 / timescale.0);
     Ok(duration)
 }
 
@@ -321,4 +330,11 @@ fn _save_url_to_file(url: &str, file: &Path) -> Result<()> {
     resp.copy_to(&mut writer)
         .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
     Ok(())
+}
+
+fn filename_formatter(text: &str) -> String {
+    text.replace("/", "_")
+        .replace("\\", "_")
+        .replace(":", "_")
+        .replace("-", "_")
 }

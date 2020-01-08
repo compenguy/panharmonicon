@@ -13,7 +13,9 @@ use crate::errors::{Error, Result};
 mod config;
 use crate::config::Config;
 
-mod term;
+//mod simpleterm;
+mod crossterm;
+use crate::crossterm as term;
 
 mod app;
 

@@ -1,11 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 // Traits included to add required methods to types
 use std::io::BufRead;
 use std::io::Read;
 use std::io::Write;
 
-use log::error;
+use log::{error, trace};
 use pbr::ProgressBar;
 use termion::{async_stdin, color, color::Fg, cursor};
 
@@ -88,7 +89,7 @@ impl Terminal {
         }
     }
 
-    pub(crate) fn drain_input(&mut self) {
+    fn drain_input(&mut self) {
         let mut buffer = [0u8; 16];
         loop {
             if let Ok(count) = self.inp.read(&mut buffer) {
@@ -97,6 +98,45 @@ impl Terminal {
                 }
             }
         }
+    }
+
+    pub(crate) fn prompt_input(&mut self, prompt: &str) -> String {
+        let mut input = String::with_capacity(10);
+        // Display the prompt
+        let result = write!(self.outp, "{}", prompt).map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+
+        // Make sure it flushes to screen
+        let result = self
+            .outp
+            .flush()
+            .map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+
+        // We don't want to read stale input from before we prompt the user
+        // for input
+        self.drain_input();
+
+        while !input.ends_with("\\n") {
+            // Read the user input
+            let result = self
+                .inp
+                .read_line(&mut input)
+                .map_err(|e| Error::InputFailure(Box::new(e)));
+            // We're doing something resembling blocking for user input
+            match result {
+                Ok(0) => {
+                    std::thread::sleep(Duration::from_millis(50));
+                    trace!("No input");
+                },
+                Ok(_) => trace!("Read user input"),
+                e => {
+                    self.handle_result(e);
+                    error!("Input read error");
+                },
+            }
+        }
+        input.trim().to_string()
     }
 
     pub(crate) fn handle_result<T>(&mut self, result: Result<T>) {
@@ -109,50 +149,10 @@ impl Terminal {
         display_main(&mut self.outp, msg, Some(log::LevelFilter::Error));
     }
 
-    pub(crate) fn hide_cursor(&mut self) {
-        let result =
-            write!(self.outp, "{}", cursor::Hide).map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-        let result = self
-            .outp
-            .flush()
-            .map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-    }
-
-    pub(crate) fn show_cursor(&mut self) {
-        let result =
-            write!(self.outp, "{}", cursor::Show).map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-        let result = self
-            .outp
-            .flush()
-            .map_err(|e| Error::OutputFailure(Box::new(e)));
-        self.handle_result(result);
-    }
-
     pub(crate) fn login(&mut self, auth: SessionAuth) -> Result<()> {
         let mut tmp_auth = auth;
         while username_empty(self.config.clone(), tmp_auth) {
-            let mut username = String::new();
-            let result =
-                write!(self.outp, "Pandora user: ").map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            let result = self
-                .outp
-                .flush()
-                .map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            // We don't want to read stale input from before we prompt the user
-            // for input
-            self.drain_input();
-            self.show_cursor();
-            let result = self
-                .inp
-                .read_line(&mut username)
-                .map_err(|e| Error::InputFailure(Box::new(e)));
-            self.handle_result(result);
-            self.hide_cursor();
+            let username = self.prompt_input("Pandora user: ");
             self.config.borrow_mut().login.update_username(&username);
             // Ensure that we retry if the updated credentials are blank
             tmp_auth = SessionAuth::UseSaved;
@@ -160,25 +160,7 @@ impl Terminal {
 
         tmp_auth = auth;
         while password_empty(self.config.clone(), tmp_auth) {
-            let mut password = String::new();
-            let result = write!(self.outp, "Pandora password: ")
-                .map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            let result = self
-                .outp
-                .flush()
-                .map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            // We don't want to read stale input from before we prompt the user
-            // for input
-            self.drain_input();
-            self.show_cursor();
-            let result = self
-                .inp
-                .read_line(&mut password)
-                .map_err(|e| Error::InputFailure(Box::new(e)));
-            self.handle_result(result);
-            self.hide_cursor();
+            let password = self.prompt_input("Pandora password: ");
             let result = self.config.borrow_mut().login.update_password(&password);
             if let Err(e) = result {
                 self.display_error(format!("Error updating password: {:?}", e).as_str());
@@ -227,7 +209,7 @@ impl Terminal {
         self.handle_result(result);
     }
 
-    pub(crate) fn display_playing(&mut self, song: &app::SongInfo, duration: &std::time::Duration) {
+    pub(crate) fn display_playing(&mut self, song: &app::SongInfo, duration: &Duration) {
         if let Some(progress) = &mut self.progress {
             progress.finish();
         }
@@ -243,8 +225,8 @@ impl Terminal {
 
     pub(crate) fn update_playing_progress(
         &mut self,
-        duration: &std::time::Duration,
-        remaining: &std::time::Duration,
+        duration: &Duration,
+        remaining: &Duration,
     ) {
         if let Some(progress) = &mut self.progress {
             let dur_secs = duration.as_secs();
@@ -254,30 +236,10 @@ impl Terminal {
     }
 
     pub(crate) fn station_prompt(&mut self) -> app::Station {
-        let mut station_id = String::new();
-        while station_id.is_empty() {
-            let result =
-                write!(self.outp, "Station Id: ").map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            let result = self
-                .outp
-                .flush()
-                .map_err(|e| Error::OutputFailure(Box::new(e)));
-            self.handle_result(result);
-            // We don't want to read stale input from before we prompt the user
-            // for input
-            self.drain_input();
-            self.show_cursor();
-            let result = self
-                .inp
-                .read_line(&mut station_id)
-                .map_err(|e| Error::InputFailure(Box::new(e)));
-            self.handle_result(result);
-            self.hide_cursor();
-        }
+        let station_id = self.prompt_input("Station id: ");
 
         app::Station {
-            station_id: station_id.trim().to_string(),
+            station_id: station_id,
             station_name: String::new(),
         }
     }
