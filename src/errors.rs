@@ -1,6 +1,6 @@
 use std::boxed::Box;
 
-use pandora_rs2;
+use pandora_api;
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
@@ -15,12 +15,15 @@ pub(crate) enum Error {
     ConfigWriteFailure(Box<std::io::Error>),
     JsonSerializeFailure(Box<serde_json::error::Error>),
     KeyringFailure(Box<keyring::KeyringError>),
-    PandoraFailure(Box<pandora_rs2::error::Error>),
+    PandoraFailure(Box<pandora_api::errors::Error>),
     HttpRequestFailure(Box<reqwest::Error>),
     CrosstermFailure(Box<crossterm::ErrorKind>),
     OutputFailure(Box<std::io::Error>),
     Mp4MediaParseFailure(Box<mp4parse::Error>),
-    Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
+    // Cannot use mp3_duration::error::MP3DurationError because it's private
+    // https://github.com/agersant/mp3-duration/issues/11
+    //Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
+    Mp3MediaParseFailure,
     UnspecifiedOrUnsupportedMediaType,
     InvalidMedia,
     PanharmoniconNotConnected,
@@ -65,7 +68,8 @@ impl std::fmt::Display for Error {
             Error::CrosstermFailure(e) => write!(f, "Crossterm output error: {}", e),
             Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
             Error::Mp4MediaParseFailure(e) => write!(f, "MP4 media parse error: {:?}", e),
-            Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
+            //Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
+            Error::Mp3MediaParseFailure => write!(f, "MP3 media parse error"),
             Error::UnspecifiedOrUnsupportedMediaType => {
                 write!(f, "Unspecified or unsupported media type")
             }
@@ -115,7 +119,8 @@ impl std::error::Error for Error {
             Error::CrosstermFailure(e) => Some(e),
             Error::OutputFailure(e) => Some(e),
             Error::Mp4MediaParseFailure(_) => None,
-            Error::Mp3MediaParseFailure(_) => None,
+            //Error::Mp3MediaParseFailure(_) => None,
+            Error::Mp3MediaParseFailure => None,
             Error::UnspecifiedOrUnsupportedMediaType => None,
             Error::InvalidMedia => None,
             Error::PanharmoniconNotConnected => None,
@@ -135,8 +140,8 @@ impl From<keyring::KeyringError> for Error {
     }
 }
 
-impl From<pandora_rs2::error::Error> for Error {
-    fn from(err: pandora_rs2::error::Error) -> Self {
+impl From<pandora_api::errors::Error> for Error {
+    fn from(err: pandora_api::errors::Error) -> Self {
         Error::PandoraFailure(Box::new(err))
     }
 }
@@ -159,8 +164,10 @@ impl From<mp4parse::Error> for Error {
     }
 }
 
+/*
 impl From<mp3_duration::MP3DurationError> for Error {
     fn from(err: mp3_duration::MP3DurationError) -> Self {
         Error::Mp3MediaParseFailure(Box::new(err))
     }
 }
+*/

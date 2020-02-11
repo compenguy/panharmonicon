@@ -167,23 +167,23 @@ impl Terminal {
 
     pub(crate) fn display_station_list(&mut self, stations: &[app::Station]) {
         for station in stations {
-            self.display_station_info(station);
+            self.display_station_info(&station.station_id, &station.station_name);
         }
         let result = writeln!(self.outp).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
     }
 
-    pub(crate) fn display_station_info(&mut self, station: &app::Station) {
-        let result = write!(self.outp, "{} ", station.station_name)
-            .map_err(|e| Error::OutputFailure(Box::new(e)));
+    pub(crate) fn display_station_info(&mut self, station_id: &str, station_name: &str) {
+        let result =
+            write!(self.outp, "{} ", station_name).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
 
         let _ = self
             .outp
             .queue(style::SetForegroundColor(style::Color::Grey));
 
-        let result = writeln!(self.outp, "({})", station.station_id)
-            .map_err(|e| Error::OutputFailure(Box::new(e)));
+        let result =
+            writeln!(self.outp, "({})", station_id).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
 
         let _ = self
@@ -233,12 +233,7 @@ impl Terminal {
         }
     }
 
-    pub(crate) fn station_prompt(&mut self) -> app::Station {
-        let station_id = self.prompt_input("Station id: ");
-
-        app::Station {
-            station_id,
-            station_name: String::new(),
-        }
+    pub(crate) fn station_prompt(&mut self) -> String {
+        self.prompt_input("Station id: ")
     }
 }

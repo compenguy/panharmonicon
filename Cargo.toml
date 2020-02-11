@@ -16,10 +16,11 @@ serde_derive = "1.0"
 serde_json = "1.0"
 keyring = "0.7"
 glob = "0.3"
-pandora-rs2 = "0.1"
+pandora-api = { git = "https://github.com/compenguy/pandora-api.git" }
 reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
 termion = "1.5"
 crossterm = "0.14"
 pbr = "1.0"
 mp4parse = "0.11"
 mp3-duration = "0.1"
+rodio = "0.10"
