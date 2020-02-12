@@ -17,6 +17,7 @@ mod crossterm;
 use crate::crossterm as term;
 
 mod app;
+mod pandora;
 
 fn main() -> Result<()> {
     let config_file = dirs::config_dir()
