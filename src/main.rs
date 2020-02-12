@@ -124,6 +124,8 @@ fn main() -> Result<()> {
     trace!("Starting app");
     while let Err(e) = app.run() {
         error!("{:?}", e);
+        app.reconnect();
+        std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 
     Ok(())

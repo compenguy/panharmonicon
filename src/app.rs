@@ -516,7 +516,10 @@ impl Panharmonicon {
     pub(crate) fn new(config: Rc<RefCell<Config>>, ui: term::Terminal) -> Self {
         let audio_device =
             rodio::default_output_device().expect("Failed to locate default audio output sink");
-        debug!("Selected output device {}", audio_device.name().unwrap_or_else(|_| String::new()));
+        debug!(
+            "Selected output device {}",
+            audio_device.name().unwrap_or_else(|_| String::new())
+        );
         let audio_sink = rodio::Sink::new(&audio_device);
         let station = config.borrow().station_id.clone();
         Self {
@@ -529,6 +532,11 @@ impl Panharmonicon {
             playlist: std::collections::VecDeque::with_capacity(6),
             playing: None,
         }
+    }
+
+    pub(crate) fn reconnect(&mut self) {
+        self.session.partner_logout();
+        self.station = None;
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
@@ -669,20 +677,23 @@ impl Panharmonicon {
 
     fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
         trace!("Caching active track {}", playing.track_token);
-        debug!("config-set audio quality: {:?}", self.config.borrow().audio_quality);
+        debug!(
+            "config-set audio quality: {:?}",
+            self.config.borrow().audio_quality
+        );
         let audio = match self.config.borrow().audio_quality {
             config::AudioQuality::PreferBest => {
                 debug!("Selecting best available audio stream...");
                 playing
-                .get_best_audio()
-                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
-            },
+                    .get_best_audio()
+                    .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+            }
             config::AudioQuality::PreferMp3 => {
                 debug!("Selecting mp3 audio stream...");
                 playing
-                .get_audio_format(AudioFormat::Mp3128)
-                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
-            },
+                    .get_audio_format(AudioFormat::Mp3128)
+                    .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+            }
         };
 
         debug!("Selected audio stream {:?}", audio);
@@ -725,9 +736,10 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
+            /*
             self.audio_sink.sleep_until_end();
             self.playing = None;
-            /*
+            */
             let zero = Duration::from_millis(0);
             if self.audio_sink.empty() {
                 self.playing = None;
@@ -747,7 +759,6 @@ impl Panharmonicon {
             } else {
                 debug!("Sink is empty, but there's still time left on the clock for the current playing item.");
             }
-            */
         }
         Ok(())
     }
