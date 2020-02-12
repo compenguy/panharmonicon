@@ -1,10 +1,11 @@
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Seek, Write};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use clap::crate_name;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use reqwest;
 use rodio::source::Source;
 use rodio::DeviceTrait;
@@ -50,7 +51,7 @@ impl ToEncryptionTokens for PartnerKeys {
     }
 }
 
-const ANDROID_ENDPOINT: &'static str = "https://tuner.pandora.com/services/json";
+const ANDROID_ENDPOINT: &str = "https://tuner.pandora.com/services/json";
 
 /// Encapsulates all data that needs to be tracked as part of a login session
 /// with Pandora.  The actual reqwest Client is created by and stored on the
@@ -505,7 +506,7 @@ pub(crate) struct Panharmonicon {
     ui: term::Terminal,
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
-    audio_device: rodio::Device,
+    _audio_device: rodio::Device,
     audio_sink: rodio::Sink,
     station: Option<String>,
     playlist: std::collections::VecDeque<PlaylistTrack>,
@@ -525,7 +526,7 @@ impl Panharmonicon {
         Self {
             ui,
             config: config.clone(),
-            audio_device,
+            _audio_device: audio_device,
             audio_sink,
             session: PandoraSession::new(config),
             station,
@@ -637,7 +638,7 @@ impl Panharmonicon {
         let infolist: Vec<SongInfo> = playlist
             .iter()
             .filter_map(|t| t.get_track())
-            .map(|pt| SongInfo::from(pt))
+            .map(SongInfo::from)
             .collect();
         self.ui.display_song_list(&infolist);
 
@@ -651,25 +652,28 @@ impl Panharmonicon {
         trace!("Advancing playlist");
         if let Some(track) = self.playlist.pop_front() {
             trace!("Getting another song off the playlist");
-            let mut playing = Playing::from(&track);
+            let playing = Playing::from(&track);
             let cached_media = self.get_cached_media(&playing)?;
-            let duration = read_media_duration(&cached_media)?;
-            playing.duration = duration;
-            playing.remaining = duration;
-            self.ui.display_playing(&playing.info, &duration);
             self.playing = Some(playing);
-            let source = rodio::decoder::Decoder::new(
-                std::io::BufReader::new(
-                    std::fs::File::open(cached_media)
-                        .map_err(|e| Error::MediaReadFailure(Box::new(e)))?
-                ),
-            )?
-            /*
-            .amplify(track.track_gain.parse::<f32>().unwrap_or(1.0f32))
-            // In spite of how this looks, this actually makes the source
-            // pausable, it just makes it not initially paused.
+            trace!("Starting media decoding...");
+            // Setting pausable(false) actually makes the source
+            // the source pausable but not initially paused, in spite
+            // of how it may look.
+            let source = rodio::decoder::Decoder::new(std::io::BufReader::new(
+                std::fs::File::open(cached_media)
+                    .map_err(|e| Error::MediaReadFailure(Box::new(e)))?,
+            ))?
             .pausable(false);
-            */;
+            /* Applying the provided track gain values in my experience causes
+             * clipping
+            .amplify(track.track_gain.parse::<f32>().unwrap_or(1.0f32))
+            */
+            let duration = source.total_duration().unwrap_or_default();
+            if let Some(playing) = self.playing.as_mut() {
+                playing.duration = duration;
+                playing.remaining = duration;
+                self.ui.display_playing(&playing.info, &duration);
+            }
             self.audio_sink.append(source);
         }
         Ok(())
@@ -721,11 +725,54 @@ impl Panharmonicon {
             trace!("Song already in cache.");
         } else {
             trace!("Caching song.");
-            if let Err(e) = save_url_to_file(&audio.url, &cache_file) {
-                error!("Error caching track for playback: {:?}", e);
-            } else {
-                trace!("Song added to cache.");
+            let tempdir = dirs::cache_dir()
+                .ok_or_else(|| Error::AppDirNotFound)?
+                .join(crate_name!())
+                .join("tmp");
+            // Ensure that target directory exists
+            if !tempdir.exists() {
+                trace!("Creating temp dir {}", tempdir.to_string_lossy());
+                std::fs::create_dir_all(&tempdir)
+                    .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
             }
+            let tempdest = mktemp::Temp::new_file_in(tempdir)
+                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?
+                .release();
+            trace!("Saving audio to temp file {}", tempdest.to_string_lossy());
+            // Control the scope of temp_rw, so that we control when it closes
+            {
+                let mut temp_rw = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(&tempdest)
+                    .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+                save_url_to_writer(&audio.url, &temp_rw)?;
+                trace!("Audio written to disk.");
+                trace!("Tagging mp3...");
+                tag_mp3(&mut temp_rw, &playing.info)?;
+                trace!("Mp3 tagged.");
+            }
+            trace!(
+                "Persisting saved mp3 into the cache: {:?} -> {:?}",
+                &tempdest,
+                &cache_file
+            );
+            trace!(
+                "Source exists: {}, Dest exists: {}",
+                tempdest.is_file(),
+                cache_file.exists()
+            );
+            if let Some(cache_parent_dir) = cache_file.parent() {
+                if !cache_parent_dir.exists() {
+                    trace!("Creating cache dir {}", cache_parent_dir.to_string_lossy());
+                    std::fs::create_dir_all(&cache_parent_dir)
+                        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+                }
+            }
+            std::fs::rename(&tempdest, &cache_file)
+                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+            trace!("Song added to cache.");
         }
         Ok(cache_file)
     }
@@ -736,10 +783,6 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
-            /*
-            self.audio_sink.sleep_until_end();
-            self.playing = None;
-            */
             let zero = Duration::from_millis(0);
             if self.audio_sink.empty() {
                 self.playing = None;
@@ -764,68 +807,43 @@ impl Panharmonicon {
     }
 }
 
-fn read_media_duration(media_path: &Path) -> Result<Duration> {
-    let reader = std::io::BufReader::new(
-        std::fs::File::open(media_path).map_err(|e| Error::FileReadFailure(Box::new(e)))?,
-    );
-    if let Some(extension) = media_path.extension() {
-        match extension
-            .to_str()
-            .ok_or_else(|| Error::FilenameEncodingFailure)?
-        {
-            "m4a" => read_mp4_media_duration(reader),
-            "mp4" => read_mp4_media_duration(reader),
-            "mp3" => read_mp3_media_duration(reader),
-            _ => Err(Error::UnspecifiedOrUnsupportedMediaType),
-        }
-    } else {
-        Err(Error::UnspecifiedOrUnsupportedMediaType)
+fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> Result<()> {
+    mp3_rw
+        .seek(std::io::SeekFrom::Start(0))
+        .map_err(|e| Error::FileReadFailure(Box::new(e)))?;
+    trace!("Reading tags from mp3");
+    let mut tag = match id3::Tag::read_from(&mut mp3_rw) {
+        Err(id3::Error {
+            kind: id3::ErrorKind::NoTag,
+            ..
+        }) => id3::Tag::new(),
+        Ok(tag) => tag,
+        err => err?,
+    };
+
+    trace!("Updating tags with filesystem metadata");
+    if tag.artist().is_none() {
+        tag.set_artist(&metadata.artist);
     }
-}
-
-fn read_mp4_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
-    let mut context = mp4parse::MediaContext::new();
-    mp4parse::read_mp4(&mut stream, &mut context).map_err(Error::from)?;
-    let track = context
-        .tracks
-        .iter()
-        .find(|t| t.track_type == mp4parse::TrackType::Audio)
-        .ok_or(Error::InvalidMedia)?;
-    let timescale = track.timescale.ok_or(Error::InvalidMedia)?;
-    let unscaled_duration = track.duration.ok_or(Error::InvalidMedia)?;
-    let duration = Duration::from_secs(unscaled_duration.0 / timescale.0);
-    Ok(duration)
-}
-
-fn read_mp3_media_duration<R: std::io::Read>(mut stream: R) -> Result<Duration> {
-    mp3_duration::from_read(&mut stream).map_err(|_| Error::Mp3MediaParseFailure)
-}
-
-fn save_url_to_file(url: &str, file: &Path) -> Result<()> {
-    if let Err(e) = _save_url_to_file(url, file) {
-        // We suppress the result of attempting to remove the file because
-        // 1. The file may not have been created in the first place
-        // 2. We're too busy trying to return the original error anyway
-        let _ = std::fs::remove_file(file);
-        Err(e)
-    } else {
-        Ok(())
+    if tag.album().is_none() {
+        tag.set_album(&metadata.album);
     }
-}
-
-fn _save_url_to_file(url: &str, file: &Path) -> Result<()> {
-    // Ensure that target directory exists
-    if let Some(dir) = file.parent() {
-        std::fs::create_dir_all(&dir).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    if tag.title().is_none() {
+        tag.set_title(&metadata.name);
     }
 
-    let mut writer = std::io::BufWriter::new(
-        std::fs::File::create(&file).map_err(|e| Error::FileWriteFailure(Box::new(e)))?,
-    );
+    trace!("Writing tags back to file");
+    mp3_rw
+        .seek(std::io::SeekFrom::Start(0))
+        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    tag.write_to(&mut mp3_rw, id3::Version::Id3v23)
+        .map_err(Error::from)
+}
 
-    // Fetch the url and write the body to the open file
+fn save_url_to_writer<W: Write>(url: &str, writer: W) -> Result<()> {
+    let mut buf_writer = std::io::BufWriter::new(writer);
     let mut resp = reqwest::blocking::get(url).map_err(Error::from)?;
-    resp.copy_to(&mut writer)
+    resp.copy_to(&mut buf_writer)
         .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
     Ok(())
 }

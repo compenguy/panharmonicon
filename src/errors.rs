@@ -7,7 +7,6 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 pub(crate) enum Error {
     AppDirNotFound,
     AppDirCreateFailure(Box<std::io::Error>),
-    FilenameEncodingFailure,
     FileWriteFailure(Box<dyn std::error::Error>),
     FileReadFailure(Box<dyn std::error::Error>),
     FlexiLoggerFailure(Box<flexi_logger::FlexiLoggerError>),
@@ -22,18 +21,9 @@ pub(crate) enum Error {
     MediaReadFailure(Box<std::io::Error>),
     AudioDecodingFailure(Box<rodio::decoder::DecoderError>),
     Mp4MediaParseFailure(Box<mp4parse::Error>),
-    // Cannot use mp3_duration::error::MP3DurationError because it's private
-    // https://github.com/agersant/mp3-duration/issues/11
-    //Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
-    Mp3MediaParseFailure,
-    UnspecifiedOrUnsupportedMediaType,
-    InvalidMedia,
-    PanharmoniconNotConnected,
+    Mp3MetadataParseFailure(Box<id3::Error>),
     PanharmoniconNoStationSelected,
     PanharmoniconMissingAuthToken,
-    PanharmoniconTrackHasNoId,
-    PanharmoniconTrackHasNoName,
-    PanharmoniconTrackHasNoArtist,
     PanharmoniconTrackHasNoAudio,
 }
 
@@ -53,7 +43,6 @@ impl std::fmt::Display for Error {
             Error::AppDirCreateFailure(e) => {
                 write!(f, "Error creating application directory: {}", e)
             }
-            Error::FilenameEncodingFailure => write!(f, "Invalid filename encoding."),
             Error::FileWriteFailure(e) => write!(f, "Error writing to file: {}", e),
             Error::FileReadFailure(e) => write!(f, "Error reading from file: {}", e),
             Error::FlexiLoggerFailure(e) => write!(f, "Error initializing flexi-logger: {}", e),
@@ -72,25 +61,12 @@ impl std::fmt::Display for Error {
             Error::MediaReadFailure(e) => write!(f, "Media read error: {}", e),
             Error::AudioDecodingFailure(e) => write!(f, "Media decoding error: {:?}", e),
             Error::Mp4MediaParseFailure(e) => write!(f, "MP4 media parse error: {:?}", e),
-            //Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
-            Error::Mp3MediaParseFailure => write!(f, "MP3 media parse error"),
-            Error::UnspecifiedOrUnsupportedMediaType => {
-                write!(f, "Unspecified or unsupported media type")
-            }
-            Error::InvalidMedia => write!(f, "Invalid media stream"),
-            Error::PanharmoniconNotConnected => {
-                write!(f, "Unable to complete action, not connected to Pandora")
-            }
+            Error::Mp3MetadataParseFailure(e) => write!(f, "MP3 metadata parse error: {:?}", e),
             Error::PanharmoniconNoStationSelected => {
                 write!(f, "Unable to complete action, no station selected")
             }
             Error::PanharmoniconMissingAuthToken => {
                 write!(f, "Pandora login credentials incomplete")
-            }
-            Error::PanharmoniconTrackHasNoId => write!(f, "Pandora track is missing track id"),
-            Error::PanharmoniconTrackHasNoName => write!(f, "Pandora track is missing track name"),
-            Error::PanharmoniconTrackHasNoArtist => {
-                write!(f, "Pandora track is missing track artist")
             }
             Error::PanharmoniconTrackHasNoAudio => {
                 write!(f, "Pandora track is missing track audio")
@@ -110,7 +86,6 @@ impl std::error::Error for Error {
         match self {
             Error::AppDirNotFound => None,
             Error::AppDirCreateFailure(e) => Some(e),
-            Error::FilenameEncodingFailure => None,
             Error::FileWriteFailure(_) => None,
             Error::FileReadFailure(_) => None,
             Error::FlexiLoggerFailure(e) => Some(e),
@@ -125,16 +100,9 @@ impl std::error::Error for Error {
             Error::MediaReadFailure(e) => Some(e),
             Error::AudioDecodingFailure(e) => Some(e),
             Error::Mp4MediaParseFailure(_) => None,
-            //Error::Mp3MediaParseFailure(_) => None,
-            Error::Mp3MediaParseFailure => None,
-            Error::UnspecifiedOrUnsupportedMediaType => None,
-            Error::InvalidMedia => None,
-            Error::PanharmoniconNotConnected => None,
+            Error::Mp3MetadataParseFailure(e) => Some(e),
             Error::PanharmoniconNoStationSelected => None,
             Error::PanharmoniconMissingAuthToken => None,
-            Error::PanharmoniconTrackHasNoId => None,
-            Error::PanharmoniconTrackHasNoName => None,
-            Error::PanharmoniconTrackHasNoArtist => None,
             Error::PanharmoniconTrackHasNoAudio => None,
         }
     }
@@ -176,10 +144,8 @@ impl From<mp4parse::Error> for Error {
     }
 }
 
-/*
-impl From<mp3_duration::MP3DurationError> for Error {
-    fn from(err: mp3_duration::MP3DurationError) -> Self {
-        Error::Mp3MediaParseFailure(Box::new(err))
+impl From<id3::Error> for Error {
+    fn from(err: id3::Error) -> Self {
+        Error::Mp3MetadataParseFailure(Box::new(err))
     }
 }
-*/
