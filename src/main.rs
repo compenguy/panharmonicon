@@ -17,6 +17,7 @@ mod crossterm;
 use crate::crossterm as term;
 
 mod app;
+mod caching;
 mod pandora;
 
 fn main() -> Result<()> {

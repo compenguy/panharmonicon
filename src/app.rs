@@ -1,18 +1,15 @@
 use std::cell::RefCell;
-use std::io::{Read, Seek, Write};
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use clap::crate_name;
 use log::{debug, trace};
-use reqwest;
 use rodio::source::Source;
 use rodio::DeviceTrait;
 
 use pandora_api::json::station::{AudioFormat, PlaylistTrack};
 pub use pandora_api::json::user::Station;
 
+use crate::caching::get_cached_media;
 use crate::config;
 use crate::config::{Config, PartialConfig};
 use crate::crossterm as term;
@@ -21,10 +18,10 @@ use crate::pandora::PandoraSession;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) struct Audio {
-    quality: Quality,
-    url: String,
-    bitrate: String,
-    encoding: AudioFormat,
+    pub(crate) quality: Quality,
+    pub(crate) url: String,
+    pub(crate) bitrate: String,
+    pub(crate) encoding: AudioFormat,
 }
 
 impl Audio {
@@ -82,11 +79,11 @@ pub(crate) enum Quality {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Playing {
-    track_token: String,
-    audio: Vec<Audio>,
-    duration: Duration,
-    remaining: Duration,
-    info: SongInfo,
+    pub(crate) track_token: String,
+    pub(crate) audio: Vec<Audio>,
+    pub(crate) duration: Duration,
+    pub(crate) remaining: Duration,
+    pub(crate) info: SongInfo,
 }
 
 impl From<&PlaylistTrack> for Playing {
@@ -162,6 +159,7 @@ impl Panharmonicon {
             audio_device.name().unwrap_or_else(|_| String::new())
         );
         let audio_sink = rodio::Sink::new(&audio_device);
+        audio_sink.set_volume(config.borrow().volume);
         let station = config.borrow().station_id.clone();
         Self {
             ui,
@@ -203,6 +201,18 @@ impl Panharmonicon {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
+    }
+
+    fn pause(&self) {
+        self.audio_sink.pause();
+    }
+
+    fn play(&self) {
+        self.audio_sink.play();
+    }
+
+    fn is_paused(&self) -> bool {
+        self.audio_sink.is_paused()
     }
 
     fn has_credentials(&self) -> bool {
@@ -252,12 +262,8 @@ impl Panharmonicon {
         }
 
         if self.config.borrow().save_station {
-            let partial_update = PartialConfig {
-                login: None,
-                station_id: Some(self.station.clone()),
-                save_station: None,
-                audio_quality: None,
-            };
+            let mut partial_update = PartialConfig::default();
+            partial_update.station_id = Some(self.station.clone());
             self.config.borrow_mut().update_from(&partial_update)?;
             self.config.borrow_mut().flush()?;
         }
@@ -293,7 +299,28 @@ impl Panharmonicon {
         if let Some(track) = self.playlist.pop_front() {
             trace!("Getting another song off the playlist");
             let playing = Playing::from(&track);
-            let cached_media = self.get_cached_media(&playing)?;
+
+            let quality = self.config.borrow().audio_quality;
+
+            debug!("config-set audio quality: {:?}", quality);
+            let audio = match quality {
+                config::AudioQuality::PreferBest => {
+                    debug!("Selecting best available audio stream...");
+                    playing
+                        .get_best_audio()
+                        .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+                }
+                config::AudioQuality::PreferMp3 => {
+                    debug!("Selecting mp3 audio stream...");
+                    playing
+                        .get_audio_format(AudioFormat::Mp3128)
+                        .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+                }
+            };
+
+            debug!("Selected audio stream {:?}", audio);
+
+            let cached_media = get_cached_media(&playing, audio)?;
             self.playing = Some(playing);
             trace!("Starting media decoding...");
             // Setting pausable(false) actually makes the source
@@ -317,104 +344,6 @@ impl Panharmonicon {
             self.audio_sink.append(source);
         }
         Ok(())
-    }
-
-    fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
-        trace!("Caching active track {}", playing.track_token);
-        debug!(
-            "config-set audio quality: {:?}",
-            self.config.borrow().audio_quality
-        );
-        let audio = match self.config.borrow().audio_quality {
-            config::AudioQuality::PreferBest => {
-                debug!("Selecting best available audio stream...");
-                playing
-                    .get_best_audio()
-                    .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
-            }
-            config::AudioQuality::PreferMp3 => {
-                debug!("Selecting mp3 audio stream...");
-                playing
-                    .get_audio_format(AudioFormat::Mp3128)
-                    .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
-            }
-        };
-
-        debug!("Selected audio stream {:?}", audio);
-        // Adjust track metadata so that it's path/filename-safe
-        let artist_filename = filename_formatter(&playing.info.artist);
-        let album_filename = filename_formatter(&playing.info.album);
-        let song_filename = filename_formatter(&playing.info.name);
-        let filename = format!(
-            "{} - {}.{}",
-            artist_filename,
-            song_filename,
-            audio.get_extension()
-        );
-
-        // Construct full path to the cached file
-        let cache_file = dirs::cache_dir()
-            .ok_or_else(|| Error::AppDirNotFound)?
-            .join(crate_name!())
-            .join(artist_filename)
-            .join(album_filename)
-            .join(filename);
-
-        // Check cache, and if track isn't in the cache, add it
-        if cache_file.exists() {
-            trace!("Song already in cache.");
-        } else {
-            trace!("Caching song.");
-            let tempdir = dirs::cache_dir()
-                .ok_or_else(|| Error::AppDirNotFound)?
-                .join(crate_name!())
-                .join("tmp");
-            // Ensure that target directory exists
-            if !tempdir.exists() {
-                trace!("Creating temp dir {}", tempdir.to_string_lossy());
-                std::fs::create_dir_all(&tempdir)
-                    .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-            }
-            let tempdest = mktemp::Temp::new_file_in(tempdir)
-                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?
-                .release();
-            trace!("Saving audio to temp file {}", tempdest.to_string_lossy());
-            // Control the scope of temp_rw, so that we control when it closes
-            {
-                let mut temp_rw = std::fs::OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(&tempdest)
-                    .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-                save_url_to_writer(&audio.url, &temp_rw)?;
-                trace!("Audio written to disk.");
-                trace!("Tagging mp3...");
-                tag_mp3(&mut temp_rw, &playing.info)?;
-                trace!("Mp3 tagged.");
-            }
-            trace!(
-                "Persisting saved mp3 into the cache: {:?} -> {:?}",
-                &tempdest,
-                &cache_file
-            );
-            trace!(
-                "Source exists: {}, Dest exists: {}",
-                tempdest.is_file(),
-                cache_file.exists()
-            );
-            if let Some(cache_parent_dir) = cache_file.parent() {
-                if !cache_parent_dir.exists() {
-                    trace!("Creating cache dir {}", cache_parent_dir.to_string_lossy());
-                    std::fs::create_dir_all(&cache_parent_dir)
-                        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-                }
-            }
-            std::fs::rename(&tempdest, &cache_file)
-                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-            trace!("Song added to cache.");
-        }
-        Ok(cache_file)
     }
 
     fn has_track(&self) -> bool {
@@ -445,52 +374,4 @@ impl Panharmonicon {
         }
         Ok(())
     }
-}
-
-fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> Result<()> {
-    mp3_rw
-        .seek(std::io::SeekFrom::Start(0))
-        .map_err(|e| Error::FileReadFailure(Box::new(e)))?;
-    trace!("Reading tags from mp3");
-    let mut tag = match id3::Tag::read_from(&mut mp3_rw) {
-        Err(id3::Error {
-            kind: id3::ErrorKind::NoTag,
-            ..
-        }) => id3::Tag::new(),
-        Ok(tag) => tag,
-        err => err?,
-    };
-
-    trace!("Updating tags with filesystem metadata");
-    if tag.artist().is_none() {
-        tag.set_artist(&metadata.artist);
-    }
-    if tag.album().is_none() {
-        tag.set_album(&metadata.album);
-    }
-    if tag.title().is_none() {
-        tag.set_title(&metadata.name);
-    }
-
-    trace!("Writing tags back to file");
-    mp3_rw
-        .seek(std::io::SeekFrom::Start(0))
-        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-    tag.write_to(&mut mp3_rw, id3::Version::Id3v23)
-        .map_err(Error::from)
-}
-
-fn save_url_to_writer<W: Write>(url: &str, writer: W) -> Result<()> {
-    let mut buf_writer = std::io::BufWriter::new(writer);
-    let mut resp = reqwest::blocking::get(url).map_err(Error::from)?;
-    resp.copy_to(&mut buf_writer)
-        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-    Ok(())
-}
-
-fn filename_formatter(text: &str) -> String {
-    text.replace("/", "_")
-        .replace("\\", "_")
-        .replace(":", "_")
-        .replace("-", "_")
 }

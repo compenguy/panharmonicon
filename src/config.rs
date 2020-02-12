@@ -16,13 +16,14 @@ pub(crate) enum AudioQuality {
     PreferBest,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename = "Config")]
 pub(crate) struct PartialConfig {
     pub(crate) login: Option<Credentials>,
     pub(crate) station_id: Option<Option<String>>,
     pub(crate) save_station: Option<bool>,
     pub(crate) audio_quality: Option<AudioQuality>,
+    pub(crate) volume: Option<f32>,
 }
 
 pub(crate) mod serde_session {
@@ -150,6 +151,7 @@ pub(crate) struct Config {
     pub(crate) station_id: Option<String>,
     pub(crate) save_station: bool,
     pub(crate) audio_quality: AudioQuality,
+    pub(crate) volume: f32,
 }
 
 impl std::default::Default for Config {
@@ -162,6 +164,7 @@ impl std::default::Default for Config {
             path: None,
             dirty: false,
             audio_quality: AudioQuality::PreferBest,
+            volume: 1.0f32,
         }
     }
 }
@@ -238,6 +241,13 @@ impl Config {
             if self.audio_quality != audio_quality {
                 self.dirty |= true;
                 self.audio_quality = audio_quality;
+            }
+        }
+
+        if let Some(volume) = other.volume {
+            if (self.volume - volume).abs() > std::f32::EPSILON {
+                self.dirty |= true;
+                self.volume = volume;
             }
         }
         debug!("Settings after update: {:?}", self);
