@@ -115,6 +115,7 @@ fn main() -> Result<()> {
 
     trace!("Loading user config");
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
+    debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));
 
     let session = term::Terminal::new(conf_ref.clone());

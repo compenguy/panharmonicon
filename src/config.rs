@@ -5,12 +5,12 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use clap::crate_name;
-use log::trace;
+use log::{debug, trace};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum AudioQuality {
     PreferMp3,
     PreferBest,
@@ -22,6 +22,7 @@ pub(crate) struct PartialConfig {
     pub(crate) login: Option<Credentials>,
     pub(crate) station_id: Option<Option<String>>,
     pub(crate) save_station: Option<bool>,
+    pub(crate) audio_quality: Option<AudioQuality>,
 }
 
 pub(crate) mod serde_session {
@@ -210,6 +211,8 @@ impl Config {
     }
 
     pub(crate) fn update_from(&mut self, other: &PartialConfig) -> Result<()> {
+        debug!("Settings before update: {:?}", self);
+        debug!("Settings being applied: {:?}", other);
         if let Some(login) = &other.login {
             if self.login != *login {
                 self.dirty |= true;
@@ -230,6 +233,14 @@ impl Config {
                 self.save_station = save_station;
             }
         }
+
+        if let Some(audio_quality) = other.audio_quality {
+            if self.audio_quality != audio_quality {
+                self.dirty |= true;
+                self.audio_quality = audio_quality;
+            }
+        }
+        debug!("Settings after update: {:?}", self);
         Ok(())
     }
 }

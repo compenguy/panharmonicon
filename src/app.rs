@@ -4,8 +4,10 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use clap::crate_name;
-use log::{error, trace};
+use log::{debug, error, trace};
 use reqwest;
+use rodio::source::Source;
+use rodio::DeviceTrait;
 
 use pandora_api;
 use pandora_api::json::auth::{PartnerLogin, UserLogin};
@@ -503,6 +505,8 @@ pub(crate) struct Panharmonicon {
     ui: term::Terminal,
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
+    audio_device: rodio::Device,
+    audio_sink: rodio::Sink,
     station: Option<String>,
     playlist: std::collections::VecDeque<PlaylistTrack>,
     playing: Option<Playing>,
@@ -510,10 +514,16 @@ pub(crate) struct Panharmonicon {
 
 impl Panharmonicon {
     pub(crate) fn new(config: Rc<RefCell<Config>>, ui: term::Terminal) -> Self {
+        let audio_device =
+            rodio::default_output_device().expect("Failed to locate default audio output sink");
+        debug!("Selected output device {}", audio_device.name().unwrap_or_else(|_| String::new()));
+        let audio_sink = rodio::Sink::new(&audio_device);
         let station = config.borrow().station_id.clone();
         Self {
             ui,
             config: config.clone(),
+            audio_device,
+            audio_sink,
             session: PandoraSession::new(config),
             station,
             playlist: std::collections::VecDeque::with_capacity(6),
@@ -597,6 +607,7 @@ impl Panharmonicon {
                 login: None,
                 station_id: Some(self.station.clone()),
                 save_station: None,
+                audio_quality: None,
             };
             self.config.borrow_mut().update_from(&partial_update)?;
             self.config.borrow_mut().flush()?;
@@ -639,22 +650,42 @@ impl Panharmonicon {
             playing.remaining = duration;
             self.ui.display_playing(&playing.info, &duration);
             self.playing = Some(playing);
+            let source = rodio::decoder::Decoder::new(
+                std::io::BufReader::new(
+                    std::fs::File::open(cached_media)
+                        .map_err(|e| Error::MediaReadFailure(Box::new(e)))?
+                ),
+            )?
+            /*
+            .amplify(track.track_gain.parse::<f32>().unwrap_or(1.0f32))
+            // In spite of how this looks, this actually makes the source
+            // pausable, it just makes it not initially paused.
+            .pausable(false);
+            */;
+            self.audio_sink.append(source);
         }
         Ok(())
     }
 
     fn get_cached_media(&mut self, playing: &Playing) -> Result<PathBuf> {
         trace!("Caching active track {}", playing.track_token);
-        // TODO: Add config option to select between mp3 wherever possible or
-        // best available
+        debug!("config-set audio quality: {:?}", self.config.borrow().audio_quality);
         let audio = match self.config.borrow().audio_quality {
-            config::AudioQuality::PreferBest => playing
+            config::AudioQuality::PreferBest => {
+                debug!("Selecting best available audio stream...");
+                playing
                 .get_best_audio()
-                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?,
-            config::AudioQuality::PreferMp3 => playing
+                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+            },
+            config::AudioQuality::PreferMp3 => {
+                debug!("Selecting mp3 audio stream...");
+                playing
                 .get_audio_format(AudioFormat::Mp3128)
-                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?,
+                .ok_or_else(|| Error::PanharmoniconTrackHasNoAudio)?
+            },
         };
+
+        debug!("Selected audio stream {:?}", audio);
         // Adjust track metadata so that it's path/filename-safe
         let artist_filename = filename_formatter(&playing.info.artist);
         let album_filename = filename_formatter(&playing.info.album);
@@ -694,8 +725,14 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
+            self.audio_sink.sleep_until_end();
+            self.playing = None;
+            /*
             let zero = Duration::from_millis(0);
-            if playing.remaining > zero {
+            if self.audio_sink.empty() {
+                self.playing = None;
+                trace!("Playback of Active track completed");
+            } else if playing.remaining > zero {
                 let cur = Instant::now();
                 std::thread::sleep(Duration::from_millis(100));
                 let elapsed = cur.elapsed();
@@ -708,9 +745,9 @@ impl Panharmonicon {
                 self.ui
                     .update_playing_progress(&playing.duration, &playing.remaining);
             } else {
-                self.playing = None;
-                trace!("Playback of Active track completed");
+                debug!("Sink is empty, but there's still time left on the clock for the current playing item.");
             }
+            */
         }
         Ok(())
     }
