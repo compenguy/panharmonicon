@@ -1057,6 +1057,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mp3-duration"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "mp4parse"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1268,8 +1276,10 @@ dependencies = [
  "glob 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "id3 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "keyring 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "mktemp 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mp3-duration 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "mp4parse 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pandora-api 0.1.0 (git+https://github.com/compenguy/pandora-api.git)",
  "pbr 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2427,6 +2437,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum mio 0.6.21 (registry+https://github.com/rust-lang/crates.io-index)" = "302dec22bcf6bae6dfb69c647187f4b4d0fb6f535521f7bc022430ce8e12008f"
 "checksum miow 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8c1f2f3b1cf331de6896aabf6e9d55dca90356cc9960cca7eaaf408a355ae919"
 "checksum mktemp 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "edf4fc746c5c977923b802d86fc9a95ca79a27d8c487613f68830d68d07c7b27"
+"checksum mp3-duration 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "827cb7e9fd860aa680721ccdf9a4e0900dfce963a34a4eec36e2d31e8f407769"
 "checksum mp4parse 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)" = "23271c4426588287355ad91e1c86b253a3312b1881515dd7783e051f1b64a400"
 "checksum native-tls 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "4b2df1a4c22fd44a62147fd8f13dd0f95c9d8ca7b2610299b2a2f9cf8964274e"
 "checksum net2 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "42550d9fb7b6684a6d404d9fa7250c2eb2646df731d1c06afc06dcee9e1bcf88"

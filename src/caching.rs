@@ -85,6 +85,11 @@ fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> R
         err => err?,
     };
 
+    // TODO: pipe in replay gain value, and create frame for the:
+    //   * RVA2 tag (if using v2.4)
+    //   * XRVA tag (http://id3.org/Experimental%20RVA2)
+    //   * http://id3.org/id3v2.4.0-frames section 4.11
+
     trace!("Updating tags with filesystem metadata");
     if tag.artist().is_none() {
         tag.set_artist(&metadata.artist);
@@ -98,9 +103,9 @@ fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> R
 
     trace!("Writing tags back to file");
     mp3_rw
-        .seek(std::io::SeekFrom::Start(0))
+        .seek(std::io::SeekFrom::End(0))
         .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-    tag.write_to(&mut mp3_rw, id3::Version::Id3v23)
+    tag.write_to(&mut mp3_rw, id3::Version::Id3v24)
         .map_err(Error::from)
 }
 

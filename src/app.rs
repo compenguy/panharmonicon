@@ -140,6 +140,7 @@ impl Playing {
 }
 
 pub(crate) struct Panharmonicon {
+    shutting_down: bool,
     ui: term::Terminal,
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
@@ -148,6 +149,7 @@ pub(crate) struct Panharmonicon {
     station: Option<String>,
     playlist: std::collections::VecDeque<PlaylistTrack>,
     playing: Option<Playing>,
+    unmute_volume: Option<f32>,
 }
 
 impl Panharmonicon {
@@ -162,6 +164,7 @@ impl Panharmonicon {
         audio_sink.set_volume(config.borrow().volume);
         let station = config.borrow().station_id.clone();
         Self {
+            shutting_down: false,
             ui,
             config: config.clone(),
             _audio_device: audio_device,
@@ -170,17 +173,20 @@ impl Panharmonicon {
             station,
             playlist: std::collections::VecDeque::with_capacity(6),
             playing: None,
+            unmute_volume: None,
         }
     }
 
     pub(crate) fn reconnect(&mut self) {
         self.session.partner_logout();
-        self.station = None;
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
-        // TODO: add a way to quit
-        loop {
+        while !self.shutting_down() {
+            self.ui.poll_input(0);
+
+            self.process_user_events();
+
             if self.has_track() {
                 self.play_track()?;
             } else if self.has_playlist() {
@@ -199,7 +205,93 @@ impl Panharmonicon {
             } else {
                 self.update_credentials(false)?;
             }
-            std::thread::sleep(Duration::from_millis(100));
+            self.ui.poll_input(100);
+        }
+        Ok(())
+    }
+
+    fn process_user_events(&mut self) {
+        while let Some(user_request) = self.ui.pop_user_request() {
+            match user_request {
+                term::UserRequest::Quit => self.shut_down(),
+                term::UserRequest::VolumeUp => self.volume_up(),
+                term::UserRequest::VolumeDown => self.volume_down(),
+                term::UserRequest::Mute => self.mute(),
+                term::UserRequest::Unmute => self.unmute(),
+                term::UserRequest::ToggleMuteUnmute => self.toggle_mute(),
+                term::UserRequest::Play => self.play(),
+                term::UserRequest::Pause => self.pause(),
+                term::UserRequest::TogglePlayPause => self.toggle_pause(),
+                term::UserRequest::ThumbsUpTrack => trace!("TODO: ThumbsUpTrack"),
+                term::UserRequest::ThumbsDownTrack => trace!("TODO: ThumbsUpTrack"),
+                term::UserRequest::RemoveTrackRating => trace!("TODO: RemoveTrackRating"),
+                term::UserRequest::SleepTrack => trace!("TODO: SleepTrack"),
+                term::UserRequest::NextTrack => self.advance_playlist().unwrap_or_default(),
+                term::UserRequest::ChangeStation => self.select_station().unwrap_or_default(),
+                term::UserRequest::ShowPlaylist => {
+                    let song_list: Vec<SongInfo> =
+                        self.playlist.iter().map(SongInfo::from).collect();
+                    self.ui.display_song_list(&song_list);
+                }
+            }
+        }
+    }
+
+    fn shut_down(&mut self) {
+        self.shutting_down = true;
+    }
+
+    fn shutting_down(&self) -> bool {
+        self.shutting_down
+    }
+
+    fn volume_up(&mut self) {
+        self.unmute();
+        let cur_volume = self.audio_sink.volume();
+        // Clamp max volume at 1.0
+        let new_volume = if cur_volume + 0.1f32 <= 1.0f32 {
+            cur_volume + 0.1f32
+        } else {
+            1.0f32
+        };
+        self.audio_sink.set_volume(new_volume);
+    }
+
+    fn volume_down(&mut self) {
+        self.unmute();
+        let cur_volume = self.audio_sink.volume();
+        // Clamp min volume at 0.0
+        let new_volume = if cur_volume - 0.1f32 >= 0.0f32 {
+            cur_volume - 0.1f32
+        } else {
+            0.0f32
+        };
+        self.audio_sink.set_volume(new_volume);
+    }
+
+    fn mute(&mut self) {
+        if self.unmute_volume.is_none() {
+            self.unmute_volume = Some(self.audio_sink.volume());
+            self.audio_sink.set_volume(0.0f32);
+        }
+    }
+
+    fn unmute(&mut self) {
+        let new_volume: Option<f32> = self.unmute_volume.take();
+        if let Some(volume) = new_volume {
+            self.audio_sink.set_volume(volume);
+        }
+    }
+
+    fn is_muted(&self) -> bool {
+        self.unmute_volume.is_some()
+    }
+
+    fn toggle_mute(&mut self) {
+        if self.is_muted() {
+            self.unmute()
+        } else {
+            self.mute()
         }
     }
 
@@ -213,6 +305,14 @@ impl Panharmonicon {
 
     fn is_paused(&self) -> bool {
         self.audio_sink.is_paused()
+    }
+
+    fn toggle_pause(&self) {
+        if self.is_paused() {
+            self.play()
+        } else {
+            self.pause()
+        }
     }
 
     fn has_credentials(&self) -> bool {
@@ -281,15 +381,9 @@ impl Panharmonicon {
             .as_ref()
             .ok_or_else(|| Error::PanharmoniconNoStationSelected)?;
         let playlist = self.session.get_playlist(station)?;
-        let infolist: Vec<SongInfo> = playlist
-            .iter()
-            .filter_map(|t| t.get_track())
-            .map(SongInfo::from)
-            .collect();
-        self.ui.display_song_list(&infolist);
-
         self.playlist
             .extend(playlist.iter().filter_map(|pe| pe.get_track()));
+        debug!("Playlist: {:?}", self.playlist);
         trace!("Playlist refilled with {} tracks", self.playlist.len());
         Ok(())
     }
@@ -322,6 +416,8 @@ impl Panharmonicon {
 
             let cached_media = get_cached_media(&playing, audio)?;
             self.playing = Some(playing);
+            // TODO: figure out why id3 crate is adding bad frames
+            let track_duration = mp3_duration::from_path(&cached_media).unwrap_or_default();
             trace!("Starting media decoding...");
             // Setting pausable(false) actually makes the source
             // the source pausable but not initially paused, in spite
@@ -335,11 +431,10 @@ impl Panharmonicon {
              * clipping
             .amplify(track.track_gain.parse::<f32>().unwrap_or(1.0f32))
             */
-            let duration = source.total_duration().unwrap_or_default();
             if let Some(playing) = self.playing.as_mut() {
-                playing.duration = duration;
-                playing.remaining = duration;
-                self.ui.display_playing(&playing.info, &duration);
+                playing.duration = track_duration;
+                playing.remaining = track_duration;
+                self.ui.display_playing(&playing.info, &track_duration);
             }
             self.audio_sink.append(source);
         }
@@ -352,13 +447,19 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
+            trace!(
+                "Playing {} ({}/{})",
+                &playing.info.name,
+                playing.remaining.as_secs(),
+                playing.duration.as_secs()
+            );
             let zero = Duration::from_millis(0);
             if self.audio_sink.empty() {
                 self.playing = None;
                 trace!("Playback of Active track completed");
             } else if playing.remaining > zero {
                 let cur = Instant::now();
-                std::thread::sleep(Duration::from_millis(100));
+                self.ui.poll_input(100);
                 let elapsed = cur.elapsed();
                 if elapsed < playing.remaining {
                     playing.remaining -= elapsed;
@@ -366,10 +467,12 @@ impl Panharmonicon {
                     playing.remaining = zero;
                 }
 
+                // TODO: something seems hinky about the remaining time displayed by the
+                // progress bar
                 self.ui
                     .update_playing_progress(&playing.duration, &playing.remaining);
             } else {
-                debug!("Sink is empty, but there's still time left on the clock for the current playing item.");
+                debug!("Sink is not empty, but there's no time left on the clock for the current playing item.");
             }
         }
         Ok(())

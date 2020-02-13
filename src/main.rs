@@ -125,6 +125,7 @@ fn main() -> Result<()> {
     trace!("Initializing app interface");
     let mut app = app::Panharmonicon::new(conf_ref, session);
     trace!("Starting app");
+    // Exit condition occurs when run() returns Ok(_)
     while let Err(e) = app.run() {
         error!("{:?}", e);
         app.reconnect();

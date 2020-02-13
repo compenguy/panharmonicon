@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 clap = "2.33"
 log = { version = "0.4", default-features = true, features = ["std"] }
+lazy_static = "1"
 flexi_logger = "0.13"
 chrono = "0.4"
 sys-info = "0.5"
@@ -22,6 +23,7 @@ reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
 termion = "1.5"
 crossterm = "0.14"
 pbr = "1"
+mp3-duration = "0.1"
 mp4parse = "0.11"
 id3 = "0.5"
 rodio = "0.10"

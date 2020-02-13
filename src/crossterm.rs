@@ -1,16 +1,61 @@
 use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 // Traits included to add required methods to types
 use std::io::Write;
 
 use crossterm::{event, style, QueueableCommand};
-use log::{error, trace};
+use lazy_static::lazy_static;
+use log::error;
 use pbr::ProgressBar;
 
 use crate::app;
 use crate::config::Config;
 use crate::errors::{Error, Result};
+
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub(crate) enum UserRequest {
+    Quit,
+    VolumeUp,
+    VolumeDown,
+    Mute,
+    Unmute,
+    ToggleMuteUnmute,
+    Play,
+    Pause,
+    TogglePlayPause,
+    ThumbsUpTrack,
+    ThumbsDownTrack,
+    RemoveTrackRating,
+    SleepTrack,
+    NextTrack,
+    ChangeStation,
+    ShowPlaylist,
+}
+
+lazy_static! {
+    static ref INPUT_MAPPING: HashMap<event::KeyCode, UserRequest> = {
+        let mut mapping = HashMap::new();
+        mapping.insert(event::KeyCode::Char('q'), UserRequest::Quit);
+        mapping.insert(event::KeyCode::Char('('), UserRequest::VolumeDown);
+        mapping.insert(event::KeyCode::Char(')'), UserRequest::VolumeUp);
+        mapping.insert(event::KeyCode::PageDown, UserRequest::Mute);
+        mapping.insert(event::KeyCode::PageUp, UserRequest::Unmute);
+        mapping.insert(event::KeyCode::Char('*'), UserRequest::ToggleMuteUnmute);
+        mapping.insert(event::KeyCode::Char('>'), UserRequest::Play);
+        mapping.insert(event::KeyCode::Char('.'), UserRequest::Pause);
+        mapping.insert(event::KeyCode::Char('p'), UserRequest::TogglePlayPause);
+        mapping.insert(event::KeyCode::Char('+'), UserRequest::ThumbsUpTrack);
+        mapping.insert(event::KeyCode::Char('-'), UserRequest::ThumbsDownTrack);
+        mapping.insert(event::KeyCode::Char('='), UserRequest::RemoveTrackRating);
+        mapping.insert(event::KeyCode::Char('t'), UserRequest::SleepTrack);
+        mapping.insert(event::KeyCode::Char('n'), UserRequest::NextTrack);
+        mapping.insert(event::KeyCode::Char('s'), UserRequest::ChangeStation);
+        mapping.insert(event::KeyCode::Char('l'), UserRequest::ShowPlaylist);
+        mapping
+    };
+}
 
 fn display_main<W: std::io::Write>(outp: &mut W, msg: &str, level: Option<log::LevelFilter>) {
     let color = match level {
@@ -49,6 +94,18 @@ impl SessionAuth {
 }
 
 fn username_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
+    // Ignore the saved value
+    !auth.use_saved()
+        || config
+            .borrow()
+            .login
+            .get_username()
+            // There is a username, but it's empty
+            .map(|u| u.is_empty())
+            // There is no username
+            .unwrap_or(true)
+
+    /*
     if auth.use_saved() {
         if let Some(username) = config.borrow().login.get_username() {
             username.is_empty()
@@ -58,9 +115,25 @@ fn username_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
     } else {
         true
     }
+    */
 }
 
 fn password_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
+    // Ignore the saved value
+    !auth.use_saved()
+        || config
+            .borrow()
+            .login
+            .get_password()
+            // Check that we were successfully able to query for the password
+            .ok()
+            // And that the query returned some value
+            .and_then(|x| x)
+            // There is a password, but it's empty
+            .map(|p| p.is_empty())
+            // There was no password
+            .unwrap_or(true)
+    /*
     if auth.use_saved() {
         if let Ok(Some(password)) = config.borrow().login.get_password() {
             password.is_empty()
@@ -70,6 +143,7 @@ fn password_empty(config: Rc<RefCell<Config>>, auth: SessionAuth) -> bool {
     } else {
         true
     }
+    */
 }
 
 pub(crate) struct Terminal {
@@ -77,6 +151,7 @@ pub(crate) struct Terminal {
     outp: std::io::Stdout,
     now_playing: Option<app::SongInfo>,
     progress: Option<ProgressBar<std::io::Stdout>>,
+    request_input: VecDeque<UserRequest>,
 }
 
 impl Terminal {
@@ -86,15 +161,22 @@ impl Terminal {
             outp: std::io::stdout(),
             now_playing: None,
             progress: None,
+            request_input: VecDeque::new(),
         }
     }
 
-    pub(crate) fn drain_events(&mut self) {
-        while let Ok(true) = event::poll(Duration::from_millis(0)) {
-            if let Ok(event) = event::read() {
-                trace!("Ignored input: {:?}", event);
+    pub(crate) fn poll_input(&mut self, block_timeout: u64) {
+        while let Ok(true) = event::poll(Duration::from_millis(block_timeout)) {
+            if let Ok(event::Event::Key(event::KeyEvent { code, .. })) = event::read() {
+                if let Some(user_request) = INPUT_MAPPING.get(&code) {
+                    self.request_input.push_back(*user_request);
+                }
             }
         }
+    }
+
+    pub(crate) fn pop_user_request(&mut self) -> Option<UserRequest> {
+        self.request_input.pop_front()
     }
 
     pub(crate) fn prompt_input(&mut self, prompt: &str) -> String {
@@ -106,7 +188,7 @@ impl Terminal {
         let _ = self.outp.flush();
 
         // Clear the event queue and start listening for user input
-        self.drain_events();
+        self.poll_input(0);
         loop {
             match event::read().map_err(Error::from) {
                 Ok(event::Event::Key(event::KeyEvent {
