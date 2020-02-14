@@ -1,5 +1,4 @@
-use std::io::{Read, Seek, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::crate_name;
 use log::trace;
@@ -47,17 +46,8 @@ pub(crate) fn get_cached_media(playing: &Playing, audio: Audio) -> Result<PathBu
         let tempdest = mktemp::Temp::new_file_in(tempdir)
             .map_err(|e| Error::FileWriteFailure(Box::new(e)))?
             .release();
-        // Control the scope of temp_rw, so that we control when it closes
-        {
-            let mut temp_rw = std::fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .open(&tempdest)
-                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-            save_url_to_writer(&audio.url, &temp_rw)?;
-            tag_mp3(&mut temp_rw, &playing.info)?;
-        }
+        save_url_to_file(&audio.url, &tempdest)?;
+        tag_mp3(&playing.info, &tempdest)?;
         if let Some(cache_parent_dir) = cache_file.parent() {
             if !cache_parent_dir.exists() {
                 std::fs::create_dir_all(&cache_parent_dir)
@@ -71,17 +61,14 @@ pub(crate) fn get_cached_media(playing: &Playing, audio: Audio) -> Result<PathBu
     Ok(cache_file)
 }
 
-fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> Result<()> {
-    mp3_rw
-        .seek(std::io::SeekFrom::Start(0))
-        .map_err(|e| Error::FileReadFailure(Box::new(e)))?;
+fn tag_mp3<P: AsRef<Path>>(metadata: &SongInfo, path: P) -> Result<()> {
     trace!("Reading tags from mp3");
-    let mut tag = match id3::Tag::read_from(&mut mp3_rw) {
+    let mut tag = match id3::Tag::read_from_path(&path) {
+        Ok(tag) => tag,
         Err(id3::Error {
             kind: id3::ErrorKind::NoTag,
             ..
         }) => id3::Tag::new(),
-        Ok(tag) => tag,
         err => err?,
     };
 
@@ -102,17 +89,16 @@ fn tag_mp3<F: Read + Write + Seek>(mut mp3_rw: &mut F, metadata: &SongInfo) -> R
     }
 
     trace!("Writing tags back to file");
-    mp3_rw
-        .seek(std::io::SeekFrom::End(0))
-        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-    tag.write_to(&mut mp3_rw, id3::Version::Id3v24)
+    tag.write_to_path(&path, id3::Version::Id3v24)
         .map_err(Error::from)
 }
 
-fn save_url_to_writer<W: Write>(url: &str, writer: W) -> Result<()> {
-    let mut buf_writer = std::io::BufWriter::new(writer);
-    let mut resp = reqwest::blocking::get(url).map_err(Error::from)?;
-    resp.copy_to(&mut buf_writer)
+fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
+    let mut resp = reqwest::blocking::get(url)?;
+
+    let file = std::fs::File::create(path).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+
+    resp.copy_to(&mut std::io::BufWriter::new(file))
         .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
     Ok(())
 }
