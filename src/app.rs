@@ -105,13 +105,9 @@ impl Playing {
     }
 
     fn get_remaining(&self) -> Duration {
-        let elapsed = self.get_elapsed();
-        if self.duration > elapsed {
-            self.duration - elapsed
-        } else {
-            trace!("Track ran past its end, negative duration remaining.");
-            Duration::default()
-        }
+        self.duration
+            .checked_sub(self.get_elapsed())
+            .unwrap_or_default()
     }
 }
 
@@ -214,10 +210,9 @@ impl Panharmonicon {
 
     pub(crate) fn run(&mut self) -> Result<()> {
         let loop_granularity = Duration::from_millis(100);
+        self.process_user_events(Duration::default());
         while !self.shutting_down() {
             let now = std::time::Instant::now();
-            self.process_user_events();
-
             if self.has_track() {
                 self.play_track()?;
             } else if self.has_playlist() {
@@ -237,16 +232,18 @@ impl Panharmonicon {
                 self.update_credentials(false)?;
             }
 
-            let elapsed = now.elapsed();
-            if elapsed < loop_granularity {
-                std::thread::sleep(loop_granularity - elapsed);
-            }
+            let remaining_in_loop = loop_granularity
+                .checked_sub(now.elapsed())
+                .unwrap_or_default();
+            self.process_user_events(remaining_in_loop);
         }
         Ok(())
     }
 
-    fn process_user_events(&mut self) {
+    fn process_user_events(&mut self, timeout: Duration) {
+        self.ui.process_messages(timeout);
         while let Some(user_request) = self.ui.pop_signal() {
+            trace!("Processing user signal {:?}", &user_request);
             match user_request {
                 term::ApplicationSignal::Quit => self.shut_down(),
                 term::ApplicationSignal::VolumeUp => self.volume_up(),
@@ -270,6 +267,7 @@ impl Panharmonicon {
                 }
             }
         }
+        trace!("All outstanding application events have been processed.");
     }
 
     fn shut_down(&mut self) {
@@ -522,6 +520,7 @@ impl Panharmonicon {
                 self.ui.update_playing_progress(&elapsed);
                 trace!("Track has time left on it.")
             } else {
+                self.ui.update_playing_progress(&duration);
                 debug!("Sink is not empty, but there's no time left on the clock for the current playing item.");
             }
         }

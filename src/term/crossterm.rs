@@ -1,21 +1,119 @@
 use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 // Traits included to add required methods to types
 use std::io::Write;
 
+use crossterm::terminal;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use crossterm::{style, QueueableCommand};
+use crossterm::{cursor, event, style, QueueableCommand};
 use ellipse::Ellipse;
-use log::error;
+use lazy_static::lazy_static;
+use log::{error, trace};
 use pbr::ProgressBar;
 
 use crate::app;
 use crate::config::Config;
 use crate::errors::{Error, Result};
-use crate::term::{crossterm_input, password_empty, username_empty, SessionAuth};
+use crate::term::{password_empty, username_empty, SessionAuth};
+
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub(crate) enum ApplicationSignal {
+    Quit,
+    VolumeUp,
+    VolumeDown,
+    Mute,
+    Unmute,
+    ToggleMuteUnmute,
+    Play,
+    Pause,
+    TogglePlayPause,
+    ThumbsUpTrack,
+    ThumbsDownTrack,
+    RemoveTrackRating,
+    SleepTrack,
+    NextTrack,
+    ChangeStation,
+    ShowPlaylist,
+}
+
+lazy_static! {
+    static ref INPUT_MAPPING: HashMap<event::KeyEvent, ApplicationSignal> = {
+        let mut mapping = HashMap::new();
+        mapping.insert(
+            event::KeyEvent::new(event::KeyCode::Char('c'), event::KeyModifiers::CONTROL),
+            ApplicationSignal::Quit,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('q')),
+            ApplicationSignal::Quit,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('(')),
+            ApplicationSignal::VolumeDown,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char(')')),
+            ApplicationSignal::VolumeUp,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::PageDown),
+            ApplicationSignal::Mute,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::PageUp),
+            ApplicationSignal::Unmute,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('*')),
+            ApplicationSignal::ToggleMuteUnmute,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('>')),
+            ApplicationSignal::Play,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('.')),
+            ApplicationSignal::Pause,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('p')),
+            ApplicationSignal::TogglePlayPause,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('+')),
+            ApplicationSignal::ThumbsUpTrack,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('-')),
+            ApplicationSignal::ThumbsDownTrack,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('=')),
+            ApplicationSignal::RemoveTrackRating,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('t')),
+            ApplicationSignal::SleepTrack,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('n')),
+            ApplicationSignal::NextTrack,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('s')),
+            ApplicationSignal::ChangeStation,
+        );
+        mapping.insert(
+            event::KeyEvent::from(event::KeyCode::Char('l')),
+            ApplicationSignal::ShowPlaylist,
+        );
+        mapping
+    };
+}
 
 fn display_main<W: std::io::Write>(outp: &mut W, msg: &str, level: Option<log::LevelFilter>) {
     let color = match level {
@@ -44,8 +142,7 @@ fn display_main<W: std::io::Write>(outp: &mut W, msg: &str, level: Option<log::L
 pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
     outp: std::io::Stdout,
-    // TODO: add mechanism to force spawned thread to terminate
-    input_event_queue: crossterm_input::EventQueue,
+    application_signals: VecDeque<ApplicationSignal>,
     now_playing: Option<app::SongInfo>,
     progress: Option<ProgressBar<std::io::Stdout>>,
 }
@@ -60,14 +157,14 @@ impl Terminal {
         Terminal {
             config,
             outp,
-            input_event_queue: crossterm_input::EventQueue::new(),
+            application_signals: VecDeque::new(),
             now_playing: None,
             progress: None,
         }
     }
 
-    pub(crate) fn pop_signal(&mut self) -> Option<crossterm_input::ApplicationSignal> {
-        self.input_event_queue.pop()
+    pub(crate) fn pop_signal(&mut self) -> Option<ApplicationSignal> {
+        self.application_signals.pop_front()
     }
 
     pub(crate) fn handle_result<T>(&mut self, result: Result<T>) -> Option<T> {
@@ -110,9 +207,20 @@ impl Terminal {
     }
 
     pub(crate) fn display_station_list(&mut self, stations: &[app::Station]) {
-        // TODO: use cursor goto to position each entry, and clear each line before displaying
+        let result = self
+            .outp
+            .queue(cursor::MoveUp(stations.len() as u16))
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
         for station in stations {
             self.display_station_info(&station.station_id, &station.station_name);
+            let result = self
+                .outp
+                .queue(cursor::MoveToNextLine(1))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
         }
         let result = writeln!(self.outp).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
@@ -143,24 +251,65 @@ impl Terminal {
     }
 
     pub(crate) fn display_song_list(&mut self, songs: &[app::SongInfo]) {
-        // TODO: use cursor goto to position each entry, and clear each line before displaying
+        let result = self
+            .outp
+            .queue(cursor::MoveUp(songs.len() as u16))
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
         for song in songs {
             self.display_song_info(song);
+            let result = self
+                .outp
+                .queue(cursor::MoveToNextLine(1))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
         }
         let result = writeln!(self.outp).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
     }
 
     pub(crate) fn display_song_info(&mut self, song: &app::SongInfo) {
+        let result = self
+            .outp
+            .queue(cursor::MoveToPreviousLine(1))
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
         let result = writeln!(self.outp, "{} by {}", song.name, song.artist)
             .map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
+        let result = self
+            .outp
+            .queue(cursor::MoveToNextLine(1))
+            .map(drop)
+            .map_err(Error::from);
         self.handle_result(result);
     }
 
     pub(crate) fn display_playing(&mut self, song: &app::SongInfo, duration: &Duration) {
-        // TODO: use cursor goto to position, and clear line before displaying
+        if self.progress.is_some() {
+            let (_, max_row) = self
+                .handle_result(terminal::size().map_err(Error::from))
+                .unwrap_or_default();
+            let result = self
+                .outp
+                .queue(cursor::MoveTo(0, max_row - 1))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
+            let result = self
+                .outp
+                .queue(Clear(ClearType::CurrentLine))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
+        }
         if let Some(progress) = &mut self.progress {
             progress.finish();
+            // TODO: Possibly scroll down by one line to preserve the finished
+            // progressbar on screen?
         }
         self.now_playing = Some(song.clone());
         let mut progress = ProgressBar::new(duration.as_secs());
@@ -176,8 +325,24 @@ impl Terminal {
     }
 
     pub(crate) fn update_playing_progress(&mut self, elapsed: &Duration) {
+        if self.progress.is_some() {
+            let (_, max_row) = self
+                .handle_result(terminal::size().map_err(Error::from))
+                .unwrap_or_default();
+            let result = self
+                .outp
+                .queue(cursor::MoveTo(0, max_row - 1))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
+            let result = self
+                .outp
+                .queue(Clear(ClearType::CurrentLine))
+                .map(drop)
+                .map_err(Error::from);
+            self.handle_result(result);
+        }
         if let Some(progress) = &mut self.progress {
-            // TODO: use cursor goto to position, and clear line before displaying
             let elapsed_secs = elapsed.as_secs();
             progress.set(elapsed_secs);
         }
@@ -188,13 +353,186 @@ impl Terminal {
     }
 
     pub(crate) fn prompt_input(&mut self, prompt: &str) -> String {
-        // TODO: use cursor goto to position, and clear line before displaying
+        // Save cursor position, move up a line, clear it, display prompt, and show cursor
+        let result = self
+            .outp
+            .queue(cursor::SavePosition)
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
+        let result = self
+            .outp
+            .queue(cursor::MoveToPreviousLine(1))
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
+        let result = self
+            .outp
+            .queue(Clear(ClearType::CurrentLine))
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
         let result =
             writeln!(self.outp, "{}", prompt).map_err(|e| Error::OutputFailure(Box::new(e)));
         self.handle_result(result);
+        let result = self.outp.queue(cursor::Show).map(drop).map_err(Error::from);
+        self.handle_result(result);
+        let result = self
+            .outp
+            .queue(cursor::EnableBlinking)
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
+        let result = self
+            .outp
+            .flush()
+            .map_err(|e| Error::OutputFailure(Box::new(e)));
+        self.handle_result(result);
 
-        let result = self.input_event_queue.prompt_input();
-        self.handle_result(result).unwrap_or_default()
+        // TODO: track edit position, and accept arrow keys to edit string in-place
+        let mut input = String::with_capacity(10);
+        // Drain the input buffer before we switch to blocking-style input
+        self.process_messages(Duration::default());
+        loop {
+            trace!("Blocking on user input. Accumulated input: {}", input);
+            // No need to poll - we're doing blocking-style input
+            if let Some(event::Event::Key(event::KeyEvent { code, modifiers })) =
+                self.handle_result(event::read().map_err(Error::from))
+            {
+                match (code, modifiers) {
+                    (event::KeyCode::Char('c'), event::KeyModifiers::CONTROL) => {
+                        // Clear input, clear current line, restore cursor position,
+                        // and exit loop
+                        input.clear();
+                        let result = self
+                            .outp
+                            .queue(Clear(ClearType::CurrentLine))
+                            .map(drop)
+                            .map_err(Error::from);
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .flush()
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        break;
+                    }
+                    (event::KeyCode::Esc, _) => {
+                        // Clear input, clear current line, restore cursor position,
+                        // and exit loop
+                        input.clear();
+                        let result = self
+                            .outp
+                            .queue(Clear(ClearType::CurrentLine))
+                            .map(drop)
+                            .map_err(Error::from);
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .flush()
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        break;
+                    }
+                    (event::KeyCode::Enter, _) => {
+                        // Clear current line and exit loop
+                        let result = self
+                            .outp
+                            .queue(Clear(ClearType::CurrentLine))
+                            .map(drop)
+                            .map_err(Error::from);
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .flush()
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        break;
+                    }
+                    (event::KeyCode::Char(c), _) => {
+                        // Add a char to the input buffer,
+                        // display char at current cursor position
+                        let result = write!(self.outp, "{}", c)
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .flush()
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        input.push(c);
+                    }
+                    (event::KeyCode::Backspace, _) => {
+                        // Remove a saved char, move cursor left one,
+                        // and clear the line from that point on
+                        let result = self
+                            .outp
+                            .queue(cursor::MoveLeft(1))
+                            .map(drop)
+                            .map_err(Error::from);
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .queue(Clear(ClearType::UntilNewLine))
+                            .map(drop)
+                            .map_err(Error::from);
+                        self.handle_result(result);
+                        let result = self
+                            .outp
+                            .flush()
+                            .map_err(|e| Error::OutputFailure(Box::new(e)));
+                        self.handle_result(result);
+                        let _ = input.pop();
+                    }
+                    x => trace!("Ignored input event during prompt: {:?}", x),
+                }
+            }
+        }
+        // Hide cursor, restore cursor position, and return result
+        let result = self
+            .outp
+            .queue(cursor::DisableBlinking)
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
+        let result = self.outp.queue(cursor::Hide).map(drop).map_err(Error::from);
+        self.handle_result(result);
+        let result = self
+            .outp
+            .queue(cursor::RestorePosition)
+            .map(drop)
+            .map_err(Error::from);
+        self.handle_result(result);
+        input
+    }
+
+    pub(crate) fn process_messages(&mut self, timeout: Duration) {
+        let now = Instant::now();
+        loop {
+            let remaining = timeout.checked_sub(now.elapsed()).unwrap_or_default();
+            if let Ok(true) = event::poll(remaining) {
+                match self.handle_result(event::read().map_err(Error::from)) {
+                    Some(event::Event::Key(ke)) => self.translate_key_input(ke),
+                    Some(oe) => trace!("Unhandled input event: {:?}", oe),
+                    None => {}
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub(crate) fn translate_key_input(&mut self, key_event: event::KeyEvent) {
+        if let Some(signal) = INPUT_MAPPING.get(&key_event) {
+            trace!(
+                "Keycode {:?} matched application event {:?}",
+                key_event,
+                signal
+            );
+            self.application_signals.push_back(*signal);
+        } else {
+            trace!("Unhandled keycode: {:?}", key_event);
+        }
     }
 }
 

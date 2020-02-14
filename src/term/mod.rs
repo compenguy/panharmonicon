@@ -4,9 +4,11 @@ use std::rc::Rc;
 use crate::config::Config;
 
 mod crossterm;
-pub(crate) use crate::term::crossterm::Terminal;
+pub(crate) use crate::term::crossterm::{ApplicationSignal, Terminal};
+/*
 mod crossterm_input;
 pub(crate) use crate::term::crossterm_input::ApplicationSignal;
+*/
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum SessionAuth {
