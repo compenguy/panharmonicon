@@ -47,6 +47,7 @@ pub(crate) fn get_cached_media(playing: &Playing, audio: Audio) -> Result<PathBu
             .map_err(|e| Error::FileWriteFailure(Box::new(e)))?
             .release();
         save_url_to_file(&audio.url, &tempdest)?;
+        // This seems to cause some corruption of mp3 files
         tag_mp3(&playing.info, &tempdest)?;
         if let Some(cache_parent_dir) = cache_file.parent() {
             if !cache_parent_dir.exists() {
@@ -77,7 +78,7 @@ fn tag_mp3<P: AsRef<Path>>(metadata: &SongInfo, path: P) -> Result<()> {
     //   * XRVA tag (http://id3.org/Experimental%20RVA2)
     //   * http://id3.org/id3v2.4.0-frames section 4.11
 
-    trace!("Updating tags with filesystem metadata");
+    trace!("Updating tags with pandora metadata");
     if tag.artist().is_none() {
         tag.set_artist(&metadata.artist);
     }
@@ -89,8 +90,8 @@ fn tag_mp3<P: AsRef<Path>>(metadata: &SongInfo, path: P) -> Result<()> {
     }
 
     trace!("Writing tags back to file");
-    tag.write_to_path(&path, id3::Version::Id3v24)
-        .map_err(Error::from)
+    tag.write_to_path(&path, id3::Version::Id3v23)?;
+    Ok(())
 }
 
 fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {

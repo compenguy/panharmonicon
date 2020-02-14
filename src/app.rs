@@ -6,15 +6,15 @@ use log::{debug, trace};
 use rodio::source::Source;
 use rodio::DeviceTrait;
 
-use pandora_api::json::station::{AudioFormat, PlaylistTrack};
+use pandora_api::json::station::{AudioFormat, AudioStream, PlaylistTrack};
 pub use pandora_api::json::user::Station;
 
 use crate::caching::get_cached_media;
 use crate::config;
 use crate::config::{Config, PartialConfig};
-use crate::crossterm as term;
 use crate::errors::{Error, Result};
 use crate::pandora::PandoraSession;
+use crate::term;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) struct Audio {
@@ -25,41 +25,37 @@ pub(crate) struct Audio {
 }
 
 impl Audio {
-    fn from_track(track: &PlaylistTrack) -> Vec<Audio> {
+    fn try_from_stream(quality: Quality, stream: &AudioStream) -> Result<Self> {
+        Ok(Audio {
+            quality,
+            url: stream.audio_url.clone(),
+            bitrate: stream.bitrate.clone(),
+            encoding: AudioFormat::new_from_audio_url_map(&stream.encoding, &stream.bitrate)?,
+        })
+    }
+
+    fn list_from_track(track: &PlaylistTrack) -> Vec<Audio> {
         let mut sorted_audio_list: Vec<Audio> = Vec::with_capacity(4);
 
-        let hq_audio = &track.audio_url_map.high_quality;
-        let mq_audio = &track.audio_url_map.medium_quality;
-        let lq_audio = &track.audio_url_map.low_quality;
+        match Audio::try_from_stream(Quality::High, &track.audio_url_map.high_quality) {
+            Ok(hq_audio) => sorted_audio_list.push(hq_audio),
+            Err(e) => debug!("Unsupported hq track encoding: {:?}", e),
+        }
 
-        // TODO: change these "expect()" calls to log the failure,
-        // and then omit them from the audio list.
-        sorted_audio_list.push(Audio {
-            quality: Quality::High,
-            url: hq_audio.audio_url.clone(),
-            bitrate: hq_audio.bitrate.clone(),
-            encoding: AudioFormat::new_from_audio_url_map(&hq_audio.encoding, &hq_audio.bitrate)
-                .expect("Unsupported high quality audio format returned by Pandora"),
-        });
-        sorted_audio_list.push(Audio {
-            quality: Quality::Medium,
-            url: mq_audio.audio_url.clone(),
-            bitrate: mq_audio.bitrate.clone(),
-            encoding: AudioFormat::new_from_audio_url_map(&mq_audio.encoding, &mq_audio.bitrate)
-                .expect("Unsupported medium quality audio format returned by Pandora"),
-        });
-        sorted_audio_list.push(Audio {
-            quality: Quality::Low,
-            url: lq_audio.audio_url.clone(),
-            bitrate: lq_audio.bitrate.clone(),
-            encoding: AudioFormat::new_from_audio_url_map(&lq_audio.encoding, &lq_audio.bitrate)
-                .expect("Unsupported low quality audio format returned by Pandora"),
-        });
+        match Audio::try_from_stream(Quality::Medium, &track.audio_url_map.medium_quality) {
+            Ok(mq_audio) => sorted_audio_list.push(mq_audio),
+            Err(e) => debug!("Unsupported mq track encoding: {:?}", e),
+        }
+
+        match Audio::try_from_stream(Quality::Low, &track.audio_url_map.low_quality) {
+            Ok(lq_audio) => sorted_audio_list.push(lq_audio),
+            Err(e) => debug!("Unsupported lq track encoding: {:?}", e),
+        }
 
         sorted_audio_list.push(Audio {
             quality: Quality::Medium,
             url: track.additional_audio_url.to_string(),
-            bitrate: String::from("128"),
+            bitrate: format!("{}", AudioFormat::Mp3128.get_bitrate()),
             encoding: AudioFormat::Mp3128,
         });
         sorted_audio_list
@@ -81,21 +77,56 @@ pub(crate) enum Quality {
 pub(crate) struct Playing {
     pub(crate) track_token: String,
     pub(crate) audio: Vec<Audio>,
+    pub(crate) started: Instant,
+    pub(crate) elapsed: Duration,
     pub(crate) duration: Duration,
-    pub(crate) remaining: Duration,
     pub(crate) info: SongInfo,
+}
+
+impl Playing {
+    fn start_timer(&mut self) {
+        self.started = Instant::now();
+    }
+
+    fn pause_timer(&mut self) {
+        self.elapsed += self.started.elapsed();
+    }
+
+    fn resume_timer(&mut self) {
+        self.started = Instant::now();
+    }
+
+    fn get_duration(&self) -> Duration {
+        self.duration
+    }
+
+    fn get_elapsed(&self) -> Duration {
+        self.elapsed + self.started.elapsed()
+    }
+
+    fn get_remaining(&self) -> Duration {
+        let elapsed = self.get_elapsed();
+        if self.duration > elapsed {
+            self.duration - elapsed
+        } else {
+            trace!("Track ran past its end, negative duration remaining.");
+            Duration::default()
+        }
+    }
 }
 
 impl From<&PlaylistTrack> for Playing {
     fn from(track: &PlaylistTrack) -> Self {
-        trace!("Parsing playlist track {:?}", track);
-        Self {
+        let playing = Self {
             track_token: track.track_token.to_string(),
-            audio: Audio::from_track(track),
-            duration: Duration::from_millis(0),
-            remaining: Duration::from_millis(0),
+            audio: Audio::list_from_track(track),
+            started: Instant::now(),
+            elapsed: Duration::default(),
+            duration: Duration::default(),
             info: SongInfo::from(track),
-        }
+        };
+        trace!("Parsed playlist track {:?}", &playing.info);
+        playing
     }
 }
 
@@ -144,7 +175,7 @@ pub(crate) struct Panharmonicon {
     ui: term::Terminal,
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
-    _audio_device: rodio::Device,
+    audio_device: rodio::Device,
     audio_sink: rodio::Sink,
     station: Option<String>,
     playlist: std::collections::VecDeque<PlaylistTrack>,
@@ -167,7 +198,7 @@ impl Panharmonicon {
             shutting_down: false,
             ui,
             config: config.clone(),
-            _audio_device: audio_device,
+            audio_device,
             audio_sink,
             session: PandoraSession::new(config),
             station,
@@ -182,9 +213,9 @@ impl Panharmonicon {
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
+        let loop_granularity = Duration::from_millis(100);
         while !self.shutting_down() {
-            self.ui.poll_input(0);
-
+            let now = std::time::Instant::now();
             self.process_user_events();
 
             if self.has_track() {
@@ -205,30 +236,34 @@ impl Panharmonicon {
             } else {
                 self.update_credentials(false)?;
             }
-            self.ui.poll_input(100);
+
+            let elapsed = now.elapsed();
+            if elapsed < loop_granularity {
+                std::thread::sleep(loop_granularity - elapsed);
+            }
         }
         Ok(())
     }
 
     fn process_user_events(&mut self) {
-        while let Some(user_request) = self.ui.pop_user_request() {
+        while let Some(user_request) = self.ui.pop_signal() {
             match user_request {
-                term::UserRequest::Quit => self.shut_down(),
-                term::UserRequest::VolumeUp => self.volume_up(),
-                term::UserRequest::VolumeDown => self.volume_down(),
-                term::UserRequest::Mute => self.mute(),
-                term::UserRequest::Unmute => self.unmute(),
-                term::UserRequest::ToggleMuteUnmute => self.toggle_mute(),
-                term::UserRequest::Play => self.play(),
-                term::UserRequest::Pause => self.pause(),
-                term::UserRequest::TogglePlayPause => self.toggle_pause(),
-                term::UserRequest::ThumbsUpTrack => trace!("TODO: ThumbsUpTrack"),
-                term::UserRequest::ThumbsDownTrack => trace!("TODO: ThumbsUpTrack"),
-                term::UserRequest::RemoveTrackRating => trace!("TODO: RemoveTrackRating"),
-                term::UserRequest::SleepTrack => trace!("TODO: SleepTrack"),
-                term::UserRequest::NextTrack => self.advance_playlist().unwrap_or_default(),
-                term::UserRequest::ChangeStation => self.select_station().unwrap_or_default(),
-                term::UserRequest::ShowPlaylist => {
+                term::ApplicationSignal::Quit => self.shut_down(),
+                term::ApplicationSignal::VolumeUp => self.volume_up(),
+                term::ApplicationSignal::VolumeDown => self.volume_down(),
+                term::ApplicationSignal::Mute => self.mute(),
+                term::ApplicationSignal::Unmute => self.unmute(),
+                term::ApplicationSignal::ToggleMuteUnmute => self.toggle_mute(),
+                term::ApplicationSignal::Play => self.play(),
+                term::ApplicationSignal::Pause => self.pause(),
+                term::ApplicationSignal::TogglePlayPause => self.toggle_pause(),
+                term::ApplicationSignal::ThumbsUpTrack => trace!("TODO: ThumbsUpTrack"),
+                term::ApplicationSignal::ThumbsDownTrack => trace!("TODO: ThumbsUpTrack"),
+                term::ApplicationSignal::RemoveTrackRating => trace!("TODO: RemoveTrackRating"),
+                term::ApplicationSignal::SleepTrack => trace!("TODO: SleepTrack"),
+                term::ApplicationSignal::NextTrack => self.stop(),
+                term::ApplicationSignal::ChangeStation => self.select_station().unwrap_or_default(),
+                term::ApplicationSignal::ShowPlaylist => {
                     let song_list: Vec<SongInfo> =
                         self.playlist.iter().map(SongInfo::from).collect();
                     self.ui.display_song_list(&song_list);
@@ -295,19 +330,39 @@ impl Panharmonicon {
         }
     }
 
-    fn pause(&self) {
-        self.audio_sink.pause();
+    fn pause(&mut self) {
+        if !self.is_paused() {
+            trace!("Pausing playback of current track at user request.");
+            if let Some(playing) = self.playing.as_mut() {
+                playing.pause_timer();
+            }
+            self.audio_sink.pause();
+        }
     }
 
-    fn play(&self) {
-        self.audio_sink.play();
+    fn play(&mut self) {
+        if self.is_paused() {
+            trace!("Resuming playback of current track at user request.");
+            if let Some(playing) = self.playing.as_mut() {
+                playing.resume_timer();
+            }
+            self.audio_sink.play();
+        }
+    }
+
+    fn stop(&mut self) {
+        trace!("Stopping current track at user request.");
+        let volume = self.audio_sink.volume();
+        self.audio_sink = rodio::Sink::new(&self.audio_device);
+        self.audio_sink.set_volume(volume);
+        self.playing = None;
     }
 
     fn is_paused(&self) -> bool {
         self.audio_sink.is_paused()
     }
 
-    fn toggle_pause(&self) {
+    fn toggle_pause(&mut self) {
         if self.is_paused() {
             self.play()
         } else {
@@ -383,7 +438,7 @@ impl Panharmonicon {
         let playlist = self.session.get_playlist(station)?;
         self.playlist
             .extend(playlist.iter().filter_map(|pe| pe.get_track()));
-        debug!("Playlist: {:?}", self.playlist);
+        //debug!("Playlist: {:?}", self.playlist);
         trace!("Playlist refilled with {} tracks", self.playlist.len());
         Ok(())
     }
@@ -415,28 +470,31 @@ impl Panharmonicon {
             debug!("Selected audio stream {:?}", audio);
 
             let cached_media = get_cached_media(&playing, audio)?;
-            self.playing = Some(playing);
-            // TODO: figure out why id3 crate is adding bad frames
-            let track_duration = mp3_duration::from_path(&cached_media).unwrap_or_default();
+
             trace!("Starting media decoding...");
             // Setting pausable(false) actually makes the source
             // the source pausable but not initially paused, in spite
             // of how it may look.
             let source = rodio::decoder::Decoder::new(std::io::BufReader::new(
-                std::fs::File::open(cached_media)
+                std::fs::File::open(&cached_media)
                     .map_err(|e| Error::MediaReadFailure(Box::new(e)))?,
             ))?
             .pausable(false);
+            self.audio_sink.append(source);
             /* Applying the provided track gain values in my experience causes
              * clipping
             .amplify(track.track_gain.parse::<f32>().unwrap_or(1.0f32))
             */
+
+            // Setting track as playing
+            self.playing = Some(playing);
+            let track_duration = mp3_duration::from_path(&cached_media)?;
+
             if let Some(playing) = self.playing.as_mut() {
                 playing.duration = track_duration;
-                playing.remaining = track_duration;
                 self.ui.display_playing(&playing.info, &track_duration);
+                playing.start_timer();
             }
-            self.audio_sink.append(source);
         }
         Ok(())
     }
@@ -447,30 +505,22 @@ impl Panharmonicon {
 
     fn play_track(&mut self) -> Result<()> {
         if let Some(playing) = self.playing.as_mut() {
+            let elapsed = playing.get_elapsed();
+            let remaining = playing.get_remaining();
+            let duration = playing.get_duration();
             trace!(
                 "Playing {} ({}/{})",
                 &playing.info.name,
-                playing.remaining.as_secs(),
-                playing.duration.as_secs()
+                elapsed.as_secs(),
+                duration.as_secs()
             );
             let zero = Duration::from_millis(0);
             if self.audio_sink.empty() {
                 self.playing = None;
                 trace!("Playback of Active track completed");
-            } else if playing.remaining > zero {
-                let cur = Instant::now();
-                self.ui.poll_input(100);
-                let elapsed = cur.elapsed();
-                if elapsed < playing.remaining {
-                    playing.remaining -= elapsed;
-                } else {
-                    playing.remaining = zero;
-                }
-
-                // TODO: something seems hinky about the remaining time displayed by the
-                // progress bar
-                self.ui
-                    .update_playing_progress(&playing.duration, &playing.remaining);
+            } else if duration > zero && remaining > zero {
+                self.ui.update_playing_progress(&elapsed);
+                trace!("Track has time left on it.")
             } else {
                 debug!("Sink is not empty, but there's no time left on the clock for the current playing item.");
             }

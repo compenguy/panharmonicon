@@ -20,10 +20,11 @@ keyring = "0.7"
 glob = "0.3"
 pandora-api = { git = "https://github.com/compenguy/pandora-api.git" }
 reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
-termion = "1.5"
-crossterm = "0.14"
+crossterm = "0.16"
+ellipse = "0.2"
+crossbeam-channel = "0.4"
 pbr = "1"
-mp3-duration = "0.1"
+mp3-duration = { git = "https://github.com/compenguy/mp3-duration.git" }
 mp4parse = "0.11"
 id3 = "0.5"
 rodio = "0.10"

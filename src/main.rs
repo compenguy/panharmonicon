@@ -13,8 +13,7 @@ use crate::errors::{Error, Result};
 mod config;
 use crate::config::Config;
 
-mod crossterm;
-use crate::crossterm as term;
+mod term;
 
 mod app;
 mod caching;
@@ -76,7 +75,6 @@ fn main() -> Result<()> {
         crate_log_level
     );
     let mut log_builder = Logger::with_str(&spec);
-    //let mut log_builder = Logger::with(flexi_logger::LogSpecification::default(log_level).build());
 
     if matches.is_present("debug-log") {
         let data_local_dir = dirs::data_local_dir()
@@ -93,6 +91,7 @@ fn main() -> Result<()> {
             .log_to_file()
             .suppress_timestamp()
             .directory(&log_dir);
+        println!("Logging debug output to {}", log_dir.to_string_lossy());
     }
 
     log_builder
@@ -121,9 +120,9 @@ fn main() -> Result<()> {
     debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let session = term::Terminal::new(conf_ref.clone());
+    let ui = term::Terminal::new(conf_ref.clone());
     trace!("Initializing app interface");
-    let mut app = app::Panharmonicon::new(conf_ref, session);
+    let mut app = app::Panharmonicon::new(conf_ref, ui);
     trace!("Starting app");
     // Exit condition occurs when run() returns Ok(_)
     while let Err(e) = app.run() {
