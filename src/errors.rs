@@ -15,14 +15,9 @@ pub(crate) enum Error {
     KeyringFailure(Box<keyring::KeyringError>),
     PandoraFailure(Box<pandora_api::errors::Error>),
     HttpRequestFailure(Box<reqwest::Error>),
-    CrosstermFailure(Box<crossterm::ErrorKind>),
-    CrossbeamTryRecvFailure(Box<crossbeam_channel::TryRecvError>),
-    CrossbeamRecvFailure(Box<crossbeam_channel::RecvError>),
-    CrossbeamSendEventFailure(Box<crossbeam_channel::SendError<crossterm::event::Event>>),
     OutputFailure(Box<std::io::Error>),
     MediaReadFailure(Box<std::io::Error>),
     AudioDecodingFailure(Box<rodio::decoder::DecoderError>),
-    Mp4MediaParseFailure(Box<mp4parse::Error>),
     Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
     Mp3MetadataParseFailure(Box<id3::Error>),
     PanharmoniconNoStationSelected,
@@ -58,14 +53,9 @@ impl std::fmt::Display for Error {
             }
             Error::PandoraFailure(e) => write!(f, "Pandora connection error: {}", e),
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
-            Error::CrosstermFailure(e) => write!(f, "Crossterm output error: {}", e),
-            Error::CrossbeamTryRecvFailure(e) => write!(f, "Threading error: {}", e),
-            Error::CrossbeamRecvFailure(e) => write!(f, "Threading error: {}", e),
-            Error::CrossbeamSendEventFailure(e) => write!(f, "Threading error: {}", e),
             Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
             Error::MediaReadFailure(e) => write!(f, "Media read error: {}", e),
             Error::AudioDecodingFailure(e) => write!(f, "Media decoding error: {:?}", e),
-            Error::Mp4MediaParseFailure(e) => write!(f, "MP4 media parse error: {:?}", e),
             Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
             Error::Mp3MetadataParseFailure(e) => write!(f, "MP3 metadata parse error: {:?}", e),
             Error::PanharmoniconNoStationSelected => {
@@ -100,14 +90,9 @@ impl std::error::Error for Error {
             Error::KeyringFailure(e) => Some(e),
             Error::PandoraFailure(e) => Some(e),
             Error::HttpRequestFailure(e) => Some(e),
-            Error::CrosstermFailure(e) => Some(e),
-            Error::CrossbeamTryRecvFailure(e) => Some(e),
-            Error::CrossbeamRecvFailure(e) => Some(e),
-            Error::CrossbeamSendEventFailure(e) => Some(e),
             Error::OutputFailure(e) => Some(e),
             Error::MediaReadFailure(e) => Some(e),
             Error::AudioDecodingFailure(e) => Some(e),
-            Error::Mp4MediaParseFailure(_) => None,
             Error::Mp3MediaParseFailure(_) => None,
             Error::Mp3MetadataParseFailure(e) => Some(e),
             Error::PanharmoniconNoStationSelected => None,
@@ -135,38 +120,9 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-impl From<crossterm::ErrorKind> for Error {
-    fn from(err: crossterm::ErrorKind) -> Self {
-        Error::CrosstermFailure(Box::new(err))
-    }
-}
-
-impl From<crossbeam_channel::TryRecvError> for Error {
-    fn from(err: crossbeam_channel::TryRecvError) -> Self {
-        Error::CrossbeamTryRecvFailure(Box::new(err))
-    }
-}
-
-impl From<crossbeam_channel::RecvError> for Error {
-    fn from(err: crossbeam_channel::RecvError) -> Self {
-        Error::CrossbeamRecvFailure(Box::new(err))
-    }
-}
-
-impl From<crossbeam_channel::SendError<crossterm::event::Event>> for Error {
-    fn from(err: crossbeam_channel::SendError<crossterm::event::Event>) -> Self {
-        Error::CrossbeamSendEventFailure(Box::new(err))
-    }
-}
 impl From<rodio::decoder::DecoderError> for Error {
     fn from(err: rodio::decoder::DecoderError) -> Self {
         Error::AudioDecodingFailure(Box::new(err))
-    }
-}
-
-impl From<mp4parse::Error> for Error {
-    fn from(err: mp4parse::Error) -> Self {
-        Error::Mp4MediaParseFailure(Box::new(err))
     }
 }
 

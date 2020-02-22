@@ -13,9 +13,8 @@ use crate::errors::{Error, Result};
 mod config;
 use crate::config::Config;
 
-mod term;
+mod terminal;
 
-mod app;
 mod caching;
 mod pandora;
 
@@ -120,14 +119,13 @@ fn main() -> Result<()> {
     debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));
 
-    let ui = term::Terminal::new(conf_ref.clone());
-    trace!("Initializing app interface");
-    let mut app = app::Panharmonicon::new(conf_ref, ui);
+    trace!("Initializing terminal interface");
+    let ui = terminal::Terminal::new(conf_ref.clone());
     trace!("Starting app");
     // Exit condition occurs when run() returns Ok(_)
-    while let Err(e) = app.run() {
+    while let Err(e) = ui.run() {
         error!("{:?}", e);
-        app.reconnect();
+        ui.reconnect();
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 
