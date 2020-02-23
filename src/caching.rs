@@ -120,8 +120,9 @@ impl Drop for CachedTrack {
         if self.evict_on_drop {
             if let Err(e) = std::fs::remove_file(&self.path) {
                 error!(
-                    "Failed to evict cached track {}",
-                    self.path.to_string_lossy()
+                    "Failed to evict cached track {}: {:?}",
+                    self.path.to_string_lossy(),
+                    e
                 );
             } else {
                 debug!("Track {} evicted from cache.", self.path.to_string_lossy());

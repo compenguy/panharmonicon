@@ -143,10 +143,10 @@ impl PandoraSession {
         }
 
         trace!("User login");
-        let username_opt = self.config.borrow().login.get_username();
+        let username_opt = self.config.borrow().login.username();
         let username = username_opt.ok_or_else(|| Error::PanharmoniconMissingAuthToken)?;
 
-        let password_opt = self.config.borrow().login.get_password()?;
+        let password_opt = self.config.borrow().login.password()?;
         let password = password_opt.ok_or_else(|| Error::PanharmoniconMissingAuthToken)?;
 
         UserLogin::new(&username, &password).merge_response(&mut self.inner)?;

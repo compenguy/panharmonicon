@@ -2,9 +2,9 @@
 use std::boxed::Box;
 use std::{cell::RefCell, rc::Rc};
 
-use human_panic::setup_panic;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
+use human_panic::setup_panic;
 use log::{debug, error, trace};
 
 mod errors;

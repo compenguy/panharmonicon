@@ -1,20 +1,12 @@
 use std::fs::{create_dir_all, File};
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::mem;
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 use clap::crate_name;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub(crate) enum AudioQuality {
-    PreferMp3,
-    PreferBest,
-}
 
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename = "Config")]
@@ -22,8 +14,54 @@ pub(crate) struct PartialConfig {
     pub(crate) login: Option<Credentials>,
     pub(crate) station_id: Option<Option<String>>,
     pub(crate) save_station: Option<bool>,
-    pub(crate) audio_quality: Option<AudioQuality>,
     pub(crate) volume: Option<f32>,
+}
+
+impl PartialConfig {
+    pub(crate) fn new_login(cred: Credentials) -> Self {
+        PartialConfig {
+            login: Some(cred),
+            station_id: None,
+            save_station: None,
+            volume: None,
+        }
+    }
+
+    pub(crate) fn new_station(station: String) -> Self {
+        PartialConfig {
+            login: None,
+            station_id: Some(Some(station)),
+            save_station: None,
+            volume: None,
+        }
+    }
+
+    pub(crate) fn no_station() -> Self {
+        PartialConfig {
+            login: None,
+            station_id: Some(None),
+            save_station: None,
+            volume: None,
+        }
+    }
+
+    pub(crate) fn new_save_station(save: bool) -> Self {
+        PartialConfig {
+            login: None,
+            station_id: None,
+            save_station: Some(save),
+            volume: None,
+        }
+    }
+
+    pub(crate) fn new_volume(volume: f32) -> Self {
+        PartialConfig {
+            login: None,
+            station_id: None,
+            save_station: None,
+            volume: Some(volume),
+        }
+    }
 }
 
 pub(crate) mod serde_session {
@@ -49,6 +87,7 @@ pub(crate) mod serde_session {
     }
 }
 
+// TODO: switch to tagged for more obvious user editing?
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub(crate) enum Credentials {
@@ -56,68 +95,140 @@ pub(crate) enum Credentials {
     ConfigFile(String, String),
     #[serde(with = "serde_session")]
     Session(Option<String>, Option<String>),
-}
-
-impl std::cmp::PartialEq<Credentials> for Credentials {
-    fn eq(&self, other: &Credentials) -> bool {
-        if std::mem::discriminant(self) != std::mem::discriminant(&other) {
-            return false;
-        }
-
-        if self.get_username() != other.get_username() {
-            return false;
-        }
-
-        if self.get_password() != other.get_password() {
-            return false;
-        }
-
-        true
-    }
+    #[serde(skip)]
+    Invalid(String),
 }
 
 impl Credentials {
-    pub(crate) fn get_username(&self) -> Option<String> {
-        match self {
-            Credentials::Keyring(u) => Some(u.clone()),
-            Credentials::ConfigFile(u, _) => Some(u.clone()),
-            Credentials::Session(u, _) => u.clone(),
+    pub(crate) fn get(&self) -> Option<(String, String)> {
+        match (self.username(), self.password().ok().flatten()) {
+            (Some(u), Some(p)) if !u.is_empty() && !p.is_empty() => Some((u, p)),
+            _ => None,
         }
     }
 
-    pub(crate) fn update_username(&mut self, username: &str) {
+    pub(crate) fn username(&self) -> Option<String> {
         match self {
+            Credentials::Keyring(u) if u.is_empty() => None,
+            Credentials::Keyring(u) => Some(u.clone()),
+            Credentials::ConfigFile(u, _) if u.is_empty() => None,
+            Credentials::ConfigFile(u, _) => Some(u.clone()),
+            Credentials::Session(o_u, _) if o_u.as_ref().map(|u| u.is_empty()).unwrap_or(true) => {
+                None
+            }
+            Credentials::Session(o_u, _) => o_u.clone(),
+            Credentials::Invalid(u) if u.is_empty() => None,
+            Credentials::Invalid(u) => Some(u.clone()),
+        }
+    }
+
+    pub(crate) fn password(&self) -> Result<Option<String>> {
+        match self {
+            Credentials::Keyring(u) => Credentials::get_from_keyring(&u),
+            Credentials::ConfigFile(_, p) if p.is_empty() => Ok(None),
+            Credentials::ConfigFile(_, p) => Ok(Some(p.clone())),
+            Credentials::Session(_, o_p) if o_p.as_ref().map(|p| p.is_empty()).unwrap_or(true) => {
+                Ok(None)
+            }
+            Credentials::Session(_, o_p) => Ok(o_p.clone()),
+            Credentials::Invalid(_) => Ok(None),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn update_username(&mut self, username: &str) -> Credentials {
+        let mut dup = self.clone();
+        let username = username.to_string();
+        match dup {
             Credentials::Keyring(ref mut u) => {
-                mem::replace::<String>(u, username.to_string());
+                *u = username;
                 todo!("Keyring not being updated with new username.");
             }
             Credentials::ConfigFile(ref mut u, _) => {
-                mem::replace::<String>(u, username.to_string());
+                *u = username;
             }
             Credentials::Session(ref mut u, _) => {
-                mem::replace::<Option<String>>(u, Some(username.to_string()));
+                *u = if username.is_empty() {
+                    None
+                } else {
+                    Some(username)
+                };
+            }
+            Credentials::Invalid(ref mut u) => {
+                *u = username;
             }
         }
+        dup
     }
 
-    pub(crate) fn get_password(&self) -> Result<Option<String>> {
-        match self {
-            Credentials::Keyring(u) => Credentials::get_from_keyring(&u),
-            Credentials::ConfigFile(_, p) => Ok(Some(p.clone())),
-            Credentials::Session(_, p) => Ok(p.clone()),
-        }
-    }
-
-    pub(crate) fn update_password(&mut self, password: &str) -> Result<()> {
-        match self {
-            Credentials::Keyring(u) => Credentials::set_on_keyring(&u, password),
+    #[must_use]
+    pub(crate) fn update_password(&mut self, password: &str) -> Result<Credentials> {
+        let mut dup = self.clone();
+        match &mut dup {
+            Credentials::Keyring(u) => Credentials::set_on_keyring(&u, password)?,
             Credentials::ConfigFile(_, ref mut p) => {
-                mem::replace::<String>(p, password.to_string());
-                Ok(())
+                *p = password.to_string();
             }
             Credentials::Session(_, ref mut p) => {
-                p.replace(password.to_string());
-                Ok(())
+                *p = if password.is_empty() {
+                    None
+                } else {
+                    Some(password.to_string())
+                };
+            }
+            Credentials::Invalid(_) => {
+                warn!("Ignoring request to update password on Invalid type credentials.");
+            }
+        }
+        Ok(dup)
+    }
+
+    #[must_use]
+    pub(crate) fn as_keyring(&self) -> Result<Credentials> {
+        match self {
+            Self::Keyring(_) => Ok(self.clone()),
+            c => {
+                let username = c.username().unwrap_or_default();
+                let password = c.password().ok().flatten().unwrap_or_default();
+                if !username.is_empty() && !password.is_empty() {
+                    Credentials::set_on_keyring(&username, &password)?;
+                }
+                Ok(Self::Keyring(username))
+            }
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn as_configfile(&self) -> Credentials {
+        match self {
+            Self::ConfigFile(_, _) => self.clone(),
+            c => {
+                let username = c.username().unwrap_or_default();
+                let password = c.password().ok().flatten().unwrap_or_default();
+                Self::ConfigFile(username, password)
+            }
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn as_session(&self) -> Credentials {
+        match self {
+            Self::Session(_, _) => self.clone(),
+            c => {
+                let username = c.username();
+                let password = c.password().ok().flatten();
+                Self::Session(username, password)
+            }
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn as_invalid(&self) -> Credentials {
+        match self {
+            Self::Invalid(_) => self.clone(),
+            c => {
+                let username = c.username().unwrap_or_default();
+                Self::Invalid(username)
             }
         }
     }
@@ -141,6 +252,24 @@ impl Credentials {
     }
 }
 
+impl std::cmp::PartialEq<Credentials> for Credentials {
+    fn eq(&self, other: &Credentials) -> bool {
+        if std::mem::discriminant(self) != std::mem::discriminant(&other) {
+            return false;
+        }
+
+        if self.username() != other.username() {
+            return false;
+        }
+
+        if self.password() != other.password() {
+            return false;
+        }
+
+        true
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub(crate) struct Config {
     #[serde(skip)]
@@ -150,20 +279,18 @@ pub(crate) struct Config {
     pub(crate) login: Credentials,
     pub(crate) station_id: Option<String>,
     pub(crate) save_station: bool,
-    pub(crate) audio_quality: AudioQuality,
     pub(crate) volume: f32,
 }
 
 impl std::default::Default for Config {
     fn default() -> Self {
         Self {
-            //login: Credentials::Session(None, None),
+            dirty: false,
+            //TODO: login: Credentials::Session(None, None),
             login: Credentials::Keyring(String::from("compenguy@gmail.com")),
             station_id: None,
             save_station: true,
             path: None,
-            dirty: false,
-            audio_quality: AudioQuality::PreferBest,
             volume: 1.0f32,
         }
     }
@@ -237,13 +364,6 @@ impl Config {
             }
         }
 
-        if let Some(audio_quality) = other.audio_quality {
-            if self.audio_quality != audio_quality {
-                self.dirty |= true;
-                self.audio_quality = audio_quality;
-            }
-        }
-
         if let Some(volume) = other.volume {
             if (self.volume - volume).abs() > std::f32::EPSILON {
                 self.dirty |= true;
@@ -252,5 +372,25 @@ impl Config {
         }
         debug!("Settings after update: {:?}", self);
         Ok(())
+    }
+
+    pub(crate) fn login_credentials(&self) -> &Credentials {
+        &self.login
+    }
+
+    pub(crate) fn station_id(&self) -> Option<&String> {
+        self.station_id.as_ref()
+    }
+
+    pub(crate) fn save_station(&self) -> bool {
+        self.save_station
+    }
+
+    pub(crate) fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
+    }
+
+    pub(crate) fn volume(&self) -> f32 {
+        self.volume
     }
 }

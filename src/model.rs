@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
-use log::error;
+use log::{error, info, trace};
 use rodio::source::Source;
 use rodio::DeviceTrait;
 
 use pandora_api::json::{station::PlaylistTrack, user::Station};
 
-use crate::config::{Config, Credentials};
+use crate::caching::CachedTrack;
+use crate::config::{Config, PartialConfig};
 use crate::errors::{Error, Result};
 use crate::pandora::PandoraSession;
 
@@ -24,13 +25,15 @@ pub(crate) trait StateMediator {
     fn tune(&mut self, station_id: String);
     fn untune(&mut self);
     fn ready(&self) -> bool;
-    fn playing(&self) -> Option<&PlaylistTrack>;
-    fn start(&mut self);
+    fn playing(&self) -> Option<PlaylistTrack>;
+    fn update(&mut self);
 }
 
 pub(crate) trait PlaybackMediator {
     fn stopped(&self) -> bool;
     fn stop(&mut self);
+    fn started(&self) -> bool;
+    fn start(&mut self);
     fn paused(&self) -> bool;
     fn pause(&mut self);
     fn unpause(&mut self);
@@ -197,6 +200,14 @@ impl PlaybackMediator for AudioDevice {
         self.sink.set_volume(self.volume.volume());
     }
 
+    fn started(&self) -> bool {
+        !self.stopped()
+    }
+
+    fn start(&mut self) {
+        trace!("Noop");
+    }
+
     fn paused(&self) -> bool {
         self.sink.is_paused()
     }
@@ -303,8 +314,18 @@ struct Playing {
 }
 
 impl Playing {
-    fn playing(&self) -> Option<&PlaylistTrack> {
-        self.last_started.and_then(|_| self.playlist.front())
+    fn playing(&self) -> Option<PlaylistTrack> {
+        self.last_started
+            .and_then(|_| self.playlist.front())
+            .cloned()
+    }
+
+    fn playlist(&self) -> &VecDeque<PlaylistTrack> {
+        &self.playlist
+    }
+
+    fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) {
+        self.playlist.extend(new_playlist.into_iter());
     }
 }
 
@@ -320,6 +341,44 @@ impl PlaybackMediator for Playing {
             self.last_started = None;
             self.elapsed = Duration::default();
             self.duration = Duration::default();
+        }
+    }
+
+    fn started(&self) -> bool {
+        !self.stopped() && self.last_started.is_some()
+    }
+
+    fn start(&mut self) {
+        if self.started() {
+            trace!("A track is already playing. It needs to be stopped first.");
+            return;
+        }
+        if let Some(track) = self.playlist.front_mut() {
+            let cached = match track.optional.get("cached") {
+                Some(serde_json::value::Value::String(cached)) => PathBuf::from(cached.clone()),
+                _ => match CachedTrack::add_to_cache(track) {
+                    Err(e) => {
+                        error!("Failed caching track: {:?}", e);
+                        return;
+                    }
+                    Ok(cached) => cached,
+                },
+            };
+            trace!(
+                "Passing track at {} to audio decoder for playback.",
+                cached.to_string_lossy()
+            );
+            if let Err(e) = self.audio_device.play_from_file(PathBuf::from(&cached)) {
+                error!(
+                    "Error starting track at {}: {:?}",
+                    cached.to_string_lossy(),
+                    e
+                );
+            } else {
+                trace!("Started track at {}.", cached.to_string_lossy());
+            }
+        } else {
+            trace!("Cannot start track if the playlist is empty.");
         }
     }
 
@@ -381,11 +440,27 @@ impl Default for Playing {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum State {
+    Disconnected,
+    AuthenticationFailed,
+    Connected,
+    Tuned,
+    Ready,
+    Playing,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::Disconnected
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Model {
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
-    credentials: Option<Credentials>,
+    state: State,
     station: Option<String>,
     station_list: HashMap<String, Station>,
     playing: Playing,
@@ -396,12 +471,141 @@ impl Model {
         Self {
             config: config.clone(),
             session: PandoraSession::new(config),
-            // TODO: initialize this from config
-            credentials: None,
+            state: State::default(),
             // TODO: initialize this from config
             station: None,
             station_list: HashMap::new(),
             playing: Playing::default(),
+        }
+    }
+
+    fn refill_playlist(&mut self) {
+        // If the playing track and at least one more are still
+        // in the queue, then we don't refill.
+        let playlist_len = self.playing.playlist().len();
+        trace!("Playlist length: {}", playlist_len);
+        if playlist_len >= 2 {
+            return;
+        }
+
+        if let Some(station) = self.station.clone() {
+            match self.session.get_playlist(&station) {
+                Ok(playlist) => {
+                    trace!("Extending playlist.");
+                    let playlist: Vec<PlaylistTrack> = playlist
+                        .into_iter()
+                        .filter_map(|pe| pe.get_track())
+                        .collect();
+                    self.playing.extend_playlist(playlist);
+                }
+                Err(e) => error!("Failed while fetching new playlist: {:?}", e),
+            }
+        }
+    }
+
+    fn advance_playlist(&mut self) {
+        if self.playing.playing().is_some() {
+            return;
+        }
+        if !self.playing.playlist.is_empty() {
+            trace!("No track is playing, and there are entries in the playlist.");
+            trace!("Starting next track.");
+            todo!("Start next track");
+        }
+    }
+
+    fn cache_track(&mut self) {}
+}
+
+impl StateMediator for Model {
+    fn disconnected(&self) -> bool {
+        !self.session.connected()
+    }
+
+    fn disconnect(&mut self) {
+        // TODO: Evaluate whether session.user_logout() would better suit
+        self.session.partner_logout();
+    }
+
+    fn fail_authentication(&mut self) {
+        let failed_auth =
+            PartialConfig::new_login(self.config.borrow().login_credentials().as_invalid());
+        if let Err(e) = self.config.borrow_mut().update_from(&failed_auth) {
+            error!(
+                "Failed while updating configuration for failed authentication: {:?}",
+                e
+            );
+        }
+    }
+
+    fn connected(&self) -> bool {
+        self.session.connected()
+    }
+
+    fn connect(&mut self) {
+        if !self.connected() {
+            match self.session.user_login() {
+                Ok(_) => self.state = State::Connected,
+                Err(Error::PanharmoniconMissingAuthToken) => {
+                    error!("Required authentication token is missing.");
+                    self.fail_authentication();
+                }
+                Err(Error::PandoraFailure(e)) => {
+                    error!("Pandora authentication failure: {:?}", e);
+                    self.fail_authentication();
+                }
+                Err(e) => {
+                    error!("Unknown error while logging in: {:?}", e);
+                    self.fail_authentication();
+                }
+            }
+        } else {
+            info!("Connect request ignored. Already connected.");
+        }
+    }
+
+    fn tuned(&self) -> Option<String> {
+        if self.connected() {
+            self.station.clone()
+        } else {
+            None
+        }
+    }
+
+    fn tune(&mut self, station_id: String) {
+        self.station = Some(station_id);
+        if self.connected() {
+            self.state = State::Tuned;
+            todo!("Flush playlist, terminate playing track");
+        } else {
+            info!("Cannot start station until connected, but saving station for when connected.");
+        }
+        todo!("Fill playlist");
+    }
+
+    fn untune(&mut self) {
+        self.station = None;
+        if self.connected() {
+            self.state = State::Connected;
+        }
+        todo!("Flush playlist");
+    }
+
+    fn ready(&self) -> bool {
+        self.stopped()
+    }
+
+    fn playing(&self) -> Option<PlaylistTrack> {
+        self.playing.playing().clone()
+    }
+
+    fn update(&mut self) {
+        if self.connected() {
+            self.refill_playlist();
+            self.advance_playlist();
+            self.cache_track();
+        } else if self.config.borrow().login_credentials().get().is_some() {
+            self.connect();
         }
     }
 }
@@ -413,6 +617,14 @@ impl PlaybackMediator for Model {
 
     fn stop(&mut self) {
         self.playing.stop();
+    }
+
+    fn started(&self) -> bool {
+        self.playing.started()
+    }
+
+    fn start(&mut self) {
+        self.playing.start()
     }
 
     fn paused(&self) -> bool {
@@ -449,59 +661,6 @@ impl PlaybackMediator for Model {
 
     fn unmute(&mut self) {
         self.playing.unmute();
-    }
-}
-
-impl StateMediator for Model {
-    fn disconnected(&self) -> bool {
-        !self.session.connected()
-    }
-
-    fn disconnect(&mut self) {
-        // TODO: Evaluate whether session.user_logout() would better suit
-        self.session.partner_logout();
-    }
-
-    fn fail_authentication(&mut self) {
-        self.credentials = None;
-    }
-
-    fn connected(&self) -> bool {
-        self.session.connected()
-    }
-
-    fn connect(&mut self) {
-        if let Err(e) = self.session.user_login() {
-            error!("Login error: {}", e);
-        }
-    }
-
-    fn tuned(&self) -> Option<String> {
-        if self.connected() {
-            self.station.clone()
-        } else {
-            None
-        }
-    }
-
-    fn tune(&mut self, station_id: String) {
-        self.station = Some(station_id);
-    }
-
-    fn untune(&mut self) {
-        self.station = None;
-    }
-
-    fn ready(&self) -> bool {
-        self.stopped()
-    }
-
-    fn playing(&self) -> Option<&PlaylistTrack> {
-        self.playing.playing()
-    }
-
-    fn start(&mut self) {
-        todo!("Get playlist, add tracks to playing's playlist, cache first entry, then start it playing")
     }
 }
 

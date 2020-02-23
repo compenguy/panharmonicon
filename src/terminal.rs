@@ -20,6 +20,7 @@ enum Store {
 
 pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
+    model: Rc<RefCell<Model>>,
     siv: Cursive,
     login_screen: ScreenId,
     playback_screen: ScreenId,
@@ -27,11 +28,14 @@ pub(crate) struct Terminal {
 
 impl Terminal {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
+        let model = Rc::new(RefCell::new(Model::new(config.clone())));
         let mut siv = Cursive::crossterm().expect("Failed to initialize terminal");
+        siv.set_user_data(model.clone());
         let login_screen = siv.add_screen();
         let playback_screen = siv.add_screen();
         let mut term = Self {
             config,
+            model,
             siv,
             login_screen,
             playback_screen,
@@ -127,6 +131,9 @@ impl Terminal {
     pub(crate) fn run(&mut self) -> Result<()> {
         loop {
             if self.siv.step() {
+                // TODO: Add a dirty flag to model that gets set
+                // by all &mut self methods on it, and use that
+                // as a trigger for forcing refresh
                 self.siv.refresh();
             }
             todo!("Advance application state.");
