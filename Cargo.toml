@@ -5,6 +5,7 @@ authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+human-panic = "1"
 clap = "2.33"
 log = { version = "0.4", default-features = true, features = ["std"] }
 lazy_static = "1"

@@ -1,68 +1,137 @@
 use std::path::{Path, PathBuf};
 
 use clap::crate_name;
-use log::trace;
+use log::{debug, error, trace};
+use mp3_duration;
+use pandora_api::json::station::PlaylistTrack;
 use reqwest;
 
-pub use pandora_api::json::user::Station;
-
-use crate::app::{Audio, Playing, SongInfo};
 use crate::errors::{Error, Result};
 
-pub(crate) fn get_cached_media(playing: &Playing, audio: Audio) -> Result<PathBuf> {
-    trace!("Caching active track {}", playing.track_token);
-    // Adjust track metadata so that it's path/filename-safe
-    let artist_filename = filename_formatter(&playing.info.artist);
-    let album_filename = filename_formatter(&playing.info.album);
-    let song_filename = filename_formatter(&playing.info.name);
-    let filename = format!(
-        "{} - {}.{}",
-        artist_filename,
-        song_filename,
-        audio.get_extension()
-    );
-
-    // Construct full path to the cached file
-    let cache_file = dirs::cache_dir()
-        .ok_or_else(|| Error::AppDirNotFound)?
-        .join(crate_name!())
-        .join(artist_filename)
-        .join(album_filename)
-        .join(filename);
-
-    // Check cache, and if track isn't in the cache, add it
-    if cache_file.exists() {
-        trace!("Song already in cache.");
-    } else {
-        trace!("Caching song.");
-        let tempdir = dirs::cache_dir()
-            .ok_or_else(|| Error::AppDirNotFound)?
-            .join(crate_name!())
-            .join("tmp");
-        // Ensure that target directory exists
-        if !tempdir.exists() {
-            std::fs::create_dir_all(&tempdir).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-        }
-        let tempdest = mktemp::Temp::new_file_in(tempdir)
-            .map_err(|e| Error::FileWriteFailure(Box::new(e)))?
-            .release();
-        save_url_to_file(&audio.url, &tempdest)?;
-        // This seems to cause some corruption of mp3 files
-        tag_mp3(&playing.info, &tempdest)?;
-        if let Some(cache_parent_dir) = cache_file.parent() {
-            if !cache_parent_dir.exists() {
-                std::fs::create_dir_all(&cache_parent_dir)
-                    .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-            }
-        }
-        std::fs::rename(&tempdest, &cache_file)
-            .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-        trace!("Song added to cache.");
-    }
-    Ok(cache_file)
+// https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
+fn sanitize_filename(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '/' => '_',
+            '\\' => '_',
+            '?' => '_',
+            '*' => '_',
+            ':' => '_',
+            '|' => '_',
+            '<' => '_',
+            '>' => '_',
+            _ => c,
+        })
+        .collect()
 }
 
-fn tag_mp3<P: AsRef<Path>>(metadata: &SongInfo, path: P) -> Result<()> {
+fn app_cache_dir() -> Result<PathBuf> {
+    Ok(dirs::cache_dir()
+        .ok_or_else(|| Error::AppDirNotFound)?
+        .join(crate_name!()))
+}
+
+pub(crate) struct CachedTrack {
+    evict_on_drop: bool,
+    path: PathBuf,
+}
+
+impl CachedTrack {
+    fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
+        if let Some(serde_json::value::Value::String(path_str)) = track.optional.get("cached") {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                return Some(path);
+            } else {
+                trace!(
+                    "Marked as precached, but doesn't exist: {}",
+                    path.to_string_lossy()
+                );
+            }
+        }
+        None
+    }
+
+    fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<PathBuf> {
+        if let Some(precached) = Self::precached_path_for_track(track) {
+            return Ok(precached);
+        }
+
+        let artist = sanitize_filename(&track.artist_name);
+        let album = sanitize_filename(&track.album_name);
+        let song = sanitize_filename(&track.song_name);
+
+        let mut track_cache_path = app_cache_dir()?.join(&artist).join(&album);
+
+        if create_path {
+            std::fs::create_dir_all(&track_cache_path)
+                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+        }
+        let filename = format!("{} - {}.{}", artist, song, "mp3");
+        track_cache_path.push(filename);
+        Ok(track_cache_path)
+    }
+
+    pub(crate) fn add_to_cache(track: &mut PlaylistTrack) -> Result<PathBuf> {
+        if let Some(path) = Self::precached_path_for_track(track) {
+            return Ok(path);
+        }
+
+        let path = Self::cached_path_for_track(track, true)?;
+
+        if let Err(e) = save_url_to_file(&track.additional_audio_url, &path) {
+            error!(
+                "Error downloading track {} to {}: {:?}",
+                &track.additional_audio_url,
+                &path.to_string_lossy(),
+                &e
+            );
+            let _ = std::fs::remove_file(&path);
+            return Err(e);
+        }
+
+        if let Err(e) = tag_mp3(&track, &path) {
+            error!(
+                "Error tagging track at {}: {:?}",
+                path.to_string_lossy(),
+                &e
+            );
+            let _ = std::fs::remove_file(&path);
+            return Err(e);
+        }
+
+        track.optional.insert(
+            String::from("cached"),
+            serde_json::value::Value::String(path.to_string_lossy().to_string()),
+        );
+        Ok(path)
+    }
+
+    pub(crate) fn new_fallible(track: &mut PlaylistTrack, evict_on_drop: bool) -> Result<Self> {
+        Self::add_to_cache(track).map(|path| CachedTrack {
+            evict_on_drop,
+            path,
+        })
+    }
+}
+
+impl Drop for CachedTrack {
+    fn drop(&mut self) {
+        if self.evict_on_drop {
+            if let Err(e) = std::fs::remove_file(&self.path) {
+                error!(
+                    "Failed to evict cached track {}",
+                    self.path.to_string_lossy()
+                );
+            } else {
+                debug!("Track {} evicted from cache.", self.path.to_string_lossy());
+            }
+        }
+    }
+}
+
+fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
+    let id3_ver = id3::Version::Id3v23;
     trace!("Reading tags from mp3");
     let mut tag = match id3::Tag::read_from_path(&path) {
         Ok(tag) => tag,
@@ -73,24 +142,50 @@ fn tag_mp3<P: AsRef<Path>>(metadata: &SongInfo, path: P) -> Result<()> {
         err => err?,
     };
 
-    // TODO: pipe in replay gain value, and create frame for the:
+    let duration: Option<u32> = match mp3_duration::from_path(&path) {
+        Ok(duration) => Some(duration.as_secs() as u32),
+        Err(e) => {
+            debug!(
+                "Failed reading duration from {}: {:?}",
+                path.as_ref().to_string_lossy(),
+                e
+            );
+            None
+        }
+    };
+
+    // TODO: if track.replaygain parses correctly, create replaygain
+    // frame for the:
     //   * RVA2 tag (if using v2.4)
     //   * XRVA tag (http://id3.org/Experimental%20RVA2)
     //   * http://id3.org/id3v2.4.0-frames section 4.11
 
     trace!("Updating tags with pandora metadata");
+    let mut dirty = false;
+
     if tag.artist().is_none() {
-        tag.set_artist(&metadata.artist);
+        tag.set_artist(&track.artist_name);
+        dirty = true;
     }
     if tag.album().is_none() {
-        tag.set_album(&metadata.album);
+        tag.set_album(&track.album_name);
+        dirty = true;
     }
     if tag.title().is_none() {
-        tag.set_title(&metadata.name);
+        tag.set_title(&track.song_name);
+        dirty = true;
+    }
+    if tag.duration().is_none() {
+        if let Some(duration) = duration {
+            tag.set_duration(duration);
+            dirty = true;
+        }
     }
 
     trace!("Writing tags back to file");
-    tag.write_to_path(&path, id3::Version::Id3v23)?;
+    if dirty {
+        tag.write_to_path(&path, id3_ver)?;
+    }
     Ok(())
 }
 
@@ -102,11 +197,4 @@ fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
     resp.copy_to(&mut std::io::BufWriter::new(file))
         .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
     Ok(())
-}
-
-fn filename_formatter(text: &str) -> String {
-    text.replace("/", "_")
-        .replace("\\", "_")
-        .replace(":", "_")
-        .replace("-", "_")
 }

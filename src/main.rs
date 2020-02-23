@@ -1,8 +1,8 @@
 //#![feature(with_options)]
 use std::boxed::Box;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
+use human_panic::setup_panic;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::Logger;
 use log::{debug, error, trace};
@@ -13,12 +13,18 @@ use crate::errors::{Error, Result};
 mod config;
 use crate::config::Config;
 
+mod caching;
+mod model;
+mod pandora;
 mod terminal;
 
-mod caching;
-mod pandora;
-
 fn main() -> Result<()> {
+    setup_panic!(Metadata {
+        name: env!("CARGO_PKG_NAME").into(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        authors: "Will Page <compenguy@gmail.com>".into(),
+        homepage: "".into(),
+    });
     let config_file = dirs::config_dir()
         .ok_or_else(|| Error::AppDirNotFound)?
         .join(crate_name!())
@@ -120,12 +126,12 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     trace!("Initializing terminal interface");
-    let ui = terminal::Terminal::new(conf_ref.clone());
+    let mut ui = terminal::Terminal::new(conf_ref.clone());
     trace!("Starting app");
     // Exit condition occurs when run() returns Ok(_)
     while let Err(e) = ui.run() {
         error!("{:?}", e);
-        ui.reconnect();
+        ui.initialize();
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 

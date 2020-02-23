@@ -1,5 +1,18 @@
-use crate::config::Config::Credentials;
-use pandora_api::json::user::Station;
+use std::collections::{HashMap, VecDeque};
+use std::io::{Read, Seek};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+use std::{cell::RefCell, rc::Rc};
+
+use log::error;
+use rodio::source::Source;
+use rodio::DeviceTrait;
+
+use pandora_api::json::{station::PlaylistTrack, user::Station};
+
+use crate::config::{Config, Credentials};
+use crate::errors::{Error, Result};
+use crate::pandora::PandoraSession;
 
 pub(crate) trait StateMediator {
     fn disconnected(&self) -> bool;
@@ -9,8 +22,9 @@ pub(crate) trait StateMediator {
     fn connect(&mut self);
     fn tuned(&self) -> Option<String>;
     fn tune(&mut self, station_id: String);
+    fn untune(&mut self);
     fn ready(&self) -> bool;
-    fn playing(&self) -> Option<PlaylistTrack>;
+    fn playing(&self) -> Option<&PlaylistTrack>;
     fn start(&mut self);
 }
 
@@ -109,7 +123,7 @@ impl Volume {
         }
     }
 
-    fn set_volume(&self, new_volume: f32) {
+    fn set_volume(&mut self, new_volume: f32) {
         *self = Self::Unmuted(new_volume.min(0.0f32).max(1.0f32));
     }
 
@@ -145,7 +159,8 @@ impl Default for Volume {
     }
 }
 
-#[derive(Debug, Clone)]
+// TODO: implement Debug, since we can't derive it
+// (rodio::{Device, Sink} don't implement it)
 struct AudioDevice {
     device: rodio::Device,
     sink: rodio::Sink,
@@ -154,7 +169,9 @@ struct AudioDevice {
 
 impl AudioDevice {
     fn play_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        self.play_from_reader(std::io::BufReader::new(std::fs::File::new(path)?))
+        self.play_from_reader(std::io::BufReader::new(
+            std::fs::File::open(path).map_err(|e| Error::MediaReadFailure(Box::new(e)))?,
+        ))
     }
 
     fn play_from_reader<R: Read + Seek + Send + 'static>(&mut self, reader: R) -> Result<()> {
@@ -165,7 +182,8 @@ impl AudioDevice {
         // a good state
         self.stop();
 
-        self.audio_sink.append(decoder);
+        self.sink.append(decoder);
+        Ok(())
     }
 }
 
@@ -221,13 +239,57 @@ impl PlaybackMediator for AudioDevice {
 
 impl Default for AudioDevice {
     fn default() -> Self {
-        let device = rodio::default_audio_device().expect("Failed to locate/initialize default audio device");
+        let device = rodio::default_output_device()
+            .expect("Failed to locate/initialize default audio device");
         let sink = rodio::Sink::new(&device);
         Self {
             device,
             sink,
-            volume: Volume::default()
+            volume: Volume::default(),
         }
+    }
+}
+
+impl Clone for AudioDevice {
+    fn clone(&self) -> Self {
+        // Since we can't clone the device, we're going to look for the device
+        // from the output devices list that has the same name as the our
+        // current one.  If none matches, we'll use the default output device.
+        let device = rodio::output_devices()
+            .map(|mut devs| devs.find(|d| d.name().ok() == self.device.name().ok()))
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| {
+                rodio::default_output_device()
+                    .expect("Failed to locate/initialize default audio device")
+            });
+        let sink = rodio::Sink::new(&device);
+        return AudioDevice {
+            device,
+            sink,
+            volume: self.volume.clone(),
+        };
+    }
+}
+
+impl std::fmt::Debug for AudioDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let queued = format!("{} queued", self.sink.len());
+        let paused = if self.sink.is_paused() {
+            "paused"
+        } else {
+            "not paused"
+        };
+
+        write!(
+            f,
+            "AudioDevice {{ device: {}, sink: ({}, {}, volume {:.2}), volume: {:?} }}",
+            self.device.name().expect("Error retrieving device name"),
+            queued,
+            paused,
+            self.sink.volume(),
+            self.volume
+        )
     }
 }
 
@@ -240,9 +302,15 @@ struct Playing {
     playlist: VecDeque<PlaylistTrack>,
 }
 
+impl Playing {
+    fn playing(&self) -> Option<&PlaylistTrack> {
+        self.last_started.and_then(|_| self.playlist.front())
+    }
+}
+
 impl PlaybackMediator for Playing {
     fn stopped(&self) -> bool {
-        self.audio_device.empty()
+        self.audio_device.stopped()
     }
 
     fn stop(&mut self) {
@@ -261,14 +329,18 @@ impl PlaybackMediator for Playing {
     }
 
     fn pause(&mut self) {
-        self.elapsed += self.last_started.take().unwrap_or_default();
+        self.elapsed += self
+            .last_started
+            .take()
+            .map(|inst| inst.elapsed())
+            .unwrap_or_default();
         self.audio_device.pause();
     }
 
     fn unpause(&mut self) {
         if self.last_started.is_none() {
-            self.last_started = Instant::now();
-            self.audio_device.play();
+            self.last_started = Some(Instant::now());
+            self.audio_device.unpause();
         }
     }
 
@@ -277,7 +349,7 @@ impl PlaybackMediator for Playing {
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        self.audio_device.set_volume()
+        self.audio_device.set_volume(new_volume)
     }
 
     fn refresh_volume(&mut self) {
@@ -310,7 +382,7 @@ impl Default for Playing {
 }
 
 #[derive(Debug, Clone)]
-struct Model {
+pub(crate) struct Model {
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
     credentials: Option<Credentials>,
@@ -336,7 +408,7 @@ impl Model {
 
 impl PlaybackMediator for Model {
     fn stopped(&self) -> bool {
-        self.playing.empty()
+        self.playing.stopped()
     }
 
     fn stop(&mut self) {
@@ -360,7 +432,7 @@ impl PlaybackMediator for Model {
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        self.playing.set_volume()
+        self.playing.set_volume(new_volume)
     }
 
     fn refresh_volume(&mut self) {
@@ -381,12 +453,6 @@ impl PlaybackMediator for Model {
 }
 
 impl StateMediator for Model {
-    config: Rc<RefCell<Config>>,
-    session: PandoraSession,
-    credentials: Option<Credentials>,
-    station: Option<String>,
-    station_list: HashMap<String, Station>,
-    playing: Playing,
     fn disconnected(&self) -> bool {
         !self.session.connected()
     }
@@ -401,11 +467,11 @@ impl StateMediator for Model {
     }
 
     fn connected(&self) -> bool {
-        self.session.connected();
+        self.session.connected()
     }
 
     fn connect(&mut self) {
-        if let Err(e) = lself.session.user_login() {
+        if let Err(e) = self.session.user_login() {
             error!("Login error: {}", e);
         }
     }
@@ -430,7 +496,7 @@ impl StateMediator for Model {
         self.stopped()
     }
 
-    fn playing(&self) -> Option<PlaylistTrack> {
+    fn playing(&self) -> Option<&PlaylistTrack> {
         self.playing.playing()
     }
 
@@ -445,4 +511,3 @@ impl Drop for Model {
         // and flush to disk
     }
 }
-
