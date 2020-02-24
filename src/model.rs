@@ -336,6 +336,22 @@ impl Playing {
         self.stop();
         self.playlist.clear();
     }
+
+    fn duration_from_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.duration = mp3_duration::from_path(&path).unwrap_or_default();
+    }
+
+    fn precache_playlist_track(&mut self) {
+        for track in self.playlist.iter_mut() {
+            if track.optional.get("cached").is_some() {
+                continue;
+            }
+            match CachedTrack::add_to_cache(track) {
+                Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
+                Err(e) => trace!("Error caching track to path: {:?}", e),
+            }
+        }
+    }
 }
 
 impl PlaybackMediator for Playing {
@@ -373,10 +389,7 @@ impl PlaybackMediator for Playing {
                     Ok(cached) => cached,
                 },
             };
-            trace!(
-                "Passing track at {} to audio decoder for playback.",
-                cached.to_string_lossy()
-            );
+            trace!("Starting decoding of track {}", cached.to_string_lossy());
             if let Err(e) = self.audio_device.play_from_file(PathBuf::from(&cached)) {
                 error!(
                     "Error starting track at {}: {:?}",
@@ -384,6 +397,7 @@ impl PlaybackMediator for Playing {
                     e
                 );
             } else {
+                self.duration_from_path(&cached);
                 self.last_started = Some(Instant::now());
                 trace!("Started track at {}.", cached.to_string_lossy());
             }
@@ -488,6 +502,47 @@ impl Model {
             playing: Playing::default(),
             dirty: true,
         }
+    }
+
+    pub(crate) fn config(&self) -> Rc<RefCell<Config>> {
+        self.config.clone()
+    }
+
+    // TODO: move station methods onto a trait
+    pub(crate) fn fill_station_list(&mut self) {
+        if self.station_list.len() > 0 {
+            return;
+        }
+        trace!("Filling station list");
+        self.station_list = self
+            .session
+            .get_station_list()
+            .ok()
+            .map(|sl| {
+                sl.stations
+                    .into_iter()
+                    .map(|s| (s.station_id.clone(), s))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        self.dirty |= true;
+    }
+
+    pub(crate) fn clear_station_list(&mut self) {
+        self.station_list.clear();
+        self.dirty |= true;
+    }
+
+    pub(crate) fn station_list(&self) -> Vec<(String, String)> {
+        self.station_list
+            .values()
+            .map(|s| (s.station_name.clone(), s.station_id.clone()))
+            .collect()
+    }
+
+    pub(crate) fn station(&self, station_id: &str) -> Option<&Station> {
+        self.station_list.get(station_id)
     }
 
     fn refill_playlist(&mut self) {
@@ -625,6 +680,7 @@ impl StateMediator for Model {
 
     fn update(&mut self) -> bool {
         if self.connected() {
+            self.fill_station_list();
             self.refill_playlist();
             self.cache_track();
             self.start();

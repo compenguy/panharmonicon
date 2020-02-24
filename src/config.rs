@@ -136,7 +136,7 @@ impl Credentials {
     }
 
     #[must_use]
-    pub(crate) fn update_username(&mut self, username: &str) -> Credentials {
+    pub(crate) fn update_username(&self, username: &str) -> Credentials {
         let mut dup = self.clone();
         let username = username.to_string();
         match dup {
@@ -162,7 +162,7 @@ impl Credentials {
     }
 
     #[must_use]
-    pub(crate) fn update_password(&mut self, password: &str) -> Result<Credentials> {
+    pub(crate) fn update_password(&self, password: &str) -> Result<Credentials> {
         let mut dup = self.clone();
         match &mut dup {
             Credentials::Keyring(u) => Credentials::set_on_keyring(&u, password)?,
