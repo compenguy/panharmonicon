@@ -10,6 +10,7 @@ use cursive::view::{Nameable, Resizable};
 use crate::config::Config;
 use crate::errors::Result;
 use crate::model::Model;
+use crate::model::{PlaybackMediator, StateMediator};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Store {
@@ -94,9 +95,7 @@ impl Terminal {
                 ),
         )
         .button("Connect", |s| {
-            s.with_user_data(|m: &mut Model| {
-                todo!();
-            });
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().connect());
         })
         .title("Pandora Login");
         self.siv.set_screen(self.login_screen);
@@ -104,15 +103,40 @@ impl Terminal {
     }
 
     fn init_playback(&mut self) {
-        // TODO: fix height to 1, connect up on_submit
         let stations = LinearLayout::horizontal()
             .child(TextView::new("Station:"))
-            .child(SelectView::<Store>::new().popup().with_name("stations"));
+            .child(
+                SelectView::<String>::new()
+                    .popup()
+                    .on_submit(|s: &mut Cursive, item: &String| {
+                        s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+                            m.borrow_mut().tune(item.clone())
+                        });
+                    })
+                    .with_name("stations")
+                    .fixed_height(1),
+            );
         // connect up on_submit
         let playing = Panel::new(
             LinearLayout::horizontal()
-                .child(TextView::new("No Track").with_name("track"))
-                .child(TextView::new("[00:00]").with_name("progress"))
+                .child(
+                    LinearLayout::vertical()
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Title:").fixed_width(10))
+                                .child(TextView::empty().with_name("title")),
+                        )
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Artist:").fixed_width(10))
+                                .child(TextView::empty().with_name("artist")),
+                        )
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Album:").fixed_width(10))
+                                .child(TextView::empty().with_name("album")),
+                        ),
+                )
                 .child(DummyView)
                 .child(TextView::new("Volume:"))
                 .child(SliderView::horizontal(11).with_name("volume")),
@@ -136,7 +160,7 @@ impl Terminal {
                 // as a trigger for forcing refresh
                 self.siv.refresh();
             }
-            todo!("Advance application state.");
+            self.model.borrow_mut().update();
         }
         Ok(())
     }

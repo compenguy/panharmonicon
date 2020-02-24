@@ -162,8 +162,8 @@ impl Default for Volume {
     }
 }
 
-// TODO: implement Debug, since we can't derive it
-// (rodio::{Device, Sink} don't implement it)
+// We can't derive Debug or Clone since the rodio members
+// don't implement it
 struct AudioDevice {
     device: rodio::Device,
     sink: rodio::Sink,
@@ -327,6 +327,11 @@ impl Playing {
     fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) {
         self.playlist.extend(new_playlist.into_iter());
     }
+
+    fn stop_all(&mut self) {
+        self.stop();
+        self.playlist.clear();
+    }
 }
 
 impl PlaybackMediator for Playing {
@@ -470,10 +475,9 @@ impl Model {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
         Self {
             config: config.clone(),
-            session: PandoraSession::new(config),
+            session: PandoraSession::new(config.clone()),
             state: State::default(),
-            // TODO: initialize this from config
-            station: None,
+            station: config.borrow().station_id().cloned(),
             station_list: HashMap::new(),
             playing: Playing::default(),
         }
@@ -510,7 +514,7 @@ impl Model {
         if !self.playing.playlist.is_empty() {
             trace!("No track is playing, and there are entries in the playlist.");
             trace!("Starting next track.");
-            todo!("Start next track");
+            self.playing.start();
         }
     }
 
@@ -576,11 +580,12 @@ impl StateMediator for Model {
         self.station = Some(station_id);
         if self.connected() {
             self.state = State::Tuned;
-            todo!("Flush playlist, terminate playing track");
         } else {
             info!("Cannot start station until connected, but saving station for when connected.");
         }
-        todo!("Fill playlist");
+        // This will stop the current track and flush the playlist of all queue
+        // tracks so that later we can fill it with tracks from the new station
+        self.playing.stop_all();
     }
 
     fn untune(&mut self) {
@@ -588,7 +593,8 @@ impl StateMediator for Model {
         if self.connected() {
             self.state = State::Connected;
         }
-        todo!("Flush playlist");
+        // This will stop the current track and flush the playlist of all queue
+        self.playing.stop_all();
     }
 
     fn ready(&self) -> bool {
@@ -666,7 +672,9 @@ impl PlaybackMediator for Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
-        // TODO: commit self.credentials and self.station to config
-        // and flush to disk
+        // If there have been any configuration changes, commit them to disk
+        if let Err(e) = self.config.borrow_mut().flush() {
+            error!("Failed commiting configuration changes to file: {:?}", e);
+        }
     }
 }
