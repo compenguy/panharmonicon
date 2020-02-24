@@ -26,7 +26,7 @@ pub(crate) trait StateMediator {
     fn untune(&mut self);
     fn ready(&self) -> bool;
     fn playing(&self) -> Option<PlaylistTrack>;
-    fn update(&mut self);
+    fn update(&mut self) -> bool;
 }
 
 pub(crate) trait PlaybackMediator {
@@ -172,6 +172,10 @@ struct AudioDevice {
 
 impl AudioDevice {
     fn play_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        trace!(
+            "Reading track at {} for playback",
+            path.as_ref().to_string_lossy()
+        );
         self.play_from_reader(std::io::BufReader::new(
             std::fs::File::open(path).map_err(|e| Error::MediaReadFailure(Box::new(e)))?,
         ))
@@ -380,6 +384,7 @@ impl PlaybackMediator for Playing {
                     e
                 );
             } else {
+                self.last_started = Some(Instant::now());
                 trace!("Started track at {}.", cached.to_string_lossy());
             }
         } else {
@@ -469,6 +474,7 @@ pub(crate) struct Model {
     station: Option<String>,
     station_list: HashMap<String, Station>,
     playing: Playing,
+    dirty: bool,
 }
 
 impl Model {
@@ -480,6 +486,7 @@ impl Model {
             station: config.borrow().station_id().cloned(),
             station_list: HashMap::new(),
             playing: Playing::default(),
+            dirty: true,
         }
     }
 
@@ -487,11 +494,11 @@ impl Model {
         // If the playing track and at least one more are still
         // in the queue, then we don't refill.
         let playlist_len = self.playing.playlist().len();
-        trace!("Playlist length: {}", playlist_len);
         if playlist_len >= 2 {
             return;
         }
 
+        trace!("Playlist length: {}", playlist_len);
         if let Some(station) = self.station.clone() {
             match self.session.get_playlist(&station) {
                 Ok(playlist) => {
@@ -501,20 +508,10 @@ impl Model {
                         .filter_map(|pe| pe.get_track())
                         .collect();
                     self.playing.extend_playlist(playlist);
+                    self.dirty |= true;
                 }
                 Err(e) => error!("Failed while fetching new playlist: {:?}", e),
             }
-        }
-    }
-
-    fn advance_playlist(&mut self) {
-        if self.playing.playing().is_some() {
-            return;
-        }
-        if !self.playing.playlist.is_empty() {
-            trace!("No track is playing, and there are entries in the playlist.");
-            trace!("Starting next track.");
-            self.playing.start();
         }
     }
 
@@ -529,11 +526,13 @@ impl StateMediator for Model {
     fn disconnect(&mut self) {
         // TODO: Evaluate whether session.user_logout() would better suit
         self.session.partner_logout();
+        self.dirty |= true;
     }
 
     fn fail_authentication(&mut self) {
         let failed_auth =
             PartialConfig::new_login(self.config.borrow().login_credentials().as_invalid());
+        self.dirty |= true;
         if let Err(e) = self.config.borrow_mut().update_from(&failed_auth) {
             error!(
                 "Failed while updating configuration for failed authentication: {:?}",
@@ -563,6 +562,7 @@ impl StateMediator for Model {
                     self.fail_authentication();
                 }
             }
+            self.dirty |= true;
         } else {
             info!("Connect request ignored. Already connected.");
         }
@@ -577,7 +577,16 @@ impl StateMediator for Model {
     }
 
     fn tune(&mut self, station_id: String) {
-        self.station = Some(station_id);
+        if self
+            .station
+            .as_ref()
+            .map(|s| s == &station_id)
+            .unwrap_or(false)
+        {
+            self.station = Some(station_id);
+            self.dirty |= true;
+        }
+
         if self.connected() {
             self.state = State::Tuned;
         } else {
@@ -585,16 +594,25 @@ impl StateMediator for Model {
         }
         // This will stop the current track and flush the playlist of all queue
         // tracks so that later we can fill it with tracks from the new station
-        self.playing.stop_all();
+        if self.started() {
+            self.playing.stop_all();
+            self.dirty |= true;
+        }
     }
 
     fn untune(&mut self) {
-        self.station = None;
+        if self.station.is_some() {
+            self.station = None;
+            self.dirty |= true;
+        }
         if self.connected() {
             self.state = State::Connected;
         }
         // This will stop the current track and flush the playlist of all queue
-        self.playing.stop_all();
+        if self.started() {
+            self.playing.stop_all();
+            self.dirty |= true;
+        }
     }
 
     fn ready(&self) -> bool {
@@ -605,14 +623,17 @@ impl StateMediator for Model {
         self.playing.playing().clone()
     }
 
-    fn update(&mut self) {
+    fn update(&mut self) -> bool {
         if self.connected() {
             self.refill_playlist();
-            self.advance_playlist();
             self.cache_track();
+            self.start();
         } else if self.config.borrow().login_credentials().get().is_some() {
             self.connect();
         }
+        let old_dirty = self.dirty;
+        self.dirty = false;
+        old_dirty
     }
 }
 
@@ -622,7 +643,10 @@ impl PlaybackMediator for Model {
     }
 
     fn stop(&mut self) {
-        self.playing.stop();
+        if !self.stopped() {
+            self.playing.stop();
+            self.dirty |= true;
+        }
     }
 
     fn started(&self) -> bool {
@@ -630,7 +654,10 @@ impl PlaybackMediator for Model {
     }
 
     fn start(&mut self) {
-        self.playing.start()
+        if !self.started() {
+            self.playing.start();
+            self.dirty |= true;
+        }
     }
 
     fn paused(&self) -> bool {
@@ -638,11 +665,17 @@ impl PlaybackMediator for Model {
     }
 
     fn pause(&mut self) {
-        self.playing.pause();
+        if !self.paused() {
+            self.playing.pause();
+            self.dirty |= true;
+        }
     }
 
     fn unpause(&mut self) {
-        self.playing.unpause();
+        if self.paused() {
+            self.playing.unpause();
+            self.dirty |= true;
+        }
     }
 
     fn volume(&self) -> f32 {
@@ -650,11 +683,13 @@ impl PlaybackMediator for Model {
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        self.playing.set_volume(new_volume)
+        self.playing.set_volume(new_volume);
+        self.dirty |= true;
     }
 
     fn refresh_volume(&mut self) {
         self.playing.refresh_volume();
+        self.dirty |= true;
     }
 
     fn muted(&self) -> bool {
@@ -662,11 +697,17 @@ impl PlaybackMediator for Model {
     }
 
     fn mute(&mut self) {
-        self.playing.mute();
+        if !self.muted() {
+            self.playing.mute();
+            self.dirty |= true;
+        }
     }
 
     fn unmute(&mut self) {
-        self.playing.unmute();
+        if self.muted() {
+            self.playing.unmute();
+            self.dirty |= true;
+        }
     }
 }
 

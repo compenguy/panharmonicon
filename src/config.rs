@@ -309,6 +309,7 @@ impl Config {
                 &serde_json::from_reader(BufReader::new(config_file))
                     .map_err(|e| Error::ConfigParseFailure(Box::new(e)))?,
             )?;
+            config.dirty = false;
         }
         if write_back {
             trace!("Updating config file for newly-added options");

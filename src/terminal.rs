@@ -153,14 +153,51 @@ impl Terminal {
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
-        loop {
+        while self.siv.is_running() {
             if self.siv.step() {
-                // TODO: Add a dirty flag to model that gets set
-                // by all &mut self methods on it, and use that
-                // as a trigger for forcing refresh
                 self.siv.refresh();
             }
-            self.model.borrow_mut().update();
+            let mut model = self.model.borrow_mut();
+            if model.update() {
+                if model.connected() {
+                    self.siv
+                        .call_on_name("stations", |v: &mut SelectView<String>| {
+                            todo!("Fill in stations list");
+                        });
+
+                    self.siv.call_on_name("title", |v: &mut TextView| {
+                        todo!("Set track title");
+                    });
+
+                    self.siv.call_on_name("artist", |v: &mut TextView| {
+                        todo!("Set track artist");
+                    });
+
+                    self.siv.call_on_name("album", |v: &mut TextView| {
+                        todo!("Set track album");
+                    });
+
+                    self.siv.call_on_name("volume", |v: &mut SliderView| {
+                        todo!("Set volume");
+                    });
+
+                    self.siv
+                        .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
+                            todo!("Set playing panel header");
+                        });
+
+                    self.siv.set_screen(self.playback_screen);
+                } else {
+                    todo!("Fill in login controls with current config values.");
+                    // "username"
+                    // "password"
+                    // "store"
+                    self.siv.set_screen(self.login_screen);
+                }
+                // TODO: Update the state of all the UI controls
+                // based on values in the model
+                self.siv.refresh();
+            }
         }
         Ok(())
     }
