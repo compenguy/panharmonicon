@@ -15,14 +15,11 @@ pub(crate) enum Error {
     KeyringFailure(Box<keyring::KeyringError>),
     PandoraFailure(Box<pandora_api::errors::Error>),
     HttpRequestFailure(Box<reqwest::Error>),
-    OutputFailure(Box<std::io::Error>),
     MediaReadFailure(Box<std::io::Error>),
     AudioDecodingFailure(Box<rodio::decoder::DecoderError>),
     Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
     Mp3MetadataParseFailure(Box<id3::Error>),
-    PanharmoniconNoStationSelected,
     PanharmoniconMissingAuthToken,
-    PanharmoniconTrackHasNoAudio,
 }
 
 impl PartialEq<Error> for Error {
@@ -53,19 +50,12 @@ impl std::fmt::Display for Error {
             }
             Error::PandoraFailure(e) => write!(f, "Pandora connection error: {}", e),
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
-            Error::OutputFailure(e) => write!(f, "Output write error: {}", e),
             Error::MediaReadFailure(e) => write!(f, "Media read error: {}", e),
             Error::AudioDecodingFailure(e) => write!(f, "Media decoding error: {:?}", e),
             Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
             Error::Mp3MetadataParseFailure(e) => write!(f, "MP3 metadata parse error: {:?}", e),
-            Error::PanharmoniconNoStationSelected => {
-                write!(f, "Unable to complete action, no station selected")
-            }
             Error::PanharmoniconMissingAuthToken => {
                 write!(f, "Pandora login credentials incomplete")
-            }
-            Error::PanharmoniconTrackHasNoAudio => {
-                write!(f, "Pandora track is missing track audio")
             }
         }
     }
@@ -90,14 +80,11 @@ impl std::error::Error for Error {
             Error::KeyringFailure(e) => Some(e),
             Error::PandoraFailure(e) => Some(e),
             Error::HttpRequestFailure(e) => Some(e),
-            Error::OutputFailure(e) => Some(e),
             Error::MediaReadFailure(e) => Some(e),
             Error::AudioDecodingFailure(e) => Some(e),
             Error::Mp3MediaParseFailure(_) => None,
             Error::Mp3MetadataParseFailure(e) => Some(e),
-            Error::PanharmoniconNoStationSelected => None,
             Error::PanharmoniconMissingAuthToken => None,
-            Error::PanharmoniconTrackHasNoAudio => None,
         }
     }
 }

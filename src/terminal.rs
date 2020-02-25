@@ -10,7 +10,7 @@ use log::{debug, error, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
 
-use crate::config::{Config, Credentials, PartialConfig};
+use crate::config::{Config, Credentials};
 use crate::errors::Result;
 use crate::model::Model;
 use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
@@ -275,7 +275,7 @@ impl Terminal {
                     let opt_idx = v
                         .iter()
                         .enumerate()
-                        .find(|(i, (_, st_id))| *st_id == &station_id)
+                        .find(|(_, (_, st_id))| *st_id == &station_id)
                         .map(|(i, _)| i);
                     if let Some(idx) = opt_idx {
                         v.set_selection(idx);

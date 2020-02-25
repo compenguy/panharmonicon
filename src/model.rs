@@ -349,8 +349,9 @@ impl Playing {
                 trace!("Evicting track from cache: {}", path.to_string_lossy());
                 if let Err(e) = std::fs::remove_file(&path) {
                     error!(
-                        "Error evicting track from cache: {}",
-                        path.to_string_lossy()
+                        "Error evicting track {} from cache: {:?}",
+                        path.to_string_lossy(),
+                        e
                     );
                 }
             }
