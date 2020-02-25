@@ -1,10 +1,12 @@
+use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
+use cursive::align::HAlign;
 use cursive::views::{
     Dialog, DummyView, EditView, LinearLayout, Panel, SelectView, SliderView, TextArea, TextView,
 };
 use cursive::{Cursive, ScreenId};
-use log::error;
+use log::{debug, error, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
 
@@ -41,7 +43,7 @@ pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
     model: Rc<RefCell<Model>>,
     siv: Cursive,
-    login_screen: ScreenId,
+    //login_screen: ScreenId,
     playback_screen: ScreenId,
 }
 
@@ -50,13 +52,13 @@ impl Terminal {
         let model = Rc::new(RefCell::new(Model::new(config.clone())));
         let mut siv = Cursive::crossterm().expect("Failed to initialize terminal");
         siv.set_user_data(model.clone());
-        let login_screen = siv.add_screen();
+        //let login_screen = siv.add_screen();
         let playback_screen = siv.add_screen();
         let mut term = Self {
             config,
             model,
             siv,
-            login_screen,
+            //login_screen,
             playback_screen,
         };
         term.initialize();
@@ -64,14 +66,35 @@ impl Terminal {
     }
 
     pub(crate) fn initialize(&mut self) {
+        self.init_key_mappings();
         self.init_theme();
-        self.init_login();
+        //self.init_login();
         self.init_playback();
     }
 
     fn init_key_mappings(&mut self) {
         // TODO: read key mappings from config
-        self.siv.add_global_callback('q', |s| s.quit());
+        self.siv.add_global_callback('q', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().quit());
+        });
+        self.siv.add_global_callback('.', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().pause());
+        });
+        self.siv.add_global_callback('>', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().unpause());
+        });
+        self.siv.add_global_callback('p', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().toggle_pause());
+        });
+        self.siv.add_global_callback('(', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().decrease_volume());
+        });
+        self.siv.add_global_callback(')', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().increase_volume());
+        });
+        self.siv.add_global_callback('n', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().stop());
+        });
     }
 
     fn init_theme(&mut self) {
@@ -81,6 +104,7 @@ impl Terminal {
         // TODO: Allow loading user-provided theme files at run-time
     }
 
+    /*
     fn init_login(&mut self) {
         let dialog = Dialog::around(
             LinearLayout::vertical()
@@ -161,6 +185,7 @@ impl Terminal {
         self.siv.set_screen(self.login_screen);
         self.siv.screen_mut().add_layer(dialog);
     }
+    */
 
     fn init_playback(&mut self) {
         let stations = LinearLayout::horizontal()
@@ -170,28 +195,46 @@ impl Terminal {
                     .popup()
                     .on_submit(|s: &mut Cursive, item: &String| {
                         s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+                            trace!("Tuning to station {}", item.clone());
                             m.borrow_mut().tune(item.clone())
                         });
                     })
                     .with_name("stations")
                     .fixed_height(1),
             );
-        // connect up on_submit
         let playing = Panel::new(
             LinearLayout::horizontal()
                 .child(
-                    TextArea::new()
-                        .disabled()
-                        .fixed_width(50)
-                        .fixed_height(3)
-                        .with_name("track_info"),
+                    LinearLayout::vertical()
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Title").fixed_width(7))
+                                .child(TextView::empty().with_name("title")),
+                        )
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Artist").fixed_width(7))
+                                .child(TextView::empty().with_name("artist")),
+                        )
+                        .child(
+                            LinearLayout::horizontal()
+                                .child(TextView::new("Album").fixed_width(7))
+                                .child(TextView::empty().with_name("album")),
+                        )
+                        .max_height(3)
+                        .full_width(),
                 )
-                .child(DummyView)
-                .child(TextView::new("Volume:"))
+                .child(DummyView.min_width(4))
+                .child(TextView::new("Volume").fixed_width(7))
                 .child(
                     SliderView::horizontal(11)
                         .on_change(|s, v| {
-                            let new_volume = ((v as f32) / 10.0).min(0.0f32).max(1.0f32);
+                            let new_volume: f32 = ((v as f32) / 10.0).min(1.0f32).max(0.0f32);
+                            trace!(
+                                "Submitting updated volume from slider: {} ({:.2})",
+                                v,
+                                new_volume
+                            );
                             s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
                                 m.borrow_mut().set_volume(new_volume)
                             });
@@ -200,10 +243,11 @@ impl Terminal {
                 ),
         )
         .title("Disconnected")
+        .title_position(HAlign::Left)
         .with_name("playing");
 
         let layout = LinearLayout::vertical()
-            .child(DummyView)
+            .child(DummyView.full_height())
             .child(stations)
             .child(playing);
         self.siv.set_screen(self.playback_screen);
@@ -215,62 +259,98 @@ impl Terminal {
         if !model.connected() {
             return;
         }
+
+        trace!("Checking stations list...");
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
-                if v.len() > 0 {
-                    return;
+                if v.len() == 0 {
+                    trace!("Updating stations list");
+                    v.add_all(model.station_list().into_iter());
+                    v.sort_by_label();
+                } else if model.station_count() == 0 {
+                    trace!("Clearing UI station list to match model");
+                    v.clear();
+                } else if let Some(station_id) = model.tuned() {
+                    trace!("Updating selected station in UI to match model");
+                    let opt_idx = v
+                        .iter()
+                        .enumerate()
+                        .find(|(i, (_, st_id))| *st_id == &station_id)
+                        .map(|(i, _)| i);
+                    if let Some(idx) = opt_idx {
+                        v.set_selection(idx);
+                    }
                 }
-                v.add_all(model.station_list().into_iter());
             });
 
-        self.siv.call_on_name("track_info", |v: &mut TextArea| {
-            let text = model
-                .playing()
-                .map(|t| {
-                    format!(
-                        "{:<8} {:<25}\n{:<8} {:<25}\n{:<8} {:<25}",
-                        "Title:",
-                        t.song_name,
-                        "Artist:",
-                        t.artist_name,
-                        "Album:",
-                        t.album_name
-                    )
-                })
-                .unwrap_or_default();
-            v.set_content(text);
+        trace!("Updating track info box...");
+        let (song_name, artist_name, album_name) = model
+            .playing()
+            .map(|t| (t.song_name, t.artist_name, t.album_name))
+            .unwrap_or_default();
+        self.siv.call_on_name("title", |v: &mut TextView| {
+            debug!("Playing title {}", song_name);
+            v.set_content(song_name);
+        });
+        self.siv.call_on_name("artist", |v: &mut TextView| {
+            debug!("Playing artist {}", artist_name);
+            v.set_content(artist_name);
+        });
+        self.siv.call_on_name("album", |v: &mut TextView| {
+            debug!("Playing album {}", album_name);
+            v.set_content(album_name);
         });
 
+        trace!("Updating volume...");
         self.siv.call_on_name("volume", |v: &mut SliderView| {
-            let volume = ((model.volume() * 10.0).round() as usize).min(0).max(10);
+            let volume = ((model.volume() * 10.0).round() as usize).min(10).max(0);
+            trace!(
+                "Converted model volume from {:.2} to {}",
+                model.volume(),
+                volume
+            );
             v.set_value(volume);
         });
 
+        trace!("Updating track info box title...");
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 if model.playing().is_some() {
-                    let playpause = if model.paused() { "Play" } else { "Pause" };
-                    // TODO: get real values here
-                    let elapsed_minutes = 0;
-                    let elapsed_seconds = 0;
-                    let duration_minutes = 0;
-                    let duration_seconds = 0;
-                    let text = format!(
-                        "{} [{:02}:{:02}/{:02}:{:02}]",
-                        playpause,
-                        elapsed_minutes,
-                        elapsed_seconds,
-                        duration_minutes,
-                        duration_seconds
-                    );
+                    let playpause = if model.paused() { "Paused" } else { "Play" };
+                    let total_elapsed = model.elapsed().as_secs();
+                    let elapsed_minutes = total_elapsed / 60;
+                    let elapsed_seconds = total_elapsed % 60;
+                    let total_duration = model.duration().as_secs();
+                    let duration_minutes = total_duration / 60;
+                    let duration_seconds = total_duration % 60;
+                    let text = if total_duration > 0 {
+                        format!(
+                            "{:<6} [{:>2}:{:02}/{:>2}:{:02}]",
+                            playpause,
+                            elapsed_minutes,
+                            elapsed_seconds,
+                            duration_minutes,
+                            duration_seconds
+                        )
+                    } else {
+                        format!(
+                            "{:<6} [{:>2}:{:02}]",
+                            playpause, elapsed_minutes, elapsed_seconds
+                        )
+                    };
+                    trace!("track is {}", text);
                     v.set_title(text);
                 } else if model.ready() {
+                    trace!("Title waiting on playlist");
                     v.set_title("Waiting on playlist");
                 } else if model.tuned().is_some() {
+                    trace!("Title tuned to station");
                     v.set_title("Tuned to station");
                 } else if model.connected() {
+                    trace!("Title connected");
                     v.set_title("Connected");
                 } else {
+                    trace!("Title disconnected");
                     v.set_title("Disconnected");
                 }
             });
@@ -278,6 +358,7 @@ impl Terminal {
         self.siv.set_screen(self.playback_screen);
     }
 
+    /*
     fn update_disconnected(&mut self) {
         let model = self.model.borrow_mut();
         if model.connected() {
@@ -303,22 +384,26 @@ impl Terminal {
         });
         self.siv.set_screen(self.login_screen);
     }
+    */
 
     pub(crate) fn run(&mut self) -> Result<()> {
-        self.siv.set_fps(8);
+        self.siv.set_fps(2);
         // TODO: This causes a crash in a selectview
         // I think it's the login prompt view
         //self.siv.refresh();
-        while self.siv.is_running() {
-            if self.siv.step() {
-                self.siv.refresh();
-            }
-            if self.model.borrow_mut().update() {
+        // We want to ensure that the controls are updated from the data model
+        // at least once per second, to keep the elapsed time display current.
+        let update_timeout = Duration::from_millis(500);
+        let mut timeout = Instant::now();
+        while !self.model.borrow().quitting() {
+            self.siv.step();
+            if self.model.borrow_mut().update() || (timeout.elapsed() > update_timeout) {
                 self.update_connected();
-                self.update_disconnected();
+                //self.update_disconnected();
                 // TODO: This causes a crash in a selectview
                 // I think it's the login prompt view
                 //self.siv.refresh();
+                timeout = Instant::now();
             }
         }
         Ok(())

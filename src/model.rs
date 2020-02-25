@@ -27,6 +27,8 @@ pub(crate) trait StateMediator {
     fn ready(&self) -> bool;
     fn playing(&self) -> Option<PlaylistTrack>;
     fn update(&mut self) -> bool;
+    fn quitting(&self) -> bool;
+    fn quit(&mut self);
 }
 
 pub(crate) trait PlaybackMediator {
@@ -44,8 +46,20 @@ pub(crate) trait PlaybackMediator {
             self.pause();
         }
     }
+
+    fn elapsed(&self) -> Duration;
+    fn duration(&self) -> Duration;
+
     fn volume(&self) -> f32;
     fn set_volume(&mut self, new_volume: f32);
+    fn increase_volume(&mut self) {
+        self.set_volume(self.volume() + 0.1);
+    }
+
+    fn decrease_volume(&mut self) {
+        self.set_volume(self.volume() - 0.1);
+    }
+
     fn refresh_volume(&mut self);
     fn muted(&self) -> bool;
     fn mute(&mut self);
@@ -120,22 +134,14 @@ enum Volume {
 impl Volume {
     fn volume(&self) -> f32 {
         if let Self::Unmuted(v) = self {
-            v.min(0.0f32).max(1.0f32)
+            v.min(1.0f32).max(0.0f32)
         } else {
             0.0f32
         }
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        *self = Self::Unmuted(new_volume.min(0.0f32).max(1.0f32));
-    }
-
-    fn increase_volume(&mut self) {
-        self.set_volume(self.volume() + 0.1);
-    }
-
-    fn decrease_volume(&mut self) {
-        self.set_volume(self.volume() - 0.1);
+        *self = Self::Unmuted(new_volume.min(1.0f32).max(0.0f32));
     }
 
     fn muted(&self) -> bool {
@@ -222,6 +228,14 @@ impl PlaybackMediator for AudioDevice {
 
     fn unpause(&mut self) {
         self.sink.play()
+    }
+
+    fn elapsed(&self) -> Duration {
+        unreachable!();
+    }
+
+    fn duration(&self) -> Duration {
+        unreachable!();
     }
 
     fn volume(&self) -> f32 {
@@ -319,9 +333,11 @@ struct Playing {
 
 impl Playing {
     fn playing(&self) -> Option<PlaylistTrack> {
-        self.last_started
-            .and_then(|_| self.playlist.front())
-            .cloned()
+        if self.elapsed().as_millis() > 0 {
+            self.playlist.front().cloned()
+        } else {
+            None
+        }
     }
 
     fn playlist(&self) -> &VecDeque<PlaylistTrack> {
@@ -338,7 +354,14 @@ impl Playing {
     }
 
     fn duration_from_path<P: AsRef<Path>>(&mut self, path: P) {
-        self.duration = mp3_duration::from_path(&path).unwrap_or_default();
+        match mp3_duration::from_path(&path) {
+            Ok(duration) => self.duration = duration,
+            Err(e) => {
+                self.duration = Duration::default();
+                trace!("Error calculating track duration: {:?}", e);
+            }
+        }
+        trace!("Set track duration to {:?}", &self.duration);
     }
 
     fn precache_playlist_track(&mut self) {
@@ -360,7 +383,7 @@ impl PlaybackMediator for Playing {
     }
 
     fn stop(&mut self) {
-        if self.last_started.is_some() {
+        if self.elapsed().as_millis() > 0 {
             self.audio_device.stop();
             self.playlist.pop_front();
             self.last_started = None;
@@ -370,7 +393,7 @@ impl PlaybackMediator for Playing {
     }
 
     fn started(&self) -> bool {
-        !self.stopped() && self.last_started.is_some()
+        !self.audio_device.stopped()
     }
 
     fn start(&mut self) {
@@ -408,7 +431,7 @@ impl PlaybackMediator for Playing {
 
     fn paused(&self) -> bool {
         assert_eq!(self.last_started.is_none(), self.audio_device.paused());
-        self.last_started.is_none()
+        self.last_started.is_none() && self.elapsed.as_millis() > 0
     }
 
     fn pause(&mut self) {
@@ -421,10 +444,23 @@ impl PlaybackMediator for Playing {
     }
 
     fn unpause(&mut self) {
-        if self.last_started.is_none() {
-            self.last_started = Some(Instant::now());
+        if self.elapsed.as_millis() > 0 {
+            self.last_started.get_or_insert_with(Instant::now);
             self.audio_device.unpause();
         }
+    }
+
+    fn elapsed(&self) -> Duration {
+        let elapsed_since_last_started = self.last_started.map(|i| i.elapsed()).unwrap_or_default();
+        trace!(
+            "elapsed since last started: {:?}",
+            elapsed_since_last_started
+        );
+        self.elapsed + self.last_started.map(|i| i.elapsed()).unwrap_or_default()
+    }
+
+    fn duration(&self) -> Duration {
+        self.duration.clone()
     }
 
     fn volume(&self) -> f32 {
@@ -488,18 +524,22 @@ pub(crate) struct Model {
     station: Option<String>,
     station_list: HashMap<String, Station>,
     playing: Playing,
+    quitting: bool,
     dirty: bool,
 }
 
 impl Model {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
+        let mut playing = Playing::default();
+        playing.set_volume(config.borrow().volume());
         Self {
             config: config.clone(),
             session: PandoraSession::new(config.clone()),
             state: State::default(),
             station: config.borrow().station_id().cloned(),
             station_list: HashMap::new(),
-            playing: Playing::default(),
+            playing,
+            quitting: false,
             dirty: true,
         }
     }
@@ -545,6 +585,10 @@ impl Model {
         self.station_list.get(station_id)
     }
 
+    pub(crate) fn station_count(&self) -> usize {
+        self.station_list.len()
+    }
+
     fn refill_playlist(&mut self) {
         // If the playing track and at least one more are still
         // in the queue, then we don't refill.
@@ -570,7 +614,9 @@ impl Model {
         }
     }
 
-    fn cache_track(&mut self) {}
+    fn cache_track(&mut self) {
+        self.playing.precache_playlist_track();
+    }
 }
 
 impl StateMediator for Model {
@@ -638,9 +684,11 @@ impl StateMediator for Model {
             .map(|s| s == &station_id)
             .unwrap_or(false)
         {
-            self.station = Some(station_id);
-            self.dirty |= true;
+            trace!("Requested station is already playing.");
         }
+        trace!("Updating station on model");
+        self.station = Some(station_id);
+        self.dirty |= true;
 
         if self.connected() {
             self.state = State::Tuned;
@@ -679,17 +727,54 @@ impl StateMediator for Model {
     }
 
     fn update(&mut self) -> bool {
+        let mut old_dirty = self.dirty;
+        // If a track was started, but the audio device is no longer playing it
+        // force that track out of the playlist
+        if self.elapsed().as_millis() > 0 && self.playing.audio_device.stopped() {
+            trace!("Current track finished playing. Evicting from playlist...");
+            self.playing.stop();
+        }
         if self.connected() {
             self.fill_station_list();
+            if !old_dirty && (old_dirty != self.dirty) {
+                trace!("fill_station_list dirtied");
+                old_dirty = self.dirty;
+            }
             self.refill_playlist();
+            if !old_dirty && (old_dirty != self.dirty) {
+                trace!("refill_playlist dirtied");
+                old_dirty = self.dirty;
+            }
             self.cache_track();
+            if !old_dirty && (old_dirty != self.dirty) {
+                trace!("cache_track dirtied");
+                old_dirty = self.dirty;
+            }
             self.start();
+            if !old_dirty && (old_dirty != self.dirty) {
+                trace!("start dirtied");
+                old_dirty = self.dirty;
+            }
         } else if self.config.borrow().login_credentials().get().is_some() {
             self.connect();
+            if !old_dirty && (old_dirty != self.dirty) {
+                trace!("connect dirtied");
+                old_dirty = self.dirty;
+            }
         }
         let old_dirty = self.dirty;
         self.dirty = false;
         old_dirty
+    }
+
+    fn quitting(&self) -> bool {
+        self.quitting
+    }
+
+    fn quit(&mut self) {
+        trace!("Start quitting the application.");
+        self.quitting = true;
+        self.dirty |= true;
     }
 }
 
@@ -732,6 +817,14 @@ impl PlaybackMediator for Model {
             self.playing.unpause();
             self.dirty |= true;
         }
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.playing.elapsed()
+    }
+
+    fn duration(&self) -> Duration {
+        self.playing.duration()
     }
 
     fn volume(&self) -> f32 {

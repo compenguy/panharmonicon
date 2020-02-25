@@ -134,6 +134,8 @@ fn main() -> Result<()> {
         ui.initialize();
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
+    // Explicitly drop the UI to force it to write changed settings out
+    drop(ui);
 
     Ok(())
 }

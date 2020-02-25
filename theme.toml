@@ -32,5 +32,5 @@ borders = "simple" # Alternatives are "none" and "simple"
 	title_secondary = ["113", "blue"]
 
 	# Lower precision values can use only 3 digits.
-	highlight          = ["252", "light green"]
-	highlight_inactive = ["131", "green"]
+	highlight          = ["010", "green"]
+	highlight_inactive = ["222", "light black"]
