@@ -31,104 +31,74 @@ fn app_cache_dir() -> Result<PathBuf> {
         .join(crate_name!()))
 }
 
-pub(crate) struct CachedTrack {
-    evict_on_drop: bool,
-    path: PathBuf,
+fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
+    if let Some(serde_json::value::Value::String(path_str)) = track.optional.get("cached") {
+        let path = PathBuf::from(path_str);
+        if path.exists() {
+            return Some(path);
+        } else {
+            trace!(
+                "Marked as precached, but doesn't exist: {}",
+                path.to_string_lossy()
+            );
+        }
+    }
+    None
 }
 
-impl CachedTrack {
-    fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
-        if let Some(serde_json::value::Value::String(path_str)) = track.optional.get("cached") {
-            let path = PathBuf::from(path_str);
-            if path.exists() {
-                return Some(path);
-            } else {
-                trace!(
-                    "Marked as precached, but doesn't exist: {}",
-                    path.to_string_lossy()
-                );
-            }
-        }
-        None
+fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<PathBuf> {
+    if let Some(precached) = precached_path_for_track(track) {
+        return Ok(precached);
     }
 
-    fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<PathBuf> {
-        if let Some(precached) = Self::precached_path_for_track(track) {
-            return Ok(precached);
-        }
+    let artist = sanitize_filename(&track.artist_name);
+    let album = sanitize_filename(&track.album_name);
+    let song = sanitize_filename(&track.song_name);
 
-        let artist = sanitize_filename(&track.artist_name);
-        let album = sanitize_filename(&track.album_name);
-        let song = sanitize_filename(&track.song_name);
+    let mut track_cache_path = app_cache_dir()?.join(&artist).join(&album);
 
-        let mut track_cache_path = app_cache_dir()?.join(&artist).join(&album);
+    if create_path {
+        std::fs::create_dir_all(&track_cache_path)
+            .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    }
+    let filename = format!("{} - {}.{}", artist, song, "mp3");
+    track_cache_path.push(filename);
+    Ok(track_cache_path)
+}
 
-        if create_path {
-            std::fs::create_dir_all(&track_cache_path)
-                .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
-        }
-        let filename = format!("{} - {}.{}", artist, song, "mp3");
-        track_cache_path.push(filename);
-        Ok(track_cache_path)
+pub(crate) fn add_to_cache(track: &mut PlaylistTrack) -> Result<PathBuf> {
+    if let Some(path) = precached_path_for_track(track) {
+        return Ok(path);
     }
 
-    pub(crate) fn add_to_cache(track: &mut PlaylistTrack) -> Result<PathBuf> {
-        if let Some(path) = Self::precached_path_for_track(track) {
-            return Ok(path);
-        }
+    let path = cached_path_for_track(track, true)?;
 
-        let path = Self::cached_path_for_track(track, true)?;
-
-        if let Err(e) = save_url_to_file(&track.additional_audio_url, &path) {
-            error!(
-                "Error downloading track {} to {}: {:?}",
-                &track.additional_audio_url,
-                &path.to_string_lossy(),
-                &e
-            );
-            let _ = std::fs::remove_file(&path);
-            return Err(e);
-        }
-
-        if let Err(e) = tag_mp3(&track, &path) {
-            error!(
-                "Error tagging track at {}: {:?}",
-                path.to_string_lossy(),
-                &e
-            );
-            let _ = std::fs::remove_file(&path);
-            return Err(e);
-        }
-
-        track.optional.insert(
-            String::from("cached"),
-            serde_json::value::Value::String(path.to_string_lossy().to_string()),
+    if let Err(e) = save_url_to_file(&track.additional_audio_url, &path) {
+        error!(
+            "Error downloading track {} to {}: {:?}",
+            &track.additional_audio_url,
+            &path.to_string_lossy(),
+            &e
         );
-        Ok(path)
+        let _ = std::fs::remove_file(&path);
+        return Err(e);
     }
 
-    pub(crate) fn new_fallible(track: &mut PlaylistTrack, evict_on_drop: bool) -> Result<Self> {
-        Self::add_to_cache(track).map(|path| CachedTrack {
-            evict_on_drop,
-            path,
-        })
+    if let Err(e) = tag_mp3(&track, &path) {
+        error!(
+            "Error tagging track at {}: {:?}",
+            path.to_string_lossy(),
+            &e
+        );
+        let _ = std::fs::remove_file(&path);
+        return Err(e);
     }
-}
 
-impl Drop for CachedTrack {
-    fn drop(&mut self) {
-        if self.evict_on_drop {
-            if let Err(e) = std::fs::remove_file(&self.path) {
-                error!(
-                    "Failed to evict cached track {}: {:?}",
-                    self.path.to_string_lossy(),
-                    e
-                );
-            } else {
-                debug!("Track {} evicted from cache.", self.path.to_string_lossy());
-            }
-        }
-    }
+    track.optional.insert(
+        String::from("cached"),
+        serde_json::value::Value::String(path.to_string_lossy().to_string()),
+    );
+    Ok(path)
 }
 
 fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {

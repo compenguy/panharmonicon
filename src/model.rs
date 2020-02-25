@@ -10,7 +10,7 @@ use rodio::DeviceTrait;
 
 use pandora_api::json::{station::PlaylistTrack, user::Station};
 
-use crate::caching::CachedTrack;
+use crate::caching;
 use crate::config::{CachePolicy, Config, PartialConfig};
 use crate::errors::{Error, Result};
 use crate::pandora::PandoraSession;
@@ -319,7 +319,7 @@ impl Playing {
                 if track.optional.get("cached").is_some() {
                     continue;
                 }
-                match CachedTrack::add_to_cache(track) {
+                match caching::add_to_cache(track) {
                     Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
                     Err(e) => trace!("Error caching track to path: {:?}", e),
                 }
@@ -330,7 +330,7 @@ impl Playing {
                 if track.optional.get("cached").is_some() {
                     continue;
                 }
-                match CachedTrack::add_to_cache(track) {
+                match caching::add_to_cache(track) {
                     Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
                     Err(e) => trace!("Error caching track to path: {:?}", e),
                 }
@@ -391,7 +391,7 @@ impl PlaybackMediator for Playing {
         if let Some(track) = self.playlist.front_mut() {
             let cached = match track.optional.get("cached") {
                 Some(serde_json::value::Value::String(cached)) => PathBuf::from(cached.clone()),
-                _ => match CachedTrack::add_to_cache(track) {
+                _ => match caching::add_to_cache(track) {
                     Err(e) => {
                         error!("Failed caching track: {:?}", e);
                         return;
