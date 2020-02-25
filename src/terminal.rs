@@ -13,7 +13,7 @@ use cursive::view::{Nameable, Resizable};
 use crate::config::{Config, Credentials, PartialConfig};
 use crate::errors::Result;
 use crate::model::Model;
-use crate::model::{PlaybackMediator, StateMediator};
+use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Store {

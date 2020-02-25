@@ -8,86 +8,60 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
 
-#[derive(Deserialize, Debug, Default)]
-#[serde(rename = "Config")]
-pub(crate) struct PartialConfig {
-    pub(crate) login: Option<Credentials>,
-    pub(crate) station_id: Option<Option<String>>,
-    pub(crate) save_station: Option<bool>,
-    pub(crate) volume: Option<f32>,
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub(crate) enum CachePolicy {
+    NoCaching,
+    CachePlayingEvictCompleted,
+    CacheNextEvictCompleted,
+    CacheAllNoEviction,
 }
 
-impl PartialConfig {
-    pub(crate) fn new_login(cred: Credentials) -> Self {
-        PartialConfig {
-            login: Some(cred),
-            station_id: None,
-            save_station: None,
-            volume: None,
+impl CachePolicy {
+    pub(crate) fn cache_playing(&self) -> bool {
+        match self {
+            Self::NoCaching => false,
+            Self::CachePlayingEvictCompleted => true,
+            Self::CacheNextEvictCompleted => true,
+            Self::CacheAllNoEviction => true,
         }
     }
 
-    pub(crate) fn new_station(station: String) -> Self {
-        PartialConfig {
-            login: None,
-            station_id: Some(Some(station)),
-            save_station: None,
-            volume: None,
+    pub(crate) fn cache_plus_one(&self) -> bool {
+        match self {
+            Self::NoCaching => false,
+            Self::CachePlayingEvictCompleted => false,
+            Self::CacheNextEvictCompleted => true,
+            Self::CacheAllNoEviction => true,
         }
     }
 
-    pub(crate) fn no_station() -> Self {
-        PartialConfig {
-            login: None,
-            station_id: Some(None),
-            save_station: None,
-            volume: None,
+    pub(crate) fn cache_all(&self) -> bool {
+        match self {
+            Self::NoCaching => false,
+            Self::CachePlayingEvictCompleted => false,
+            Self::CacheNextEvictCompleted => false,
+            Self::CacheAllNoEviction => true,
         }
     }
 
-    pub(crate) fn new_save_station(save: bool) -> Self {
-        PartialConfig {
-            login: None,
-            station_id: None,
-            save_station: Some(save),
-            volume: None,
-        }
-    }
-
-    pub(crate) fn new_volume(volume: f32) -> Self {
-        PartialConfig {
-            login: None,
-            station_id: None,
-            save_station: None,
-            volume: Some(volume),
+    pub(crate) fn evict_completed(&self) -> bool {
+        match self {
+            Self::NoCaching => false,
+            Self::CachePlayingEvictCompleted => true,
+            Self::CacheNextEvictCompleted => true,
+            Self::CacheAllNoEviction => false,
         }
     }
 }
 
-pub(crate) mod serde_session {
-    use serde::de::Deserializer;
-    use serde::ser::Serializer;
-
-    pub(crate) fn serialize<S>(
-        _: &Option<String>,
-        _: &Option<String>,
-        s: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        s.serialize_unit()
-    }
-
-    pub(crate) fn deserialize<'de, D>(_: D) -> Result<(Option<String>, Option<String>), D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok((None, None))
+impl Default for CachePolicy {
+    fn default() -> Self {
+        Self::CachePlayingEvictCompleted
     }
 }
 
 // TODO: switch to tagged for more obvious user editing?
+// TODO: custom Debug implementation to prevent spilling secrets
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub(crate) enum Credentials {
@@ -270,6 +244,89 @@ impl std::cmp::PartialEq<Credentials> for Credentials {
     }
 }
 
+#[derive(Deserialize, Debug, Default)]
+#[serde(rename = "Config")]
+pub(crate) struct PartialConfig {
+    pub(crate) login: Option<Credentials>,
+    pub(crate) policy: Option<CachePolicy>,
+    pub(crate) station_id: Option<Option<String>>,
+    pub(crate) save_station: Option<bool>,
+    pub(crate) volume: Option<f32>,
+}
+
+impl PartialConfig {
+    pub(crate) fn new_login(cred: Credentials) -> Self {
+        Self::from(cred)
+    }
+
+    pub(crate) fn new_cache_policy(policy: CachePolicy) -> Self {
+        Self::from(policy)
+    }
+
+    pub(crate) fn new_station(station: String) -> Self {
+        let mut pc = Self::default();
+        pc.station_id = Some(Some(station));
+        pc
+    }
+
+    pub(crate) fn no_station() -> Self {
+        let mut pc = Self::default();
+        pc.station_id = Some(None);
+        pc
+    }
+
+    pub(crate) fn new_save_station(save: bool) -> Self {
+        let mut pc = Self::default();
+        pc.save_station = Some(save);
+        pc
+    }
+
+    pub(crate) fn new_volume(volume: f32) -> Self {
+        let mut pc = Self::default();
+        pc.volume = Some(volume);
+        pc
+    }
+}
+
+impl From<Credentials> for PartialConfig {
+    fn from(cred: Credentials) -> Self {
+        let mut pc = Self::default();
+        pc.login = Some(cred);
+        pc
+    }
+}
+
+impl From<CachePolicy> for PartialConfig {
+    fn from(policy: CachePolicy) -> Self {
+        let mut pc = Self::default();
+        pc.policy = Some(policy);
+        pc
+    }
+}
+
+pub(crate) mod serde_session {
+    use serde::de::Deserializer;
+    use serde::ser::Serializer;
+
+    pub(crate) fn serialize<S>(
+        _: &Option<String>,
+        _: &Option<String>,
+        s: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_unit()
+    }
+
+    pub(crate) fn deserialize<'de, D>(_: D) -> Result<(Option<String>, Option<String>), D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok((None, None))
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub(crate) struct Config {
     #[serde(skip)]
@@ -277,6 +334,7 @@ pub(crate) struct Config {
     #[serde(skip)]
     pub(crate) dirty: bool,
     pub(crate) login: Credentials,
+    pub(crate) policy: CachePolicy,
     pub(crate) station_id: Option<String>,
     pub(crate) save_station: bool,
     pub(crate) volume: f32,
@@ -288,6 +346,7 @@ impl std::default::Default for Config {
             dirty: false,
             //TODO: login: Credentials::Session(None, None),
             login: Credentials::Keyring(String::from("compenguy@gmail.com")),
+            policy: CachePolicy::default(),
             station_id: None,
             save_station: true,
             path: None,
@@ -313,6 +372,7 @@ impl Config {
         }
         if write_back {
             trace!("Updating config file for newly-added options");
+            config.dirty = true;
             config.flush()?;
         }
         Ok(config)
@@ -329,7 +389,9 @@ impl Config {
     }
 
     pub(crate) fn flush(&mut self) -> Result<()> {
+        trace!("Flushing config file...");
         if let Some(path) = self.path.as_ref() {
+            trace!("Using config file at {}", path.to_string_lossy());
             if self.dirty || !path.exists() {
                 trace!(
                     "Current settings differ from those on disk, writing updated settings to disk"
@@ -348,6 +410,13 @@ impl Config {
             if self.login != *login {
                 self.dirty |= true;
                 self.login = login.clone();
+            }
+        }
+
+        if let Some(policy) = &other.policy {
+            if self.policy != *policy {
+                self.dirty |= true;
+                self.policy = *policy;
             }
         }
 
@@ -377,6 +446,10 @@ impl Config {
 
     pub(crate) fn login_credentials(&self) -> &Credentials {
         &self.login
+    }
+
+    pub(crate) fn cache_policy(&self) -> CachePolicy {
+        self.policy
     }
 
     pub(crate) fn station_id(&self) -> Option<&String> {

@@ -3,7 +3,7 @@ use std::boxed::Box;
 use std::{cell::RefCell, rc::Rc};
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
-use flexi_logger::Logger;
+use flexi_logger::{colored_default_format, detailed_format, Logger};
 use human_panic::setup_panic;
 use log::{debug, error, trace};
 
@@ -79,7 +79,9 @@ fn main() -> Result<()> {
         crate_name!(),
         crate_log_level
     );
-    let mut log_builder = Logger::with_str(&spec);
+    let mut log_builder = Logger::with_str(&spec)
+        .format(detailed_format)
+        .format_for_stderr(colored_default_format);
 
     if matches.is_present("debug-log") {
         let data_local_dir = dirs::data_local_dir()
