@@ -17,7 +17,7 @@ pub(crate) enum CachePolicy {
 }
 
 impl CachePolicy {
-    pub(crate) fn cache_playing(&self) -> bool {
+    pub(crate) fn cache_playing(self) -> bool {
         match self {
             Self::NoCaching => false,
             Self::CachePlayingEvictCompleted => true,
@@ -26,7 +26,7 @@ impl CachePolicy {
         }
     }
 
-    pub(crate) fn cache_plus_one(&self) -> bool {
+    pub(crate) fn cache_plus_one(self) -> bool {
         match self {
             Self::NoCaching => false,
             Self::CachePlayingEvictCompleted => false,
@@ -35,7 +35,7 @@ impl CachePolicy {
         }
     }
 
-    pub(crate) fn cache_all(&self) -> bool {
+    pub(crate) fn cache_all(self) -> bool {
         match self {
             Self::NoCaching => false,
             Self::CachePlayingEvictCompleted => false,
@@ -44,7 +44,7 @@ impl CachePolicy {
         }
     }
 
-    pub(crate) fn evict_completed(&self) -> bool {
+    pub(crate) fn evict_completed(self) -> bool {
         match self {
             Self::NoCaching => false,
             Self::CachePlayingEvictCompleted => true,
@@ -109,7 +109,7 @@ impl Credentials {
         }
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be mutated in-place. Calling \"update_<field>()\" creates a copy with the updated value."]
     pub(crate) fn update_username(&self, username: &str) -> Credentials {
         let mut dup = self.clone();
         let username = username.to_string();
@@ -135,7 +135,7 @@ impl Credentials {
         dup
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be mutated in-place. Calling \"update_<field>()\" creates a copy with the updated value."]
     pub(crate) fn update_password(&self, password: &str) -> Result<Credentials> {
         let mut dup = self.clone();
         match &mut dup {
@@ -157,7 +157,7 @@ impl Credentials {
         Ok(dup)
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
     pub(crate) fn as_keyring(&self) -> Result<Credentials> {
         match self {
             Self::Keyring(_) => Ok(self.clone()),
@@ -172,7 +172,7 @@ impl Credentials {
         }
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
     pub(crate) fn as_configfile(&self) -> Credentials {
         match self {
             Self::ConfigFile(_, _) => self.clone(),
@@ -184,7 +184,7 @@ impl Credentials {
         }
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
     pub(crate) fn as_session(&self) -> Credentials {
         match self {
             Self::Session(_, _) => self.clone(),
@@ -196,7 +196,7 @@ impl Credentials {
         }
     }
 
-    #[must_use]
+    #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
     pub(crate) fn as_invalid(&self) -> Credentials {
         match self {
             Self::Invalid(_) => self.clone(),

@@ -91,7 +91,7 @@ enum Volume {
 }
 
 impl Volume {
-    fn volume(&self) -> f32 {
+    fn volume(self) -> f32 {
         if let Self::Unmuted(v) = self {
             v.min(1.0f32).max(0.0f32)
         } else {
@@ -103,7 +103,7 @@ impl Volume {
         *self = Self::Unmuted(new_volume.min(1.0f32).max(0.0f32));
     }
 
-    fn muted(&self) -> bool {
+    fn muted(self) -> bool {
         match self {
             Self::Muted(_) => true,
             Self::Unmuted(_) => false,
@@ -236,11 +236,11 @@ impl Clone for AudioDevice {
                     .expect("Failed to locate/initialize default audio device")
             });
         let sink = rodio::Sink::new(&device);
-        return AudioDevice {
+        AudioDevice {
             device,
             sink,
-            volume: self.volume.clone(),
-        };
+            volume: self.volume,
+        }
     }
 }
 
@@ -430,7 +430,7 @@ impl PlaybackMediator for Playing {
     }
 
     fn duration(&self) -> Duration {
-        self.duration.clone()
+        self.duration
     }
 }
 
@@ -655,7 +655,7 @@ impl StateMediator for Model {
     }
 
     fn playing(&self) -> Option<PlaylistTrack> {
-        self.playing.playing().clone()
+        self.playing.playing()
     }
 
     fn update(&mut self) -> bool {
@@ -712,7 +712,7 @@ impl StateMediator for Model {
 
 impl StationMediator for Model {
     fn fill_station_list(&mut self) {
-        if self.station_list.len() > 0 {
+        if !self.station_list.is_empty() {
             return;
         }
         trace!("Filling station list");

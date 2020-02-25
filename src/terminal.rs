@@ -263,7 +263,7 @@ impl Terminal {
         trace!("Checking stations list...");
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
-                if v.len() == 0 {
+                if v.is_empty() {
                     trace!("Updating stations list");
                     v.add_all(model.station_list().into_iter());
                     v.sort_by_label();

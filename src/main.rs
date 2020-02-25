@@ -128,7 +128,7 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     trace!("Initializing terminal interface");
-    let mut ui = terminal::Terminal::new(conf_ref.clone());
+    let mut ui = terminal::Terminal::new(conf_ref);
     trace!("Starting app");
     // Exit condition occurs when run() returns Ok(_)
     while let Err(e) = ui.run() {
