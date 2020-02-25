@@ -313,23 +313,28 @@ impl Playing {
         self.cache_policy = policy;
     }
 
-    fn precache_playlist_tracks(&mut self) {
-        fn cache_track(track: &mut PlaylistTrack) {
-            if track.optional.get("cached").is_some() {
-                return;
-            }
-            match CachedTrack::add_to_cache(track) {
-                Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
-                Err(e) => trace!("Error caching track to path: {:?}", e),
-            }
-        }
+    fn precache_playlist_track(&mut self) {
         if self.cache_policy.cache_plus_one() {
             for track in self.playlist.iter_mut().take(2) {
-                cache_track(track);
+                if track.optional.get("cached").is_some() {
+                    continue;
+                }
+                match CachedTrack::add_to_cache(track) {
+                    Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
+                    Err(e) => trace!("Error caching track to path: {:?}", e),
+                }
+                break;
             }
         } else if self.cache_policy.cache_all() {
             for track in self.playlist.iter_mut() {
-                cache_track(track);
+                if track.optional.get("cached").is_some() {
+                    continue;
+                }
+                match CachedTrack::add_to_cache(track) {
+                    Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
+                    Err(e) => trace!("Error caching track to path: {:?}", e),
+                }
+                break;
             }
         }
     }
@@ -544,8 +549,8 @@ impl Model {
         }
     }
 
-    fn cache_tracks(&mut self) {
-        self.playing.precache_playlist_tracks();
+    fn cache_track(&mut self) {
+        self.playing.precache_playlist_track();
     }
 }
 
@@ -671,7 +676,7 @@ impl StateMediator for Model {
                 trace!("refill_playlist dirtied");
                 old_dirty = self.dirty;
             }
-            self.cache_tracks();
+            self.cache_track();
             if !old_dirty && (old_dirty != self.dirty) {
                 trace!("cache_track dirtied");
                 old_dirty = self.dirty;
