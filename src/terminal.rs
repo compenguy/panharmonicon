@@ -3,14 +3,15 @@ use std::{cell::RefCell, rc::Rc};
 
 use cursive::align::HAlign;
 use cursive::views::{
-    Dialog, DummyView, EditView, LinearLayout, Panel, SelectView, SliderView, TextArea, TextView,
+    Dialog, DummyView, EditView, LinearLayout, PaddedView, Panel, SelectView, SliderView, TextArea,
+    TextView,
 };
 use cursive::{Cursive, ScreenId};
 use log::{debug, error, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
 
-use crate::config::{Config, Credentials};
+use crate::config::{Config, Credentials, PartialConfig};
 use crate::errors::Result;
 use crate::model::Model;
 use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
@@ -43,8 +44,6 @@ pub(crate) struct Terminal {
     config: Rc<RefCell<Config>>,
     model: Rc<RefCell<Model>>,
     siv: Cursive,
-    //login_screen: ScreenId,
-    playback_screen: ScreenId,
 }
 
 impl Terminal {
@@ -52,15 +51,7 @@ impl Terminal {
         let model = Rc::new(RefCell::new(Model::new(config.clone())));
         let mut siv = Cursive::crossterm().expect("Failed to initialize terminal");
         siv.set_user_data(model.clone());
-        //let login_screen = siv.add_screen();
-        let playback_screen = siv.add_screen();
-        let mut term = Self {
-            config,
-            model,
-            siv,
-            //login_screen,
-            playback_screen,
-        };
+        let mut term = Self { config, model, siv };
         term.initialize();
         term
     }
@@ -68,7 +59,6 @@ impl Terminal {
     pub(crate) fn initialize(&mut self) {
         self.init_key_mappings();
         self.init_theme();
-        //self.init_login();
         self.init_playback();
     }
 
@@ -104,36 +94,72 @@ impl Terminal {
         // TODO: Allow loading user-provided theme files at run-time
     }
 
-    /*
-    fn init_login(&mut self) {
+    fn show_login(&mut self) {
+        let model = self.model.borrow_mut();
+        if model.connected() {
+            return;
+        }
+
+        // Don't build and show the login dialog if it's already showing
+        if self.siv.find_name::<EditView>("username").is_some() {
+            return;
+        }
+
+        let credentials = self.config.borrow().login_credentials().clone();
+        let username = credentials.username().unwrap_or_default();
+        let password = credentials.password().ok().flatten().unwrap_or_default();
+        let index = match Store::from(credentials) {
+            Store::Keyring => 0,
+            Store::ConfigFile => 1,
+            Store::Session => 2,
+        };
         let dialog = Dialog::around(
             LinearLayout::vertical()
                 .child(
                     LinearLayout::horizontal()
                         .child(TextView::new("Username:"))
-                        .child(EditView::new().with_name("username").fixed_width(20)),
+                        .child(PaddedView::lrtb(
+                            1,
+                            1,
+                            0,
+                            0,
+                            EditView::new()
+                                .content(username)
+                                .with_name("username")
+                                .fixed_width(24),
+                        )),
                 )
                 .child(
                     LinearLayout::horizontal()
                         .child(TextView::new("Password:"))
-                        .child(
+                        .child(PaddedView::lrtb(
+                            1,
+                            1,
+                            0,
+                            0,
                             EditView::new()
+                                .content(password)
                                 .secret()
                                 .with_name("password")
-                                .fixed_width(20),
-                        ),
+                                .fixed_width(24),
+                        )),
                 )
                 .child(
                     LinearLayout::horizontal()
                         .child(TextView::new("Store credentials in:"))
-                        .child(
+                        .child(PaddedView::lrtb(
+                            1,
+                            1,
+                            0,
+                            0,
                             SelectView::<Store>::new()
                                 .popup()
                                 .item("User Keyring", Store::Keyring)
                                 .item("Config File", Store::ConfigFile)
                                 .item("Don't Store", Store::Session)
+                                .selected(index)
                                 .with_name("store"),
-                        ),
+                        )),
                 ),
         )
         .button("Connect", |s| {
@@ -166,10 +192,10 @@ impl Terminal {
                     .unwrap_or(Ok(new_cred));
                 match new_cred {
                     Ok(c) => {
-                        if let Err(e) = config
+                        let result = config
                             .borrow_mut()
-                            .update_from(&PartialConfig::new_login(c))
-                        {
+                            .update_from(&PartialConfig::new_login(c));
+                        if let Err(e) = result {
                             error!("Error while updating configuration settings: {:?}", e);
                         } else {
                             model.connect();
@@ -180,12 +206,11 @@ impl Terminal {
                     }
                 }
             });
+            s.pop_layer();
         })
         .title("Pandora Login");
-        self.siv.set_screen(self.login_screen);
-        self.siv.screen_mut().add_layer(dialog);
+        self.siv.add_layer(dialog);
     }
-    */
 
     fn init_playback(&mut self) {
         let stations = LinearLayout::horizontal()
@@ -193,6 +218,8 @@ impl Terminal {
             .child(
                 SelectView::<String>::new()
                     .popup()
+                    .item("No Stations", String::from(""))
+                    .selected(0)
                     .on_submit(|s: &mut Cursive, item: &String| {
                         s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
                             trace!("Tuning to station {}", item.clone());
@@ -200,6 +227,7 @@ impl Terminal {
                         });
                     })
                     .with_name("stations")
+                    .fixed_width(25)
                     .fixed_height(1),
             );
         let playing = Panel::new(
@@ -250,40 +278,42 @@ impl Terminal {
             .child(DummyView.full_height())
             .child(stations)
             .child(playing);
-        self.siv.set_screen(self.playback_screen);
-        self.siv.screen_mut().add_layer(layout);
+        self.siv.add_layer(layout);
     }
 
-    fn update_connected(&mut self) {
-        let model = self.model.borrow_mut();
-        if !model.connected() {
-            return;
-        }
-
+    fn update_stations(&mut self) {
         trace!("Checking stations list...");
+        let model = self.model.borrow_mut();
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
-                if v.is_empty() {
+                // If the list is empty, or there's exactly one item with an empty value
+                // we should populate it a station list
+                if v.is_empty() || (v.len() == 1 && v.get_item(0).map(|(_, s)| s.is_empty()).unwrap_or(true)) {
                     trace!("Updating stations list");
+                    v.clear();
                     v.add_all(model.station_list().into_iter());
                     v.sort_by_label();
+                    if let Some(station_id) = model.tuned() {
+                        trace!("Updating selected station in UI to match model");
+                        let opt_idx = v
+                            .iter()
+                            .enumerate()
+                            .find(|(_, (_, st_id))| *st_id == &station_id)
+                            .map(|(i, _)| i);
+                        if let Some(idx) = opt_idx {
+                            v.set_selection(idx);
+                        }
+                    }
                 } else if model.station_count() == 0 {
                     trace!("Clearing UI station list to match model");
                     v.clear();
-                } else if let Some(station_id) = model.tuned() {
-                    trace!("Updating selected station in UI to match model");
-                    let opt_idx = v
-                        .iter()
-                        .enumerate()
-                        .find(|(_, (_, st_id))| *st_id == &station_id)
-                        .map(|(i, _)| i);
-                    if let Some(idx) = opt_idx {
-                        v.set_selection(idx);
-                    }
                 }
             });
+    }
 
+    fn update_track_info(&mut self) {
         trace!("Updating track info box...");
+        let model = self.model.borrow_mut();
         let (song_name, artist_name, album_name) = model
             .playing()
             .map(|t| (t.song_name, t.artist_name, t.album_name))
@@ -300,8 +330,11 @@ impl Terminal {
             debug!("Playing album {}", album_name);
             v.set_content(album_name);
         });
+    }
 
+    fn update_volume(&mut self) {
         trace!("Updating volume...");
+        let model = self.model.borrow_mut();
         self.siv.call_on_name("volume", |v: &mut SliderView| {
             let volume = ((model.volume() * 10.0).round() as usize).min(10).max(0);
             trace!(
@@ -311,8 +344,11 @@ impl Terminal {
             );
             v.set_value(volume);
         });
+    }
 
+    fn update_playback_state(&mut self) {
         trace!("Updating track info box title...");
+        let model = self.model.borrow_mut();
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 if model.playing().is_some() {
@@ -341,70 +377,61 @@ impl Terminal {
                     trace!("track is {}", text);
                     v.set_title(text);
                 } else if model.ready() {
-                    trace!("Title waiting on playlist");
+                    trace!("Playing panel title: waiting on playlist");
                     v.set_title("Waiting on playlist");
                 } else if model.tuned().is_some() {
-                    trace!("Title tuned to station");
+                    trace!("Playing panel title: tuned to station");
                     v.set_title("Tuned to station");
                 } else if model.connected() {
-                    trace!("Title connected");
+                    trace!("Playing panel title: connected");
                     v.set_title("Connected");
                 } else {
-                    trace!("Title disconnected");
+                    trace!("Playing panel title: disconnected");
                     v.set_title("Disconnected");
                 }
             });
-
-        self.siv.set_screen(self.playback_screen);
     }
 
-    /*
-    fn update_disconnected(&mut self) {
-        let model = self.model.borrow_mut();
-        if model.connected() {
+    fn update_connected(&mut self) {
+        if !self.model.borrow().connected() {
+            trace!("Not connected. Not updating UI widgets that reflect connection status.");
             return;
         }
 
-        let credentials = self.config.borrow().login_credentials().clone();
-        let username = credentials.username().unwrap_or_default();
-        let password = credentials.password().ok().flatten().unwrap_or_default();
-        self.siv.call_on_name("username", |v: &mut EditView| {
-            v.set_content(username);
-        });
-        self.siv.call_on_name("password", |v: &mut EditView| {
-            v.set_content(password);
-        });
-        self.siv.call_on_name("store", |v: &mut SelectView<Store>| {
-            let index = match Store::from(credentials) {
-                Store::Keyring => 0,
-                Store::ConfigFile => 1,
-                Store::Session => 2,
-            };
-            v.set_selection(index);
-        });
-        self.siv.set_screen(self.login_screen);
+        self.update_stations();
+        self.update_track_info();
+        self.update_volume();
+        self.update_playback_state();
     }
-    */
 
     pub(crate) fn run(&mut self) -> Result<()> {
-        self.siv.set_fps(2);
-        // TODO: This causes a crash in a selectview
-        // I think it's the login prompt view
-        //self.siv.refresh();
+        self.siv.set_fps(10);
+        self.siv.refresh();
         // We want to ensure that the controls are updated from the data model
         // at least once per second, to keep the elapsed time display current.
-        let update_timeout = Duration::from_millis(500);
+        let update_timeout = Duration::from_millis(1000);
         let mut timeout = Instant::now();
         while !self.model.borrow().quitting() {
+            // Drive the UI state, then if the UI yielded an event, drive the
+            // model state and refresh all the controls
             self.siv.step();
-            if self.model.borrow_mut().update() || (timeout.elapsed() > update_timeout) {
+            if self.model.borrow_mut().update() {
+                self.show_login();
                 self.update_connected();
-                //self.update_disconnected();
-                // TODO: This causes a crash in a selectview
-                // I think it's the login prompt view
-                //self.siv.refresh();
-                timeout = Instant::now();
+                self.siv.refresh();
             }
+
+            // Rate-limit the loop
+            let elapsed = timeout.elapsed();
+            if elapsed < update_timeout {
+                trace!("Sleeping for {} ms", (update_timeout - elapsed).as_millis());
+                std::thread::sleep(update_timeout - elapsed);
+                self.update_connected();
+                self.siv.refresh();
+            } else {
+                trace!("Not sleeping. {}ms < {}ms", elapsed.as_millis(), update_timeout.as_millis());
+            }
+            timeout = Instant::now();
         }
         Ok(())
     }

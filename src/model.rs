@@ -277,7 +277,7 @@ struct Playing {
 
 impl Playing {
     fn playing(&self) -> Option<PlaylistTrack> {
-        if self.elapsed().as_millis() > 0 {
+        if self.elapsed() > Duration::default() {
             self.playlist.front().cloned()
         } else {
             None
@@ -499,7 +499,6 @@ impl AudioMediator for Playing {
 pub(crate) struct Model {
     config: Rc<RefCell<Config>>,
     session: PandoraSession,
-    station: Option<String>,
     station_list: HashMap<String, Station>,
     playing: Playing,
     quitting: bool,
@@ -513,7 +512,6 @@ impl Model {
         Self {
             config: config.clone(),
             session: PandoraSession::new(config.clone()),
-            station: config.borrow().station_id().cloned(),
             station_list: HashMap::new(),
             playing,
             quitting: false,
@@ -534,7 +532,7 @@ impl Model {
         }
 
         trace!("Playlist length: {}", playlist_len);
-        if let Some(station) = self.station.clone() {
+        if let Some(station) = self.tuned() {
             match self.session.get_playlist(&station) {
                 Ok(playlist) => {
                     trace!("Extending playlist.");
@@ -606,24 +604,22 @@ impl StateMediator for Model {
     }
 
     fn tuned(&self) -> Option<String> {
-        if self.connected() {
-            self.station.clone()
-        } else {
-            None
-        }
+        self.config.borrow().station_id.clone()
     }
 
     fn tune(&mut self, station_id: String) {
         if self
-            .station
+            .tuned()
             .as_ref()
             .map(|s| s == &station_id)
             .unwrap_or(false)
         {
-            trace!("Requested station is already playing.");
+            trace!("Requested station is already tuned.");
         }
         trace!("Updating station on model");
-        self.station = Some(station_id);
+        self.config
+            .borrow_mut()
+            .update_from(&PartialConfig::new_station(station_id));
         self.dirty |= true;
 
         if !self.connected() {
@@ -638,8 +634,10 @@ impl StateMediator for Model {
     }
 
     fn untune(&mut self) {
-        if self.station.is_some() {
-            self.station = None;
+        if self.tuned().is_some() {
+            self.config
+                .borrow_mut()
+                .update_from(&PartialConfig::no_station());
             self.dirty |= true;
         }
 

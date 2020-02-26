@@ -19,7 +19,6 @@ Command-line Pandora client.
   | n | Skip to next track |
 
 # TODO
-* Fix Login screen
 * Add support for displaying track ratings
 * Add support for rating tracks (+/- thumbs-up/thumbs-down)
 * Add "tired" support (pandora will stop including that song in playlists for a month)
@@ -29,6 +28,4 @@ Command-line Pandora client.
 * Add menubar with entries corresponding to most hotkeys
 * Add keybinding configuration
 * Add user-configurable themes
-* Refresh fixes
-  * Terminal widget framework (cursive) SelectView widget seems to be a little panicky if you're not careful about when you schedule refreshes
 

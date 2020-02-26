@@ -116,7 +116,6 @@ impl Credentials {
         match dup {
             Credentials::Keyring(ref mut u) => {
                 *u = username;
-                todo!("Keyring not being updated with new username.");
             }
             Credentials::ConfigFile(ref mut u, _) => {
                 *u = username;
@@ -141,7 +140,9 @@ impl Credentials {
         match &mut dup {
             Credentials::Keyring(u) => Credentials::set_on_keyring(&u, password)?,
             Credentials::ConfigFile(_, ref mut p) => {
-                *p = password.to_string();
+                if *p != password {
+                    *p = password.to_string();
+                }
             }
             Credentials::Session(_, ref mut p) => {
                 *p = if password.is_empty() {
@@ -344,8 +345,7 @@ impl std::default::Default for Config {
     fn default() -> Self {
         Self {
             dirty: false,
-            //TODO: login: Credentials::Session(None, None),
-            login: Credentials::Keyring(String::from("compenguy@gmail.com")),
+            login: Credentials::Session(None, None),
             policy: CachePolicy::default(),
             station_id: None,
             save_station: true,
