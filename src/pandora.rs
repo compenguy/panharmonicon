@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::{cell::RefCell, rc::Rc};
 
-use log::{debug, trace};
+use log::trace;
 
 use pandora_api;
 use pandora_api::json::auth::{PartnerLogin, UserLogin};
@@ -183,7 +183,11 @@ impl PandoraSession {
             .map_err(Error::from)
     }
 
-    pub fn delete_feedback_for_track(&mut self, station_id: &str, track: &PlaylistTrack) -> Result<()> {
+    pub fn delete_feedback_for_track(
+        &mut self,
+        station_id: &str,
+        track: &PlaylistTrack,
+    ) -> Result<()> {
         self.user_login()?;
         trace!("deleteFeedback() [delete_feedback_for_track]");
         trace!("Looking up musicToken for current track");
@@ -196,7 +200,8 @@ impl PandoraSession {
             if let Some(feedback_id) = thumbs_up
                 .chain(thumbs_down)
                 .find(|fb| fb.music_token == music_token)
-                .map(|fb| fb.feedback_id.clone()) {
+                .map(|fb| fb.feedback_id.clone())
+            {
                 trace!("Deleting feedback for song {}", track.song_name);
                 self.delete_feedback(&feedback_id)?;
             } else {
@@ -301,7 +306,9 @@ impl PandoraSession {
     pub fn get_playlist(&mut self, station_token: &str) -> Result<Vec<PlaylistEntry>> {
         self.user_login()?;
         trace!("getPlaylist()");
-        GetPlaylist::from(&station_token)
+        let mut get_playlist = GetPlaylist::from(&station_token);
+        get_playlist.include_track_length = Some(true);
+        get_playlist
             .response(&self.inner)
             .map(|pr: GetPlaylistResponse| pr.items)
             .map_err(Error::from)

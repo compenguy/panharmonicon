@@ -3,10 +3,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use cursive::align::HAlign;
 use cursive::views::{
-    Dialog, DummyView, EditView, LinearLayout, PaddedView, Panel, SelectView, SliderView, TextArea,
-    TextView,
+    Dialog, DummyView, EditView, LinearLayout, PaddedView, Panel, SelectView, SliderView, TextView,
 };
-use cursive::{Cursive, ScreenId};
+use cursive::Cursive;
 use log::{debug, error, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
@@ -84,6 +83,18 @@ impl Terminal {
         });
         self.siv.add_global_callback('n', |s| {
             s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().stop());
+        });
+        self.siv.add_global_callback('t', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().sleep_track());
+        });
+        self.siv.add_global_callback('+', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(Some(true)));
+        });
+        self.siv.add_global_callback('-', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(Some(false)));
+        });
+        self.siv.add_global_callback('=', |s| {
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(None));
         });
     }
 
@@ -196,13 +207,13 @@ impl Terminal {
                             .borrow_mut()
                             .update_from(&PartialConfig::new_login(c));
                         if let Err(e) = result {
-                            error!("Error while updating configuration settings: {:?}", e);
+                            error!("Failed while updating configuration settings: {:?}", e);
                         } else {
                             model.connect();
                         }
                     }
                     Err(e) => {
-                        error!("Error updating password: {:?}", e);
+                        error!("Failed while updating password: {:?}", e);
                     }
                 }
             });
@@ -227,7 +238,7 @@ impl Terminal {
                         });
                     })
                     .with_name("stations")
-                    .fixed_width(25)
+                    //.fixed_width(30)
                     .fixed_height(1),
             );
         let playing = Panel::new(
@@ -288,7 +299,9 @@ impl Terminal {
             .call_on_name("stations", |v: &mut SelectView<String>| {
                 // If the list is empty, or there's exactly one item with an empty value
                 // we should populate it a station list
-                if v.is_empty() || (v.len() == 1 && v.get_item(0).map(|(_, s)| s.is_empty()).unwrap_or(true)) {
+                if v.is_empty()
+                    || (v.len() == 1 && v.get_item(0).map(|(_, s)| s.is_empty()).unwrap_or(true))
+                {
                     trace!("Updating stations list");
                     v.clear();
                     v.add_all(model.station_list().into_iter());
@@ -314,13 +327,17 @@ impl Terminal {
     fn update_track_info(&mut self) {
         trace!("Updating track info box...");
         let model = self.model.borrow_mut();
-        let (song_name, artist_name, album_name) = model
+        let (song_name, artist_name, album_name, song_rating) = model
             .playing()
-            .map(|t| (t.song_name, t.artist_name, t.album_name))
+            .map(|t| (t.song_name, t.artist_name, t.album_name, t.song_rating))
             .unwrap_or_default();
         self.siv.call_on_name("title", |v: &mut TextView| {
-            debug!("Playing title {}", song_name);
-            v.set_content(song_name);
+            debug!("Playing title {} ({})", song_name, song_rating);
+            let mut title = song_name.clone();
+            if song_rating > 0 {
+                title.push_str(" 👍");
+            }
+            v.set_content(title);
         });
         self.siv.call_on_name("artist", |v: &mut TextView| {
             debug!("Playing artist {}", artist_name);
@@ -429,7 +446,11 @@ impl Terminal {
                 self.update_connected();
                 self.siv.refresh();
             } else {
-                trace!("Not sleeping. {}ms < {}ms", elapsed.as_millis(), update_timeout.as_millis());
+                trace!(
+                    "Not sleeping. {}ms < {}ms",
+                    elapsed.as_millis(),
+                    update_timeout.as_millis()
+                );
             }
             timeout = Instant::now();
         }

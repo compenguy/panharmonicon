@@ -24,10 +24,8 @@ reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
 rodio = "0.10"
 # cursive 0.14 has a bug that causes empty popup selectviews to panic
 cursive = { git = "https://github.com/compenguy/cursive.git", default-features = false, features = ["crossterm-backend", "toml"] }
-ellipse = "0.2"
 mktemp = "0.4"
 id3 = "0.5"
-mp3-duration = "^0.1.9"
 
 [profile.release]
 opt-level = "z"

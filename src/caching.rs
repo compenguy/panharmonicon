@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use clap::crate_name;
-use log::{debug, error, trace};
-use mp3_duration;
+use log::{error, trace};
 use pandora_api::json::station::PlaylistTrack;
 use reqwest;
 
@@ -113,17 +112,11 @@ fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
         err => err?,
     };
 
-    let duration: Option<u32> = match mp3_duration::from_path(&path) {
-        Ok(duration) => Some(duration.as_secs() as u32),
-        Err(e) => {
-            debug!(
-                "Failed reading duration from {}: {:?}",
-                path.as_ref().to_string_lossy(),
-                e
-            );
-            None
-        }
-    };
+    let duration: Option<u32> = track
+        .optional
+        .get("trackLength")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as u32);
 
     // TODO: if track.replaygain parses correctly, create replaygain
     // frame for the:

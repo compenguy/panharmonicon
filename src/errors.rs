@@ -17,7 +17,6 @@ pub(crate) enum Error {
     HttpRequestFailure(Box<reqwest::Error>),
     MediaReadFailure(Box<std::io::Error>),
     AudioDecodingFailure(Box<rodio::decoder::DecoderError>),
-    Mp3MediaParseFailure(Box<mp3_duration::MP3DurationError>),
     Mp3MetadataParseFailure(Box<id3::Error>),
     PanharmoniconMissingAuthToken,
 }
@@ -52,7 +51,6 @@ impl std::fmt::Display for Error {
             Error::HttpRequestFailure(e) => write!(f, "Http request error: {}", e),
             Error::MediaReadFailure(e) => write!(f, "Media read error: {}", e),
             Error::AudioDecodingFailure(e) => write!(f, "Media decoding error: {:?}", e),
-            Error::Mp3MediaParseFailure(e) => write!(f, "MP3 media parse error: {:?}", e),
             Error::Mp3MetadataParseFailure(e) => write!(f, "MP3 metadata parse error: {:?}", e),
             Error::PanharmoniconMissingAuthToken => {
                 write!(f, "Pandora login credentials incomplete")
@@ -82,7 +80,6 @@ impl std::error::Error for Error {
             Error::HttpRequestFailure(e) => Some(e),
             Error::MediaReadFailure(e) => Some(e),
             Error::AudioDecodingFailure(e) => Some(e),
-            Error::Mp3MediaParseFailure(_) => None,
             Error::Mp3MetadataParseFailure(e) => Some(e),
             Error::PanharmoniconMissingAuthToken => None,
         }
@@ -110,12 +107,6 @@ impl From<reqwest::Error> for Error {
 impl From<rodio::decoder::DecoderError> for Error {
     fn from(err: rodio::decoder::DecoderError) -> Self {
         Error::AudioDecodingFailure(Box::new(err))
-    }
-}
-
-impl From<mp3_duration::MP3DurationError> for Error {
-    fn from(err: mp3_duration::MP3DurationError) -> Self {
-        Error::Mp3MediaParseFailure(Box::new(err))
     }
 }
 

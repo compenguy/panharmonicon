@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use rodio::source::Source;
 use rodio::DeviceTrait;
 
@@ -298,17 +298,6 @@ impl Playing {
         self.playlist.clear();
     }
 
-    fn duration_from_path<P: AsRef<Path>>(&mut self, path: P) {
-        match mp3_duration::from_path(&path) {
-            Ok(duration) => self.duration = duration,
-            Err(e) => {
-                self.duration = Duration::default();
-                trace!("Error calculating track duration: {:?}", e);
-            }
-        }
-        trace!("Set track duration to {:?}", &self.duration);
-    }
-
     fn set_cache_policy(&mut self, policy: CachePolicy) {
         self.cache_policy = policy;
     }
@@ -361,8 +350,8 @@ impl Playing {
 
 impl PlaybackMediator for Playing {
     fn stopped(&self) -> bool {
-        if self.active() && self.elapsed().as_secs() == 0 {
-            //TODO: this triggers during startup panic!("Application state error: audio device is active, but no track playtime has elapsed.");
+        if self.active() && self.elapsed() == Duration::default() {
+            panic!("Application state error: audio device is active, but no track playtime has elapsed.");
         }
         !self.active()
     }
@@ -378,8 +367,8 @@ impl PlaybackMediator for Playing {
     }
 
     fn started(&self) -> bool {
-        if self.active() && self.elapsed().as_secs() == 0 {
-            //TODO: this triggers during startup panic!("Application state error: audio device is active, but no track playtime has elapsed.");
+        if self.active() && self.elapsed() == Duration::default() {
+            panic!("Application state error: audio device is active, but no track playtime has elapsed.");
         }
         self.active()
     }
@@ -390,6 +379,7 @@ impl PlaybackMediator for Playing {
             return;
         }
         if let Some(track) = self.playlist.front_mut() {
+            debug!("Track: {:?}", &track);
             let cached = match track.optional.get("cached") {
                 Some(serde_json::value::Value::String(cached)) => PathBuf::from(cached.clone()),
                 _ => match caching::add_to_cache(track) {
@@ -411,7 +401,13 @@ impl PlaybackMediator for Playing {
                     e
                 );
             } else {
-                self.duration_from_path(&cached);
+                self.duration = track
+                    .optional
+                    .get("trackLength")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| Duration::from_secs(n))
+                    .unwrap_or_default();
+
                 self.last_started = Some(Instant::now());
                 trace!("Started track at {}.", cached.to_string_lossy());
             }
@@ -551,6 +547,47 @@ impl Model {
     fn cache_track(&mut self) {
         self.playing.precache_playlist_track();
     }
+
+    pub(crate) fn rate_track(&mut self, rating: Option<bool>) {
+        if let (Some(track), Some(st_id)) = (self.playing(), self.tuned()) {
+            let new_rating_value: u32 = if rating.unwrap_or(false) { 1 } else { 0 };
+            if let Some(rating) = rating {
+                if let Err(e) = self
+                    .session
+                    .add_feedback(&st_id, &track.track_token, rating)
+                {
+                    error!("Failed submitting track rating: {:?}", e);
+                } else {
+                    self.playing
+                        .playlist
+                        .front_mut()
+                        .map(|t| t.song_rating = new_rating_value);
+                    self.dirty |= true;
+                    trace!("Rated track {} with value {}", track.song_name, rating);
+                }
+            } else if let Err(e) = self.session.delete_feedback_for_track(&st_id, &track) {
+                error!("Failed submitting track rating: {:?}", e);
+            } else {
+                self.playing
+                    .playlist
+                    .front_mut()
+                    .map(|t| t.song_rating = new_rating_value);
+                self.dirty |= true;
+                trace!("Successfully removed track rating.");
+            }
+        }
+    }
+
+    pub(crate) fn sleep_track(&mut self) {
+        if let Err(e) = self
+            .playing()
+            .map(|t| self.session.sleep_song(&t.track_token))
+            .transpose()
+        {
+            error!("Failed to sleep track: {:?}", e);
+        }
+        self.stop();
+    }
 }
 
 impl StateMediator for Model {
@@ -615,11 +652,16 @@ impl StateMediator for Model {
             .unwrap_or(false)
         {
             trace!("Requested station is already tuned.");
+            return;
         }
         trace!("Updating station on model");
-        self.config
+        if let Err(e) = self
+            .config
             .borrow_mut()
-            .update_from(&PartialConfig::new_station(station_id));
+            .update_from(&PartialConfig::new_station(station_id))
+        {
+            error!("Failed updating configuration file on disk: {:?}", e);
+        }
         self.dirty |= true;
 
         if !self.connected() {
@@ -635,9 +677,13 @@ impl StateMediator for Model {
 
     fn untune(&mut self) {
         if self.tuned().is_some() {
-            self.config
+            if let Err(e) = self
+                .config
                 .borrow_mut()
-                .update_from(&PartialConfig::no_station());
+                .update_from(&PartialConfig::no_station())
+            {
+                error!("Failed updating configuration file on disk: {:?}", e);
+            }
             self.dirty |= true;
         }
 

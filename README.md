@@ -5,6 +5,7 @@ Command-line Pandora client.
 * Default configuration file can be generated with a command line flag
 * Visually select a station from a list
 * Display current track, playback time, and volume
+* Rating tracks (thumbs-up/down), and removing the rating from a track
 * Support for caching tracks before playing them, providing robustness against network issues during playback
 * Keybindings:
 
@@ -17,15 +18,18 @@ Command-line Pandora client.
   | ( | Volume down |
   | ) | Volume up |
   | n | Skip to next track |
+  | t | Track is 'tired', suspend it for a month |
+  | + | Thumbs-up track |
+  | - | Thumbs-down track |
+  | = | Clear track rating |
 
 # TODO
-* Add support for displaying track ratings
-* Add support for rating tracks (+/- thumbs-up/thumbs-down)
-* Add "tired" support (pandora will stop including that song in playlists for a month)
-* Add support for displaying track ratings
 * Investigate long pause when switching from one track to the next
-* Fix track duration calculation
 * Add menubar with entries corresponding to most hotkeys
 * Add keybinding configuration
 * Add user-configurable themes
+* Robustness against Pandora session errors, e.g.
 
+  ```
+  [panharmonicon::model] src/model.rs:***: Failed while fetching new playlist: Pandora connection error: Pandora API error: Pandora API Call Error (Insufficient Connectivity Error): An unexpected error occurred
+  ```
