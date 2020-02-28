@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::{cell::RefCell, rc::Rc};
 
-use log::trace;
+use log::{debug, trace};
 
 use pandora_api;
 use pandora_api::json::auth::{PartnerLogin, UserLogin};
@@ -181,6 +181,31 @@ impl PandoraSession {
         AddFeedback::new(station_token, track_token, is_positive)
             .response(&self.inner)
             .map_err(Error::from)
+    }
+
+    pub fn delete_feedback_for_track(&mut self, station_id: &str, track: &PlaylistTrack) -> Result<()> {
+        self.user_login()?;
+        trace!("deleteFeedback() [delete_feedback_for_track]");
+        trace!("Looking up musicToken for current track");
+        let music_token = self.get_track(&track.music_id)?.music_token;
+        trace!("Getting station feedback...");
+        if let Some(feedback) = self.get_station(station_id, true)?.feedback {
+            trace!("Looking through station feedback for feedback on this track.");
+            let thumbs_up = feedback.thumbs_up.iter();
+            let thumbs_down = feedback.thumbs_down.iter();
+            if let Some(feedback_id) = thumbs_up
+                .chain(thumbs_down)
+                .find(|fb| fb.music_token == music_token)
+                .map(|fb| fb.feedback_id.clone()) {
+                trace!("Deleting feedback for song {}", track.song_name);
+                self.delete_feedback(&feedback_id)?;
+            } else {
+                trace!("No feedback for song {} to delete.", track.song_name);
+            }
+        } else {
+            trace!("Request to remove feedback for track that is unrated");
+        }
+        Ok(())
     }
 
     pub fn delete_feedback(&mut self, feedback_id: &str) -> Result<()> {
