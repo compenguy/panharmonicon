@@ -306,9 +306,8 @@ impl PandoraSession {
     pub fn get_playlist(&mut self, station_token: &str) -> Result<Vec<PlaylistEntry>> {
         self.user_login()?;
         trace!("getPlaylist()");
-        let mut get_playlist = GetPlaylist::from(&station_token);
-        get_playlist.include_track_length = Some(true);
-        get_playlist
+        GetPlaylist::from(&station_token)
+            .include_track_length(true)
             .response(&self.inner)
             .map(|pr: GetPlaylistResponse| pr.items)
             .map_err(Error::from)
@@ -321,9 +320,10 @@ impl PandoraSession {
     ) -> Result<GetStationResponse> {
         self.user_login()?;
         trace!("getStation()");
-        let mut gs = GetStation::from(&station_token);
-        gs.include_extended_attributes = Some(extended_attributes);
-        gs.response(&self.inner).map_err(Error::from)
+        GetStation::from(&station_token)
+            .include_extended_attributes(extended_attributes)
+            .response(&self.inner)
+            .map_err(Error::from)
     }
 
     pub fn rename_station(&mut self, station_token: &str, station_name: &str) -> Result<()> {
