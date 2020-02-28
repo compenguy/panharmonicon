@@ -24,7 +24,6 @@ Command-line Pandora client.
   | = | Clear track rating |
 
 # TODO
-* Investigate long pause when switching from one track to the next
 * Add menubar with entries corresponding to most hotkeys
 * Add keybinding configuration
 * Add user-configurable themes

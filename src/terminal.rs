@@ -426,37 +426,28 @@ impl Terminal {
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
-        self.siv.set_fps(10);
+        self.siv.set_fps(1);
         self.siv.refresh();
-        // We want to ensure that the controls are updated from the data model
-        // at least once per second, to keep the elapsed time display current.
-        let update_timeout = Duration::from_millis(1000);
+        let heartbeat_frequency = Duration::from_millis(500);
         let mut timeout = Instant::now();
         while !self.model.borrow().quitting() {
-            // Drive the UI state, then if the UI yielded an event, drive the
-            // model state and refresh all the controls
             self.siv.step();
+
+            // Drive the UI state, then if the UI yielded an event, drive the
+            // model state and refresh all the controls, otherwise, do a
+            // heartbeat update of the playback state.
             if self.model.borrow_mut().update() {
                 self.show_login();
                 self.update_connected();
-                self.siv.refresh();
-            }
 
-            // Rate-limit the loop
-            let elapsed = timeout.elapsed();
-            if elapsed < update_timeout {
-                trace!("Sleeping for {} ms", (update_timeout - elapsed).as_millis());
-                std::thread::sleep(update_timeout - elapsed);
-                self.update_connected();
                 self.siv.refresh();
-            } else {
-                trace!(
-                    "Not sleeping. {}ms < {}ms",
-                    elapsed.as_millis(),
-                    update_timeout.as_millis()
-                );
+                timeout = Instant::now();
+            } else if  timeout.elapsed() > heartbeat_frequency  {
+                self.update_playback_state();
+
+                self.siv.refresh();
+                timeout = Instant::now();
             }
-            timeout = Instant::now();
         }
         Ok(())
     }
