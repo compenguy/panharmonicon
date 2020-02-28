@@ -268,14 +268,21 @@ impl std::fmt::Debug for AudioDevice {
 #[derive(Debug, Clone, Default)]
 struct Playing {
     audio_device: AudioDevice,
+    cache_policy: CachePolicy,
     last_started: Option<Instant>,
     elapsed: Duration,
     duration: Duration,
-    cache_policy: CachePolicy,
     playlist: VecDeque<PlaylistTrack>,
 }
 
 impl Playing {
+    fn new(cache_policy: CachePolicy, volume: f32) -> Self {
+        let mut pl = Self::default();
+        pl.cache_policy = cache_policy;
+        pl.set_volume(volume);
+        pl
+    }
+
     fn playing(&self) -> Option<PlaylistTrack> {
         if self.elapsed() > Duration::default() {
             self.playlist.front().cloned()
@@ -296,10 +303,6 @@ impl Playing {
     fn stop_all(&mut self) {
         self.stop();
         self.playlist.clear();
-    }
-
-    fn set_cache_policy(&mut self, policy: CachePolicy) {
-        self.cache_policy = policy;
     }
 
     fn precache_playlist_track(&mut self) {
@@ -503,13 +506,13 @@ pub(crate) struct Model {
 
 impl Model {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        let mut playing = Playing::default();
-        playing.set_volume(config.borrow().volume());
+        let policy = config.borrow_mut().cache_policy();
+        let volume = config.borrow_mut().volume();
         Self {
             config: config.clone(),
             session: PandoraSession::new(config.clone()),
             station_list: HashMap::new(),
-            playing,
+            playing: Playing::new(policy, volume),
             quitting: false,
             dirty: true,
         }
@@ -603,7 +606,7 @@ impl StateMediator for Model {
 
     fn fail_authentication(&mut self) {
         let failed_auth =
-            PartialConfig::new_login(self.config.borrow().login_credentials().as_invalid());
+            PartialConfig::default().login(self.config.borrow().login_credentials().as_invalid());
         self.dirty |= true;
         if let Err(e) = self.config.borrow_mut().update_from(&failed_auth) {
             error!(
@@ -641,7 +644,7 @@ impl StateMediator for Model {
     }
 
     fn tuned(&self) -> Option<String> {
-        self.config.borrow().station_id.clone()
+        self.config.borrow().station_id()
     }
 
     fn tune(&mut self, station_id: String) {
@@ -658,7 +661,7 @@ impl StateMediator for Model {
         if let Err(e) = self
             .config
             .borrow_mut()
-            .update_from(&PartialConfig::new_station(station_id))
+            .update_from(&PartialConfig::default().station(Some(station_id)))
         {
             error!("Failed updating configuration file on disk: {:?}", e);
         }
@@ -680,7 +683,7 @@ impl StateMediator for Model {
             if let Err(e) = self
                 .config
                 .borrow_mut()
-                .update_from(&PartialConfig::no_station())
+                .update_from(&PartialConfig::default().station(None))
             {
                 error!("Failed updating configuration file on disk: {:?}", e);
             }
@@ -729,13 +732,11 @@ impl StateMediator for Model {
             self.start();
             if !old_dirty && (old_dirty != self.dirty) {
                 trace!("start dirtied");
-                old_dirty = self.dirty;
             }
         } else if self.config.borrow().login_credentials().get().is_some() {
             self.connect();
             if !old_dirty && (old_dirty != self.dirty) {
                 trace!("connect dirtied");
-                old_dirty = self.dirty;
             }
         }
         let old_dirty = self.dirty;
@@ -859,6 +860,13 @@ impl AudioMediator for Model {
 
     fn set_volume(&mut self, new_volume: f32) {
         self.playing.set_volume(new_volume);
+        if let Err(e) = self
+            .config
+            .borrow_mut()
+            .update_from(&PartialConfig::default().volume(new_volume))
+        {
+            error!("Failure updating volume in config file: {:?}", e);
+        }
         self.dirty |= true;
     }
 

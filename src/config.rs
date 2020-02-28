@@ -17,6 +17,7 @@ pub(crate) enum CachePolicy {
 }
 
 impl CachePolicy {
+    /* TODO: There's no UI to expose this configuration option
     pub(crate) fn cache_playing(self) -> bool {
         match self {
             Self::NoCaching => false,
@@ -25,6 +26,7 @@ impl CachePolicy {
             Self::CacheAllNoEviction => true,
         }
     }
+    */
 
     pub(crate) fn cache_plus_one(self) -> bool {
         match self {
@@ -60,10 +62,7 @@ impl Default for CachePolicy {
     }
 }
 
-// TODO: switch to tagged for more obvious user editing?
-// TODO: custom Debug implementation to prevent spilling secrets
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum Credentials {
     Keyring(String),
     ConfigFile(String, String),
@@ -227,6 +226,22 @@ impl Credentials {
     }
 }
 
+// Custom implementation to avoid spilling secrets in log files, for example
+impl std::fmt::Debug for Credentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Credentials::")?;
+        match self {
+            Self::Keyring(u) => write!(f, "Keyring({}, ******)", u),
+            Self::ConfigFile(u, _) => write!(f, "ConfigFile({}, ******)", u),
+            Self::Session(Some(u), Some(_)) => write!(f, "ConfigFile({}, ******)", u),
+            Self::Session(Some(u), None) => write!(f, "ConfigFile({}, [missing])", u),
+            Self::Session(None, Some(_)) => write!(f, "ConfigFile([missing], ******)"),
+            Self::Session(None, None) => write!(f, "ConfigFile([missing], [missing])"),
+            Self::Invalid(u) => write!(f, "Invalid({})", u),
+        }
+    }
+}
+
 impl std::cmp::PartialEq<Credentials> for Credentials {
     fn eq(&self, other: &Credentials) -> bool {
         if std::mem::discriminant(self) != std::mem::discriminant(&other) {
@@ -256,52 +271,43 @@ pub(crate) struct PartialConfig {
 }
 
 impl PartialConfig {
-    pub(crate) fn new_login(cred: Credentials) -> Self {
-        Self::from(cred)
+    pub(crate) fn login(mut self, cred: Credentials) -> Self {
+        self.login = Some(cred);
+        self
     }
 
-    pub(crate) fn new_cache_policy(policy: CachePolicy) -> Self {
-        Self::from(policy)
+    pub(crate) fn cache_policy(mut self, policy: CachePolicy) -> Self {
+        self.policy = Some(policy);
+        self
     }
 
-    pub(crate) fn new_station(station: String) -> Self {
-        let mut pc = Self::default();
-        pc.station_id = Some(Some(station));
-        pc
+    pub(crate) fn station(mut self, station: Option<String>) -> Self {
+        self.station_id = Some(station);
+        self
     }
 
-    pub(crate) fn no_station() -> Self {
-        let mut pc = Self::default();
-        pc.station_id = Some(None);
-        pc
+    /* TODO: There's no UI to expose this configuration option
+    pub(crate) fn save_station(mut self, save: bool) -> Self {
+        self.save_station = Some(save);
+        self
     }
+    */
 
-    pub(crate) fn new_save_station(save: bool) -> Self {
-        let mut pc = Self::default();
-        pc.save_station = Some(save);
-        pc
-    }
-
-    pub(crate) fn new_volume(volume: f32) -> Self {
-        let mut pc = Self::default();
-        pc.volume = Some(volume);
-        pc
+    pub(crate) fn volume(mut self, volume: f32) -> Self {
+        self.volume = Some(volume);
+        self
     }
 }
 
 impl From<Credentials> for PartialConfig {
     fn from(cred: Credentials) -> Self {
-        let mut pc = Self::default();
-        pc.login = Some(cred);
-        pc
+        Self::default().login(cred)
     }
 }
 
 impl From<CachePolicy> for PartialConfig {
     fn from(policy: CachePolicy) -> Self {
-        let mut pc = Self::default();
-        pc.policy = Some(policy);
-        pc
+        Self::default().cache_policy(policy)
     }
 }
 
@@ -452,17 +458,15 @@ impl Config {
         self.policy
     }
 
-    pub(crate) fn station_id(&self) -> Option<&String> {
-        self.station_id.as_ref()
+    pub(crate) fn station_id(&self) -> Option<String> {
+        self.station_id.clone()
     }
 
+    /* TODO: There's no UI to expose this configuration option
     pub(crate) fn save_station(&self) -> bool {
         self.save_station
     }
-
-    pub(crate) fn path(&self) -> Option<&PathBuf> {
-        self.path.as_ref()
-    }
+    */
 
     pub(crate) fn volume(&self) -> f32 {
         self.volume

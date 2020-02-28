@@ -91,7 +91,11 @@ impl Terminal {
             s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(Some(true)));
         });
         self.siv.add_global_callback('-', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(Some(false)));
+            s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+                let mut model = m.borrow_mut();
+                model.rate_track(Some(false));
+                model.stop();
+            });
         });
         self.siv.add_global_callback('=', |s| {
             s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(None));
@@ -205,7 +209,7 @@ impl Terminal {
                     Ok(c) => {
                         let result = config
                             .borrow_mut()
-                            .update_from(&PartialConfig::new_login(c));
+                            .update_from(&PartialConfig::default().login(c));
                         if let Err(e) = result {
                             error!("Failed while updating configuration settings: {:?}", e);
                         } else {
