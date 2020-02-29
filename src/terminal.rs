@@ -3,14 +3,15 @@ use std::{cell::RefCell, rc::Rc};
 
 use cursive::align::HAlign;
 use cursive::views::{
-    Dialog, DummyView, EditView, LinearLayout, PaddedView, Panel, SelectView, SliderView, TextView,
+    Button, Dialog, DummyView, EditView, HideableView, LinearLayout, PaddedView, Panel, SelectView,
+    SliderView, TextView,
 };
 use cursive::Cursive;
-use log::{debug, error, trace};
+use log::{debug, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
 
-use crate::config::{Config, Credentials, PartialConfig};
+use crate::config::{Config, Credentials};
 use crate::errors::Result;
 use crate::model::Model;
 use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
@@ -63,43 +64,17 @@ impl Terminal {
 
     fn init_key_mappings(&mut self) {
         // TODO: read key mappings from config
-        self.siv.add_global_callback('q', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().quit());
-        });
-        self.siv.add_global_callback('.', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().pause());
-        });
-        self.siv.add_global_callback('>', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().unpause());
-        });
-        self.siv.add_global_callback('p', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().toggle_pause());
-        });
-        self.siv.add_global_callback('(', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().decrease_volume());
-        });
-        self.siv.add_global_callback(')', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().increase_volume());
-        });
-        self.siv.add_global_callback('n', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().stop());
-        });
-        self.siv.add_global_callback('t', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().sleep_track());
-        });
-        self.siv.add_global_callback('+', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(Some(true)));
-        });
-        self.siv.add_global_callback('-', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                let mut model = m.borrow_mut();
-                model.rate_track(Some(false));
-                model.stop();
-            });
-        });
-        self.siv.add_global_callback('=', |s| {
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| m.borrow_mut().rate_track(None));
-        });
+        self.siv.add_global_callback('q', siv_cb::quit);
+        self.siv.add_global_callback('.', siv_cb::pause);
+        self.siv.add_global_callback('>', siv_cb::unpause);
+        self.siv.add_global_callback('p', siv_cb::toggle_pause);
+        self.siv.add_global_callback('(', siv_cb::decrease_volume);
+        self.siv.add_global_callback(')', siv_cb::increase_volume);
+        self.siv.add_global_callback('n', siv_cb::stop);
+        self.siv.add_global_callback('t', siv_cb::sleep_track);
+        self.siv.add_global_callback('+', siv_cb::rate_track_up);
+        self.siv.add_global_callback('-', siv_cb::rate_track_down);
+        self.siv.add_global_callback('=', siv_cb::clear_rating);
     }
 
     fn init_theme(&mut self) {
@@ -177,52 +152,7 @@ impl Terminal {
                         )),
                 ),
         )
-        .button("Connect", |s| {
-            let username: Option<String> =
-                s.call_on_name("username", |v: &mut EditView| v.get_content().to_string());
-            let password: Option<String> =
-                s.call_on_name("password", |v: &mut EditView| v.get_content().to_string());
-            let store: Option<Store> = s
-                .call_on_name("store", |v: &mut SelectView<Store>| {
-                    v.selection().map(|s| (*s).clone())
-                })
-                .flatten();
-            s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                let mut model = m.borrow_mut();
-                let config = model.config();
-                let new_cred = match store.unwrap_or_default() {
-                    Store::Keyring => config
-                        .borrow()
-                        .login_credentials()
-                        .as_keyring()
-                        .expect("Error updating keyring with password"),
-                    Store::ConfigFile => config.borrow().login_credentials().as_configfile(),
-                    Store::Session => config.borrow().login_credentials().as_session(),
-                };
-                let new_cred = username
-                    .map(|u| new_cred.update_username(&u))
-                    .unwrap_or(new_cred);
-                let new_cred = password
-                    .map(|u| new_cred.update_password(&u))
-                    .unwrap_or(Ok(new_cred));
-                match new_cred {
-                    Ok(c) => {
-                        let result = config
-                            .borrow_mut()
-                            .update_from(&PartialConfig::default().login(c));
-                        if let Err(e) = result {
-                            error!("Failed while updating configuration settings: {:?}", e);
-                        } else {
-                            model.connect();
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed while updating password: {:?}", e);
-                    }
-                }
-            });
-            s.pop_layer();
-        })
+        .button("Connect", siv_cb::connect_button)
         .title("Pandora Login");
         self.siv.add_layer(dialog);
     }
@@ -242,8 +172,39 @@ impl Terminal {
                         });
                     })
                     .with_name("stations")
-                    //.fixed_width(30)
                     .fixed_height(1),
+            );
+
+        let controls_bar = LinearLayout::vertical()
+            .child(
+                LinearLayout::horizontal()
+                    .child(TextView::new("Volume").fixed_width(7))
+                    .child(
+                        SliderView::horizontal(11)
+                            .on_change(|s, v| {
+                                let new_volume: f32 = ((v as f32) / 10.0).min(1.0f32).max(0.0f32);
+                                trace!(
+                                    "Submitting updated volume from slider: {} ({:.2})",
+                                    v,
+                                    new_volume
+                                );
+                                s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+                                    m.borrow_mut().set_volume(new_volume)
+                                });
+                            })
+                            .with_name("volume"),
+                    ),
+            )
+            .child(
+                LinearLayout::horizontal()
+                    .child(Button::new("⏯️ ", siv_cb::toggle_pause))
+                    .child(Button::new("⏩", siv_cb::stop)),
+            )
+            .child(
+                LinearLayout::horizontal()
+                    .child(Button::new("👍", siv_cb::rate_track_up))
+                    .child(Button::new("👎", siv_cb::rate_track_down))
+                    .child(Button::new("💤", siv_cb::sleep_track)),
             );
         let playing = Panel::new(
             LinearLayout::horizontal()
@@ -268,32 +229,26 @@ impl Terminal {
                         .full_width(),
                 )
                 .child(DummyView.min_width(4))
-                .child(TextView::new("Volume").fixed_width(7))
-                .child(
-                    SliderView::horizontal(11)
-                        .on_change(|s, v| {
-                            let new_volume: f32 = ((v as f32) / 10.0).min(1.0f32).max(0.0f32);
-                            trace!(
-                                "Submitting updated volume from slider: {} ({:.2})",
-                                v,
-                                new_volume
-                            );
-                            s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                                m.borrow_mut().set_volume(new_volume)
-                            });
-                        })
-                        .with_name("volume"),
-                ),
+                .child(controls_bar),
         )
         .title("Disconnected")
         .title_position(HAlign::Left)
         .with_name("playing");
 
         let layout = LinearLayout::vertical()
-            .child(DummyView.full_height())
+            .child(
+                HideableView::new(DummyView)
+                    .full_height()
+                    .with_name("spacer"),
+            )
             .child(stations)
             .child(playing);
         self.siv.add_layer(layout);
+
+        // Catch screen resize requests, and hide the dummyview we use for
+        // spacing if the size shrinks too much
+        self.siv
+            .add_global_callback(cursive::event::Event::WindowResize, siv_cb::hide_whitespace);
     }
 
     fn update_stations(&mut self) {
@@ -442,7 +397,7 @@ impl Terminal {
 
                 self.siv.refresh();
                 timeout = Instant::now();
-            } else if  timeout.elapsed() > heartbeat_frequency  {
+            } else if timeout.elapsed() > heartbeat_frequency {
                 self.update_playback_state();
 
                 self.siv.refresh();
@@ -450,5 +405,152 @@ impl Terminal {
             }
         }
         Ok(())
+    }
+}
+
+mod siv_cb {
+    use super::model_cb;
+    use super::Store;
+
+    use crate::config::PartialConfig;
+    use crate::model::Model;
+    use crate::model::StateMediator;
+    use cursive::views::{DummyView, EditView, HideableView, SelectView};
+    use cursive::Cursive;
+    use log::error;
+    use std::{cell::RefCell, rc::Rc};
+
+    pub(crate) fn quit(s: &mut Cursive) {
+        s.with_user_data(model_cb::quit);
+    }
+    pub(crate) fn pause(s: &mut Cursive) {
+        s.with_user_data(model_cb::pause);
+    }
+    pub(crate) fn unpause(s: &mut Cursive) {
+        s.with_user_data(model_cb::unpause);
+    }
+    pub(crate) fn toggle_pause(s: &mut Cursive) {
+        s.with_user_data(model_cb::toggle_pause);
+    }
+    pub(crate) fn decrease_volume(s: &mut Cursive) {
+        s.with_user_data(model_cb::decrease_volume);
+    }
+    pub(crate) fn increase_volume(s: &mut Cursive) {
+        s.with_user_data(model_cb::increase_volume);
+    }
+    pub(crate) fn stop(s: &mut Cursive) {
+        s.with_user_data(model_cb::stop);
+    }
+    pub(crate) fn sleep_track(s: &mut Cursive) {
+        s.with_user_data(model_cb::sleep_track);
+    }
+    pub(crate) fn rate_track_up(s: &mut Cursive) {
+        s.with_user_data(model_cb::rate_track_up);
+    }
+    pub(crate) fn rate_track_down(s: &mut Cursive) {
+        s.with_user_data(model_cb::rate_track_down);
+    }
+    pub(crate) fn clear_rating(s: &mut Cursive) {
+        s.with_user_data(model_cb::clear_rating);
+    }
+
+    pub(crate) fn connect_button(s: &mut Cursive) {
+        let username: Option<String> =
+            s.call_on_name("username", |v: &mut EditView| v.get_content().to_string());
+        let password: Option<String> =
+            s.call_on_name("password", |v: &mut EditView| v.get_content().to_string());
+        let store: Option<Store> = s
+            .call_on_name("store", |v: &mut SelectView<Store>| {
+                v.selection().map(|s| (*s).clone())
+            })
+            .flatten();
+        s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+            let mut model = m.borrow_mut();
+            let config = model.config();
+            let new_cred = match store.unwrap_or_default() {
+                Store::Keyring => config
+                    .borrow()
+                    .login_credentials()
+                    .as_keyring()
+                    .expect("Error updating keyring with password"),
+                Store::ConfigFile => config.borrow().login_credentials().as_configfile(),
+                Store::Session => config.borrow().login_credentials().as_session(),
+            };
+            let new_cred = username
+                .map(|u| new_cred.update_username(&u))
+                .unwrap_or(new_cred);
+            let new_cred = password
+                .map(|u| new_cred.update_password(&u))
+                .unwrap_or(Ok(new_cred));
+            match new_cred {
+                Ok(c) => {
+                    let result = config
+                        .borrow_mut()
+                        .update_from(&PartialConfig::default().login(c));
+                    if let Err(e) = result {
+                        error!("Failed while updating configuration settings: {:?}", e);
+                    } else {
+                        model.connect();
+                    }
+                }
+                Err(e) => {
+                    error!("Failed while updating password: {:?}", e);
+                }
+            }
+        });
+        s.pop_layer();
+    }
+
+    pub(crate) fn hide_whitespace(s: &mut Cursive) {
+        let height = s.screen_size().y;
+        s.call_on_name("spacer", |v: &mut HideableView<DummyView>| {
+            if height < 6 {
+                v.hide();
+            } else {
+                v.unhide();
+            }
+        });
+    }
+}
+
+mod model_cb {
+    use crate::model::Model;
+    use crate::model::{AudioMediator, PlaybackMediator, StateMediator};
+    use std::{cell::RefCell, rc::Rc};
+
+    pub(crate) fn quit(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().quit();
+    }
+    pub(crate) fn pause(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().pause();
+    }
+    pub(crate) fn unpause(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().unpause();
+    }
+    pub(crate) fn toggle_pause(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().toggle_pause();
+    }
+    pub(crate) fn decrease_volume(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().decrease_volume();
+    }
+    pub(crate) fn increase_volume(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().increase_volume();
+    }
+    pub(crate) fn stop(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().stop();
+    }
+    pub(crate) fn sleep_track(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().sleep_track();
+    }
+    pub(crate) fn rate_track_up(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().rate_track(Some(true));
+    }
+    pub(crate) fn rate_track_down(m: &mut Rc<RefCell<Model>>) {
+        let mut model = m.borrow_mut();
+        model.rate_track(Some(false));
+        model.stop();
+    }
+    pub(crate) fn clear_rating(m: &mut Rc<RefCell<Model>>) {
+        m.borrow_mut().rate_track(None);
     }
 }
