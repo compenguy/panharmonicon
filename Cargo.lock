@@ -1344,7 +1344,7 @@ dependencies = [
 [[package]]
 name = "pandora-api"
 version = "0.3.0"
-source = "git+https://github.com/compenguy/pandora-api.git#a6b70296d3e10c16cbde6c11289574303f040d75"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "pandora-api-derive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1382,7 +1382,7 @@ dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "mktemp 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "pandora-api 0.3.0 (git+https://github.com/compenguy/pandora-api.git)",
+ "pandora-api 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.10.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rodio 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2595,7 +2595,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum openssl-sys 0.9.54 (registry+https://github.com/rust-lang/crates.io-index)" = "1024c0a59774200a555087a6da3f253a9095a5f344e353b212ac4c8b8e450986"
 "checksum os_type 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7edc011af0ae98b7f88cf7e4a83b70a54a75d2b8cb013d6efd02e5956207e9eb"
 "checksum owning_ref 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
-"checksum pandora-api 0.3.0 (git+https://github.com/compenguy/pandora-api.git)" = "<none>"
+"checksum pandora-api 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "43a37f02e56a16b20231c858940c3b4739534dfbe2f13063e5db539f9d8340e5"
 "checksum pandora-api-derive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2e363b94202f119a92433cd6a38cec0da6e52a5335f545387591964697211f6c"
 "checksum parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "92e98c49ab0b7ce5b222f2cc9193fc4efe11c6d0bd4f648e374684a6857b1cfc"
 "checksum parking_lot_core 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7582838484df45743c8434fbff785e8edf260c28748353d44bc0da32e0ceabf1"
