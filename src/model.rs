@@ -421,11 +421,7 @@ impl PlaybackMediator for Playing {
 
     fn elapsed(&self) -> Duration {
         let elapsed_since_last_started = self.last_started.map(|i| i.elapsed()).unwrap_or_default();
-        trace!(
-            "elapsed since last started: {:?}",
-            elapsed_since_last_started
-        );
-        self.elapsed + self.last_started.map(|i| i.elapsed()).unwrap_or_default()
+        self.elapsed + elapsed_since_last_started
     }
 
     fn duration(&self) -> Duration {
@@ -622,6 +618,7 @@ impl StateMediator for Model {
 
     fn connect(&mut self) {
         if !self.connected() {
+            trace!("Attempting pandora login...");
             match self.session.user_login() {
                 Ok(_) => trace!("Successfully logged into Pandora."),
                 Err(Error::PanharmoniconMissingAuthToken) => {
@@ -806,7 +803,7 @@ impl PlaybackMediator for Model {
 
     fn start(&mut self) {
         if self.started() {
-            trace!("Track already started.");
+            //trace!("Track already started.");
         } else {
             trace!("No tracks started yet. Starting next track.");
             self.playing.start();

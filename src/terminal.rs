@@ -96,7 +96,7 @@ impl Terminal {
                 debug!("Login prompt active, but we have a valid connection.");
                 self.siv.pop_layer();
                 return;
-            },
+            }
             (true, false) => {
                 // This is the expected case, generally - logged in and not
                 // showing the login dialog
@@ -106,7 +106,7 @@ impl Terminal {
                 // Not connected, and we've already displayed the login dialog
                 // nothing left to do until user clicks "Connect" button
                 return;
-            },
+            }
             (false, false) => {
                 trace!("Activating login dialog");
             }
