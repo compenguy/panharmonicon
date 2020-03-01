@@ -158,7 +158,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("search()");
         Search::from(&text)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -166,7 +166,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getTrack()");
         GetTrack::from(&music_id)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -179,7 +179,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("addFeedback()");
         AddFeedback::new(station_token, track_token, is_positive)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -217,7 +217,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("deleteFeedback()");
         DeleteFeedback::from(&feedback_id)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)?;
         Ok(())
     }
@@ -230,7 +230,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("addMusic()");
         AddMusic::new(station_token, music_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -238,7 +238,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("deleteMusic()");
         DeleteMusic::from(&seed_id)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: DeleteMusicResponse| ())
             .map_err(Error::from)
     }
@@ -250,7 +250,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("createStation()");
         CreateStation::new_from_track_song(track_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -261,7 +261,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("createStation()");
         CreateStation::new_from_track_artist(track_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -272,7 +272,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("createStation()");
         CreateStation::new_from_music_token(music_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -280,7 +280,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("deleteStation()");
         DeleteStation::from(&station_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: DeleteStationResponse| ())
             .map_err(Error::from)
     }
@@ -289,7 +289,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getGenreStations()");
         GetGenreStations::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|gr: GetGenreStationsResponse| gr.categories)
             .map_err(Error::from)
     }
@@ -298,7 +298,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getGenreStationsChecksum()");
         GetGenreStationsChecksum::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|cr: GetGenreStationsChecksumResponse| cr.checksum)
             .map_err(Error::from)
     }
@@ -308,7 +308,7 @@ impl PandoraSession {
         trace!("getPlaylist()");
         GetPlaylist::from(&station_token)
             .include_track_length(true)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|pr: GetPlaylistResponse| pr.items)
             .map_err(Error::from)
     }
@@ -322,7 +322,7 @@ impl PandoraSession {
         trace!("getStation()");
         GetStation::from(&station_token)
             .include_extended_attributes(extended_attributes)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -330,7 +330,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("renameStation()");
         RenameStation::new(station_token, station_name)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: RenameStationResponse| ())
             .map_err(Error::from)
     }
@@ -345,7 +345,7 @@ impl PandoraSession {
         trace!("shareStation()");
         let mut ss = ShareStation::new(station_id, station_token);
         ss.emails = emails;
-        ss.response(&self.inner)
+        ss.response(&mut self.inner)
             .map(|_: ShareStationResponse| ())
             .map_err(Error::from)
     }
@@ -354,7 +354,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("transformSharedStation()");
         TransformSharedStation::from(&station_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: TransformSharedStationResponse| ())
             .map_err(Error::from)
     }
@@ -363,7 +363,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("explainTrack()");
         ExplainTrack::from(&track_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -371,7 +371,7 @@ impl PandoraSession {
         self.partner_login()?;
         trace!("validateUsername()");
         ValidateUsername::from(&username)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -379,7 +379,7 @@ impl PandoraSession {
         self.partner_login()?;
         trace!("emailPassword()");
         EmailPassword::from(&username)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: EmailPasswordResponse| ())
             .map_err(Error::from)
     }
@@ -388,7 +388,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getBookmarks()");
         GetBookmarks::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -396,7 +396,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getStationListChecksum()");
         GetStationListChecksum::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|sc: GetStationListChecksumResponse| sc.checksum)
             .map_err(Error::from)
     }
@@ -405,7 +405,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getStationList()");
         GetStationList::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -413,7 +413,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("getUsageInfo()");
         GetUsageInfo::new()
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map_err(Error::from)
     }
 
@@ -422,7 +422,7 @@ impl PandoraSession {
         trace!("setQuickMix()");
         let mut sqm = SetQuickMix::new();
         sqm.quick_mix_station_ids = quick_mix_station_ids;
-        sqm.response(&self.inner)
+        sqm.response(&mut self.inner)
             .map(|_: SetQuickMixResponse| ())
             .map_err(Error::from)
     }
@@ -431,7 +431,7 @@ impl PandoraSession {
         self.user_login()?;
         trace!("sleepSong()");
         SleepSong::from(&track_token)
-            .response(&self.inner)
+            .response(&mut self.inner)
             .map(|_: SleepSongResponse| ())
             .map_err(Error::from)
     }

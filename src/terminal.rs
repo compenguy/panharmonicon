@@ -85,14 +85,31 @@ impl Terminal {
     }
 
     fn show_login(&mut self) {
-        let model = self.model.borrow_mut();
-        if model.connected() {
-            return;
-        }
-
-        // Don't build and show the login dialog if it's already showing
-        if self.siv.find_name::<EditView>("username").is_some() {
-            return;
+        let mut model = self.model.borrow_mut();
+        // Expired connections already have all necessary credentials,
+        // and only need that we try to connect.
+        model.connect();
+        let connected = model.connected();
+        let login_prompt_active = self.siv.find_name::<EditView>("username").is_some();
+        match (connected, login_prompt_active) {
+            (true, true) => {
+                debug!("Login prompt active, but we have a valid connection.");
+                self.siv.pop_layer();
+                return;
+            },
+            (true, false) => {
+                // This is the expected case, generally - logged in and not
+                // showing the login dialog
+                return;
+            }
+            (false, true) => {
+                // Not connected, and we've already displayed the login dialog
+                // nothing left to do until user clicks "Connect" button
+                return;
+            },
+            (false, false) => {
+                trace!("Activating login dialog");
+            }
         }
 
         let credentials = self.config.borrow().login_credentials().clone();
@@ -239,16 +256,17 @@ impl Terminal {
             .child(
                 HideableView::new(DummyView)
                     .full_height()
-                    .with_name("spacer"),
+                    .with_name("spacer_hideable"),
             )
-            .child(stations)
+            .child(HideableView::new(stations).with_name("stations_hideable"))
             .child(playing);
-        self.siv.add_layer(layout);
+        self.siv.add_fullscreen_layer(layout);
 
-        // Catch screen resize requests, and hide the dummyview we use for
-        // spacing if the size shrinks too much
+        siv_cb::ui_scale(&mut self.siv);
+        // Catch screen resize requests, and hide/show appropriate controls to
+        // fit the most important parts of the interface to the terminal size.
         self.siv
-            .add_global_callback(cursive::event::Event::WindowResize, siv_cb::hide_whitespace);
+            .add_global_callback(cursive::event::Event::WindowResize, siv_cb::ui_scale);
     }
 
     fn update_stations(&mut self) {
@@ -417,7 +435,7 @@ mod siv_cb {
     use crate::model::StateMediator;
     use cursive::views::{DummyView, EditView, HideableView, SelectView};
     use cursive::Cursive;
-    use log::error;
+    use log::{error, trace};
     use std::{cell::RefCell, rc::Rc};
 
     pub(crate) fn quit(s: &mut Cursive) {
@@ -501,15 +519,50 @@ mod siv_cb {
         s.pop_layer();
     }
 
-    pub(crate) fn hide_whitespace(s: &mut Cursive) {
+    pub(crate) fn ui_scale(s: &mut Cursive) {
         let height = s.screen_size().y;
-        s.call_on_name("spacer", |v: &mut HideableView<DummyView>| {
-            if height < 6 {
-                v.hide();
-            } else {
-                v.unhide();
+        trace!("Window resize. New height: {}", height);
+        match height {
+            h if h <= 3 => {
+                trace!("Hiding spacer");
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                    v.hide();
+                });
+                trace!("Hiding stations");
+                s.call_on_name(
+                    "stations_hideable",
+                    |v: &mut HideableView<SelectView<String>>| {
+                        v.hide();
+                    },
+                );
             }
-        });
+            h if h <= 5 => {
+                trace!("Hiding spacer");
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                    v.hide();
+                });
+                trace!("Showing stations");
+                s.call_on_name(
+                    "stations_hideable",
+                    |v: &mut HideableView<SelectView<String>>| {
+                        v.unhide();
+                    },
+                );
+            }
+            _ => {
+                trace!("Showing spacer");
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                    v.unhide();
+                });
+                trace!("Showing stations");
+                s.call_on_name(
+                    "stations_hideable",
+                    |v: &mut HideableView<SelectView<String>>| {
+                        v.unhide();
+                    },
+                );
+            }
+        }
     }
 }
 

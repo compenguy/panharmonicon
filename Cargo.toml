@@ -19,11 +19,12 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 keyring = "0.7"
-pandora-api = "0.2"
+#pandora-api = "0.2"
+pandora-api = { git = "https://github.com/compenguy/pandora-api.git" }
 reqwest = { version = "0.10", default-features = true, features = ["blocking"] }
 rodio = "0.10"
 # cursive 0.14 has a bug that causes empty popup selectviews to panic
-cursive = { git = "https://github.com/compenguy/cursive.git", default-features = false, features = ["crossterm-backend", "toml"] }
+cursive = { git = "https://github.com/gyscos/cursive.git", default-features = false, features = ["crossterm-backend", "toml"] }
 mktemp = "0.4"
 id3 = "0.5"
 
