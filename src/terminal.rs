@@ -26,10 +26,10 @@ mod labels {
 }
 #[cfg(not(emoji_labels))]
 mod labels {
-    pub(crate) const LABEL_PLAY_PAUSE: &str = "||> ";
-    pub(crate) const LABEL_SKIP: &str = " >> ";
-    pub(crate) const LABEL_THUMBS_UP: &str = " <3";
-    pub(crate) const LABEL_THUMBS_DOWN: &str = "</3";
+    pub(crate) const LABEL_PLAY_PAUSE: &str = "Play/Pause";
+    pub(crate) const LABEL_SKIP: &str = "Skip";
+    pub(crate) const LABEL_THUMBS_UP: &str = "|+|";
+    pub(crate) const LABEL_THUMBS_DOWN: &str = "|-|";
     pub(crate) const LABEL_TIRED: &str = ".zZ";
 }
 
@@ -329,7 +329,7 @@ impl Terminal {
             debug!("Playing title {} ({})", song_name, song_rating);
             let mut title = song_name.clone();
             if song_rating > 0 {
-                title.push_str(" 👍");
+                title.push_str(labels::LABEL_THUMBS_UP);
             }
             v.set_content(title);
         });
