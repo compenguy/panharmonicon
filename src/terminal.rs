@@ -16,6 +16,23 @@ use crate::errors::Result;
 use crate::model::Model;
 use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
 
+#[cfg(emoji_labels)]
+mod labels {
+    pub(crate) const LABEL_PLAY_PAUSE: &str = "⏯️ ";
+    pub(crate) const LABEL_SKIP: &str = "⏩";
+    pub(crate) const LABEL_THUMBS_UP: &str = "👍";
+    pub(crate) const LABEL_THUMBS_DOWN: &str = "👎";
+    pub(crate) const LABEL_TIRED: &str = "💤";
+}
+#[cfg(not(emoji_labels))]
+mod labels {
+    pub(crate) const LABEL_PLAY_PAUSE: &str = "||> ";
+    pub(crate) const LABEL_SKIP: &str = " >> ";
+    pub(crate) const LABEL_THUMBS_UP: &str = " <3";
+    pub(crate) const LABEL_THUMBS_DOWN: &str = "</3";
+    pub(crate) const LABEL_TIRED: &str = ".zZ";
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Store {
     Keyring,
@@ -214,14 +231,14 @@ impl Terminal {
             )
             .child(
                 LinearLayout::horizontal()
-                    .child(Button::new("⏯️ ", siv_cb::toggle_pause))
-                    .child(Button::new("⏩", siv_cb::stop)),
+                    .child(Button::new(labels::LABEL_PLAY_PAUSE, siv_cb::toggle_pause))
+                    .child(Button::new(labels::LABEL_SKIP, siv_cb::stop)),
             )
             .child(
                 LinearLayout::horizontal()
-                    .child(Button::new("👍", siv_cb::rate_track_up))
-                    .child(Button::new("👎", siv_cb::rate_track_down))
-                    .child(Button::new("💤", siv_cb::sleep_track)),
+                    .child(Button::new(labels::LABEL_THUMBS_UP, siv_cb::rate_track_up))
+                    .child(Button::new(labels::LABEL_THUMBS_DOWN, siv_cb::rate_track_down))
+                    .child(Button::new(labels::LABEL_TIRED, siv_cb::sleep_track)),
             );
         let playing = Panel::new(
             LinearLayout::horizontal()
