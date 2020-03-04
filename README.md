@@ -7,7 +7,7 @@ by a friend of Beethoven.  It was similar to a player piano in that it could aut
 specially programmed music, but had the capacity to imitate all instruments and sound effects,
 including gunfire and cannon shots.
 
-![panharmonicon](assets/panharmonicon.png?raw=true "Johann Nepomuk Mälzel's Panharmonicon")
+![panharmonicon](assets/panharmonicon.png?raw=true "Johann Nepomuk Mälzel's Panharmonicon" | width=256)
 
 # Screenshots
 
