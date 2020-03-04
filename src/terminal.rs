@@ -272,8 +272,8 @@ impl Terminal {
         let layout = LinearLayout::vertical()
             .child(
                 HideableView::new(DummyView)
-                    .full_height()
-                    .with_name("spacer_hideable"),
+                    .with_name("spacer_hideable")
+                    .full_height(),
             )
             .child(HideableView::new(stations).with_name("stations_hideable"))
             .child(playing);
@@ -283,7 +283,7 @@ impl Terminal {
         // Catch screen resize requests, and hide/show appropriate controls to
         // fit the most important parts of the interface to the terminal size.
         self.siv
-            .add_global_callback(cursive::event::Event::WindowResize, siv_cb::ui_scale);
+            .set_on_pre_event(cursive::event::Event::WindowResize, siv_cb::ui_scale);
     }
 
     fn update_stations(&mut self) {
@@ -450,7 +450,7 @@ mod siv_cb {
     use crate::config::PartialConfig;
     use crate::model::Model;
     use crate::model::StateMediator;
-    use cursive::views::{DummyView, EditView, HideableView, SelectView};
+    use cursive::views::{DummyView, EditView, HideableView, LinearLayout, SelectView};
     use cursive::Cursive;
     use log::{error, trace};
     use std::{cell::RefCell, rc::Rc};
@@ -540,42 +540,48 @@ mod siv_cb {
         let height = s.screen_size().y;
         trace!("Window resize. New height: {}", height);
         match height {
-            h if h <= 3 => {
-                trace!("Hiding spacer");
+            h if h <= 5 => {
+                trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
                 s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
                     v.hide();
+                    trace!("Spaced hidden.")
                 });
-                trace!("Hiding stations");
+                trace!("Hiding stations ({:?})", s.debug_name("stations_hideable"));
                 s.call_on_name(
                     "stations_hideable",
-                    |v: &mut HideableView<SelectView<String>>| {
+                    |v: &mut HideableView<LinearLayout>| {
                         v.hide();
+                        trace!("Stations hidden.")
                     },
                 );
             }
-            h if h <= 5 => {
-                trace!("Hiding spacer");
+            h if h <= 7 => {
+                trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
                 s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
                     v.hide();
+                    trace!("Spacer hidden.")
                 });
-                trace!("Showing stations");
+                trace!("Showing stations ({:?})", s.debug_name("stations_hideable"));
                 s.call_on_name(
                     "stations_hideable",
-                    |v: &mut HideableView<SelectView<String>>| {
+                    |v: &mut HideableView<LinearLayout>| {
                         v.unhide();
+                        trace!("Stations unhidden.")
                     },
                 );
             }
             _ => {
-                trace!("Showing spacer");
+                trace!("Showing spacer ({:?})", s.debug_name("spacer_hideable"));
                 s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
                     v.unhide();
+                    trace!("Spacer unhidden.")
                 });
-                trace!("Showing stations");
+                trace!("Showing stations ({:?})", s.debug_name("stations_hideable"));
                 s.call_on_name(
                     "stations_hideable",
-                    |v: &mut HideableView<SelectView<String>>| {
+                    |v: &mut HideableView<LinearLayout>| {
                         v.unhide();
+                        trace!("Stations unhidden.")
                     },
                 );
             }
