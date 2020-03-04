@@ -48,11 +48,8 @@ and remove track ratings all using your keyboard or mouse.
   | = | Clear track rating |
 
 # TODO
-* Add menubar with entries corresponding to most hotkeys
+* Add station editor (add/remove station seeds, directly edit track ratings, create/delete stations)
+* Add help/about window
+* Add message/info box
 * Add keybinding configuration
 * Add user-configurable themes
-* Robustness against Pandora session errors, e.g.
-
-  ```
-  [panharmonicon::model] src/model.rs:***: Failed while fetching new playlist: Pandora connection error: Pandora API error: Pandora API Call Error (Insufficient Connectivity Error): An unexpected error occurred
-  ```
