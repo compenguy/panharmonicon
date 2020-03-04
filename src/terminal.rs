@@ -271,9 +271,8 @@ impl Terminal {
 
         let layout = LinearLayout::vertical()
             .child(
-                HideableView::new(DummyView)
+                HideableView::new(DummyView.full_height())
                     .with_name("spacer_hideable")
-                    .full_height(),
             )
             .child(HideableView::new(stations).with_name("stations_hideable"))
             .child(playing);
@@ -450,7 +449,7 @@ mod siv_cb {
     use crate::config::PartialConfig;
     use crate::model::Model;
     use crate::model::StateMediator;
-    use cursive::views::{DummyView, EditView, HideableView, LinearLayout, SelectView};
+    use cursive::views::{DummyView, EditView, HideableView, LinearLayout, ResizedView, SelectView};
     use cursive::Cursive;
     use log::{error, trace};
     use std::{cell::RefCell, rc::Rc};
@@ -542,7 +541,7 @@ mod siv_cb {
         match height {
             h if h <= 5 => {
                 trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
-                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<ResizedView<DummyView>>| {
                     v.hide();
                     trace!("Spaced hidden.")
                 });
@@ -555,9 +554,9 @@ mod siv_cb {
                     },
                 );
             }
-            h if h <= 7 => {
+            h if h <= 6 => {
                 trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
-                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<ResizedView<DummyView>>| {
                     v.hide();
                     trace!("Spacer hidden.")
                 });
@@ -572,7 +571,7 @@ mod siv_cb {
             }
             _ => {
                 trace!("Showing spacer ({:?})", s.debug_name("spacer_hideable"));
-                s.call_on_name("spacer_hideable", |v: &mut HideableView<DummyView>| {
+                s.call_on_name("spacer_hideable", |v: &mut HideableView<ResizedView<DummyView>>| {
                     v.unhide();
                     trace!("Spacer unhidden.")
                 });
