@@ -96,7 +96,7 @@ impl Terminal {
 
     fn init_theme(&mut self) {
         self.siv
-            .load_toml(include_str!("../theme.toml"))
+            .load_toml(include_str!("../assets/theme.toml"))
             .expect("Error loading theme toml file");
         // TODO: Allow loading user-provided theme files at run-time
     }
