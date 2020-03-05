@@ -1,0 +1,3 @@
+ #define MAINICON 100
+ 
+ MAINICON ICON "../assets/panharmonicon_icon.ico"

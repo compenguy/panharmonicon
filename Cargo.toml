@@ -30,6 +30,9 @@ cursive = { git = "https://github.com/gyscos/cursive.git", default-features = fa
 mktemp = "0.4"
 id3 = "0.5"
 
+[target.'cfg(windows)'.build-dependencies]
+windres = "0.2"
+
 [profile.release]
 opt-level = "z"
 lto = true
