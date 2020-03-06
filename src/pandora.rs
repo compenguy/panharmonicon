@@ -3,7 +3,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use log::trace;
 
-use pandora_api;
 use pandora_api::json::auth::{PartnerLogin, UserLogin};
 use pandora_api::json::music::*;
 use pandora_api::json::station::*;

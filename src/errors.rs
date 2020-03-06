@@ -1,7 +1,5 @@
 use std::boxed::Box;
 
-use pandora_api;
-
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) enum Error {

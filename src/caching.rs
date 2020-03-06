@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use clap::crate_name;
 use log::{error, trace};
 use pandora_api::json::station::PlaylistTrack;
-use reqwest;
 
 use crate::errors::{Error, Result};
 

@@ -408,7 +408,7 @@ impl PlaybackMediator for Playing {
                     .optional
                     .get("trackLength")
                     .and_then(|v| v.as_u64())
-                    .map(|n| Duration::from_secs(n))
+                    .map(Duration::from_secs)
                     .unwrap_or_default();
 
                 self.last_started = Some(Instant::now());
@@ -506,7 +506,7 @@ impl Model {
         let volume = config.borrow_mut().volume();
         Self {
             config: config.clone(),
-            session: PandoraSession::new(config.clone()),
+            session: PandoraSession::new(config),
             station_list: HashMap::new(),
             playing: Playing::new(policy, volume),
             quitting: false,
@@ -557,10 +557,9 @@ impl Model {
                 {
                     error!("Failed submitting track rating: {:?}", e);
                 } else {
-                    self.playing
-                        .playlist
-                        .front_mut()
-                        .map(|t| t.song_rating = new_rating_value);
+                    if let Some(t) = self.playing.playlist.front_mut() {
+                        t.song_rating = new_rating_value;
+                    }
                     self.dirty |= true;
                     trace!("Rated track {} with value {}", track.song_name, rating);
                 }
