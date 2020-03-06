@@ -1,5 +1,6 @@
 [package]
 name = "panharmonicon"
+description = "A command line music player, unofficial client for Pandora"
 version = "0.1.1"
 authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
@@ -31,7 +32,8 @@ mktemp = "0.4"
 id3 = "0.5"
 
 [target.'cfg(windows)'.build-dependencies]
-windres = "0.2"
+winres = "0.1"
+chrono = "0.4"
 
 [profile.release]
 opt-level = "z"
