@@ -52,7 +52,7 @@ jobs:
         PROGRAM_EXT: ${{ matrix.program-ext }}
         ARCHIVE_NAME: ${{ matrix.release-name }}
       run: |
-        mkdir artifacts
+        mkdir -p artifacts
         7z a artifacts/${ARCHIVE_NAME}.zip README.md LICENSE.txt target/release/panharmonicon${PROGRAM_EXT}
 
     # people don't generally want the debug symbols, so we'll put those in a separate archive
@@ -62,7 +62,7 @@ jobs:
         DEBUG_EXT: ${{ matrix.debug-ext }}
         ARCHIVE_NAME: ${{ matrix.release-name }}-debug
       run: |
-        mkdir artifacts
+        mkdir -p artifacts
         7z a artifacts/${ARCHIVE_NAME}.zip target/release/panharmonicon${DEBUG_EXT}
 
     # publish the archives made in the previous steps
