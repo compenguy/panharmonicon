@@ -42,7 +42,7 @@ jobs:
     - name: Strip binary and make debugging symbols (linux)
       if: contains(matrix.os, 'ubuntu')
       run: |
-        objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon-debug
+        objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon.debug
         strip --strip-unneeded target/release/panharmonicon
 
     # zip up all the releasable artifacts
