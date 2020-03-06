@@ -16,7 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install missing dependencies
+    - name: Install missing linux dependencies
+      if: contains(matrix.os, 'ubuntu')
       run: sudo apt-get install libasound2-dev
     - name: Build
       run: cargo build --verbose
