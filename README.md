@@ -25,8 +25,6 @@ and remove track ratings all using your keyboard or mouse.
 
 
 # Features
-* User-editable JSON configuration file
-* Default configuration file can be generated with a command line flag
 * Visually select a station from a list
 * Display current track, playback time, and volume
 * Rating tracks (thumbs-up/down), and removing the rating from a track
