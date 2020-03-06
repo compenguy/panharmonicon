@@ -37,4 +37,5 @@ chrono = "0.4"
 
 [profile.release]
 opt-level = "z"
-lto = true
+lto = "fat"
+codegen-units = 1
