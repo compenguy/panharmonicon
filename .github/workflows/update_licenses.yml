@@ -1,0 +1,31 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install license processing tools (linux)
+      if: contains(matrix.os, 'ubuntu')
+      run: |
+        cargo install cargo-about
+        sudo apt install html2text
+    - name: Update licensing notes
+      run: |
+        cargo about generate about.hbs > LICENSE.html
+        html2text -width 88 -style compact -nobs -utf8 -o LICENSE.txt LICENSE.html
+    - name: Commit changes
+      uses: matheusalbino/git-commit@v1.0.1
+      with:
+        # Github Token
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        # Git message
+        message: Automated update to license notices
