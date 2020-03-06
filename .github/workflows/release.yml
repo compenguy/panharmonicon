@@ -20,12 +20,12 @@ jobs:
             dependencies: libasound2-dev libdbus-1-dev
             program-ext: ''
             debug-ext: .debug
-            release-name: panharmonicon-linux.zip
+            release-name: panharmonicon-linux
           - os: windows-2019
             dependencies: ''
             program-ext: .exe
             debug-ext: .pdb
-            release-name: panharmonicon-win.zip
+            release-name: panharmonicon-win
 
     steps:
     - uses: actions/checkout@v2
@@ -68,7 +68,7 @@ jobs:
     # publish the archives made in the previous steps
     # but ONLY if this was triggered by a 'published' event
     - name: Publish release artifacts
-      if: github.event.action == 'published'
+      if: github.event_name == 'release'
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
