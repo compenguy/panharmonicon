@@ -28,6 +28,7 @@ jobs:
             release-name: panharmonicon-win.zip
 
     steps:
+    - uses: actions/checkout@v2
     - uses: actions-rs/cargo@v1
     - name: Install missing dependencies (linux)
       if: contains(matrix.os, 'ubuntu')
