@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install missing dependencies: alsa libs
+    - name: Install missing dependencies
       run: sudo apt-get install libasound2-dev
     - name: Build
       run: cargo build --verbose
