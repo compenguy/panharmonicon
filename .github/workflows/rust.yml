@@ -23,18 +23,4 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
-    - name: Install license processing tools
-      run: |
-        cargo install cargo-about
-        sudo apt install html2text
-    - name: Update licensing notes
-      run: |
-        cargo about generate about.hbs > LICENSE.html
-        html2text -width 88 -style compact -nobs -utf8 -o LICENSE.txt LICENSE.html
-    - name: Commit changes
-      uses: matheusalbino/git-commit@v1.0.1
-      with:
-        # Github Token
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        # Git message
-        message: Automated update to license notices
+
