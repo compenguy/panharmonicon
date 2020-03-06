@@ -1,8 +1,12 @@
 name: Make release
 
 on:
+  # We go through the motions of a release on pull requests and pushes
+  # but the actual publish step is conditionalized to published releases
+  pull_request:
+  push:
   release:
-    types: [ created ]
+    types: published
 
 jobs:
   build:
@@ -14,43 +18,72 @@ jobs:
         include:
           - os: ubuntu-18.04
             dependencies: libasound2-dev libdbus-1-dev
-            artifacts:
-              - 'README.md'
-              - 'LICENSE.txt'
-              - 'target/release/panharmonicon'
-              - 'target/release/panharmonicon.debug'
-            release-name: panharmonicon-win.zip
+            program-ext: ''
+            debug-ext: .debug
+            release-name: panharmonicon-linux.zip
           - os: windows-2019
-            dependencies:
-            artifacts:
-              - 'README.md'
-              - 'LICENSE.txt'
-              - 'target/release/panharmonicon.exe'
-              - 'target/release/panharmonicon.pdb'
+            dependencies: ''
+            program-ext: .exe
+            debug-ext: .pdb
             release-name: panharmonicon-win.zip
 
     steps:
     - uses: actions-rs/cargo@v1
     - name: Install missing dependencies (linux)
       if: contains(matrix.os, 'ubuntu')
-      run: sudo apt-get install ${{ matrix.dependencies }}      
+      run: sudo apt-get install ${{ matrix.dependencies }}
+
+    # add the --all-features flag to build versions with emoji_labels feature enabled
     - name: Build release
       run: cargo build --verbose --release --all-features
+
+    # build post-processing steps
     - name: Strip binary and make debugging symbols (linux)
       if: contains(matrix.os, 'ubuntu')
       run: |
         objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon-debug
         strip --strip-unneeded target/release/panharmonicon
+
+    # zip up all the releasable artifacts
     - name: Archive release artifacts
       shell: bash
       env:
-        ARCHIVE_ARTIFACTS: ${{ matrix.artifacts }}
+        PROGRAM_EXT: ${{ matrix.program-ext }}
         ARCHIVE_NAME: ${{ matrix.release-name }}
       run: |
         mkdir artifacts
-        7z a artifacts/${ARCHIVE_NAME}.zip ${ARCHIVE_ARTIFACTS}
+        7z a artifacts/${ARCHIVE_NAME}.zip README.md LICENSE.txt target/release/panharmonicon${PROGRAM_EXT}
+
+    # people don't generally want the debug symbols, so we'll put those in a separate archive
+    - name: Archive debug artifacts
+      shell: bash
+      env:
+        DEBUG_EXT: ${{ matrix.debug-ext }}
+        ARCHIVE_NAME: ${{ matrix.release-name }}-debug
+      run: |
+        mkdir artifacts
+        7z a artifacts/${ARCHIVE_NAME}.zip target/release/panharmonicon${DEBUG_EXT}
+
+    # publish the archives made in the previous steps
+    # but ONLY if this was triggered by a 'published' event
     - name: Publish release artifacts
-      uses: actions/upload-artifact@v1
+      if: github.event.action == 'published'
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: panharmonicon-binary-archives
-        path: artifacts
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./artifacts/${{ matrix.release-name }}.zip
+        asset_name: ${{ matrix.release-name }}.zip
+        asset_content_type: application/zip
+
+    - name: Publish debug artifacts
+      if: github.event.action == 'published'
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./artifacts/${{ matrix.release-name }}-debug.zip
+        asset_name: ${{ matrix.release-name }}-debug.zip
+        asset_content_type: application/zip
