@@ -6,7 +6,7 @@ on:
   pull_request:
   push:
   release:
-    types: published
+    types: created
 
 jobs:
   build:
