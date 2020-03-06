@@ -13,8 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install license processing tools (linux)
-      if: contains(matrix.os, 'ubuntu')
+    - name: Install license processing tools
       run: |
         cargo install cargo-about
         sudo apt install html2text
