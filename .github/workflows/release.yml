@@ -1,0 +1,56 @@
+name: Make release
+
+on:
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, windows-2019]
+        include:
+          - os: ubuntu-18.04
+            dependencies: libasound2-dev libdbus-1-dev
+            artifacts:
+              - 'README.md'
+              - 'LICENSE.txt'
+              - 'target/release/panharmonicon'
+              - 'target/release/panharmonicon.debug'
+            release-name: panharmonicon-win.zip
+          - os: windows-2019
+            dependencies:
+            artifacts:
+              - 'README.md'
+              - 'LICENSE.txt'
+              - 'target/release/panharmonicon.exe'
+              - 'target/release/panharmonicon.pdb'
+            release-name: panharmonicon-win.zip
+
+    steps:
+    - uses: actions-rs/cargo@v1
+    - name: Install missing dependencies (linux)
+      if: contains(matrix.os, 'ubuntu')
+      run: sudo apt-get install ${{ matrix.dependencies }}      
+    - name: Build release
+      run: cargo build --verbose --release --all-features
+    - name: Strip binary and make debugging symbols (linux)
+      if: contains(matrix.os, 'ubuntu')
+      run: |
+        objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon-debug
+        strip --strip-unneeded target/release/panharmonicon
+    - name: Archive release artifacts
+      shell: bash
+      env:
+        ARCHIVE_ARTIFACTS: ${{ matrix.artifacts }}
+        ARCHIVE_NAME: ${{ matrix.release-name }}
+      run: |
+        mkdir artifacts
+        7z a artifacts/${ARCHIVE_NAME}.zip ${ARCHIVE_ARTIFACTS}
+    - name: Publish release artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: panharmonicon-binary-archives
+        path: artifacts
