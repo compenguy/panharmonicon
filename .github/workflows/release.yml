@@ -53,7 +53,7 @@ jobs:
         ARCHIVE_NAME: ${{ matrix.release-name }}
       run: |
         mkdir -p artifacts
-        7z a artifacts/${ARCHIVE_NAME}.zip README.md LICENSE.txt target/release/panharmonicon${PROGRAM_EXT}
+        7z a artifacts/${ARCHIVE_NAME}.zip README.md LICENSE.txt ./target/release/panharmonicon${PROGRAM_EXT}
 
     # people don't generally want the debug symbols, so we'll put those in a separate archive
     - name: Archive debug artifacts
@@ -63,7 +63,7 @@ jobs:
         ARCHIVE_NAME: ${{ matrix.release-name }}-debug
       run: |
         mkdir -p artifacts
-        7z a artifacts/${ARCHIVE_NAME}.zip target/release/panharmonicon${DEBUG_EXT}
+        7z a artifacts/${ARCHIVE_NAME}.zip ./target/release/panharmonicon${DEBUG_EXT}
 
     # publish the archives made in the previous steps
     # but ONLY if this was triggered by a 'published' event
