@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use std::{cell::RefCell, rc::Rc};
 
+use anyhow;
+use anyhow::{Context, Result};
 use log::trace;
 
 use pandora_api::json::auth::{PartnerLogin, UserLogin};
@@ -12,7 +14,7 @@ use pandora_api::json::user::*;
 use pandora_api::json::{PandoraApiRequest, ToEncryptionTokens};
 
 use crate::config::Config;
-use crate::errors::{Error, Result};
+use crate::errors::Error;
 
 /// Partner encrypt/decryption data type.
 struct PartnerKeys {
@@ -130,7 +132,8 @@ impl PandoraSession {
     /// as each method will authenticate as much as necessary to complete
     /// the request.
     pub fn user_login(&mut self) -> Result<()> {
-        self.partner_login()?;
+        self.partner_login()
+            .with_context(|| "Failed to ensure valid partner login before authenticating user")?;
         let session_tokens = self.inner.session_tokens();
         if session_tokens
             .user_id
@@ -143,10 +146,10 @@ impl PandoraSession {
 
         trace!("User login");
         let username_opt = self.config.borrow().login.username();
-        let username = username_opt.ok_or_else(|| Error::PanharmoniconMissingAuthToken)?;
+        let username = username_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
 
         let password_opt = self.config.borrow().login.password()?;
-        let password = password_opt.ok_or_else(|| Error::PanharmoniconMissingAuthToken)?;
+        let password = password_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
 
         UserLogin::new(&username, &password).merge_response(&mut self.inner)?;
         trace!("User login successful");
@@ -154,19 +157,22 @@ impl PandoraSession {
     }
 
     pub fn search(&mut self, text: &str) -> Result<SearchResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing search request"
+        })?;
         trace!("search()");
         Search::from(&text)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_track(&mut self, music_id: &str) -> Result<GetTrackResponse> {
-        self.user_login()?;
+        self.user_login()
+            .with_context(|| "Failed to ensure valid user login before completing track request")?;
         trace!("getTrack()");
         GetTrack::from(&music_id)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn add_feedback(
@@ -175,11 +181,13 @@ impl PandoraSession {
         track_token: &str,
         is_positive: bool,
     ) -> Result<AddFeedbackResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing add feedback request"
+        })?;
         trace!("addFeedback()");
         AddFeedback::new(station_token, track_token, is_positive)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn delete_feedback_for_track(
@@ -187,7 +195,9 @@ impl PandoraSession {
         station_id: &str,
         track: &PlaylistTrack,
     ) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing delete feedback request"
+        })?;
         trace!("deleteFeedback() [delete_feedback_for_track]");
         trace!("Looking up musicToken for current track");
         let music_token = self.get_track(&track.music_id)?.music_token;
@@ -213,12 +223,14 @@ impl PandoraSession {
     }
 
     pub fn delete_feedback(&mut self, feedback_id: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing delete feedback request"
+        })?;
         trace!("deleteFeedback()");
         DeleteFeedback::from(&feedback_id)
             .response(&mut self.inner)
-            .map_err(Error::from)?;
-        Ok(())
+            .map(|_| ())
+            .map_err(anyhow::Error::from)
     }
 
     pub fn add_music(
@@ -226,90 +238,110 @@ impl PandoraSession {
         station_token: &str,
         music_token: &str,
     ) -> Result<AddMusicResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing add music request"
+        })?;
         trace!("addMusic()");
         AddMusic::new(station_token, music_token)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn delete_music(&mut self, seed_id: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing delete music request"
+        })?;
         trace!("deleteMusic()");
         DeleteMusic::from(&seed_id)
             .response(&mut self.inner)
+            .map_err(anyhow::Error::from)
             .map(|_: DeleteMusicResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn create_station_from_track_song(
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing create station request"
+        })?;
         trace!("createStation()");
         CreateStation::new_from_track_song(track_token)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn create_station_from_track_artist(
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing create station request"
+        })?;
         trace!("createStation()");
         CreateStation::new_from_track_artist(track_token)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn create_station_from_music_token(
         &mut self,
         music_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing create station request"
+        })?;
         trace!("createStation()");
         CreateStation::new_from_music_token(music_token)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn delete_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing delete station request"
+        })?;
         trace!("deleteStation()");
         DeleteStation::from(&station_token)
             .response(&mut self.inner)
             .map(|_: DeleteStationResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_genre_stations(&mut self) -> Result<Vec<GenreCategory>> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get genre station request"
+        })?;
         trace!("getGenreStations()");
         GetGenreStations::new()
             .response(&mut self.inner)
             .map(|gr: GetGenreStationsResponse| gr.categories)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_genre_stations_checksum(&mut self) -> Result<String> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get genre station checksum request"
+        })?;
         trace!("getGenreStationsChecksum()");
         GetGenreStationsChecksum::new()
             .response(&mut self.inner)
             .map(|cr: GetGenreStationsChecksumResponse| cr.checksum)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_playlist(&mut self, station_token: &str) -> Result<Vec<PlaylistEntry>> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get playlist request"
+        })?;
+
         trace!("getPlaylist()");
         GetPlaylist::from(&station_token)
             .include_track_length(true)
             .response(&mut self.inner)
             .map(|pr: GetPlaylistResponse| pr.items)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_station(
@@ -317,21 +349,27 @@ impl PandoraSession {
         station_token: &str,
         extended_attributes: bool,
     ) -> Result<GetStationResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get station request"
+        })?;
+
         trace!("getStation()");
         GetStation::from(&station_token)
             .include_extended_attributes(extended_attributes)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn rename_station(&mut self, station_token: &str, station_name: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing rename station request"
+        })?;
+
         trace!("renameStation()");
         RenameStation::new(station_token, station_name)
             .response(&mut self.inner)
             .map(|_: RenameStationResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn share_station(
@@ -340,98 +378,131 @@ impl PandoraSession {
         station_token: &str,
         emails: Vec<String>,
     ) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing share station request"
+        })?;
+
         trace!("shareStation()");
         let mut ss = ShareStation::new(station_id, station_token);
         ss.emails = emails;
         ss.response(&mut self.inner)
             .map(|_: ShareStationResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn transform_shared_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing transform shared station request"
+        })?;
+
         trace!("transformSharedStation()");
         TransformSharedStation::from(&station_token)
             .response(&mut self.inner)
             .map(|_: TransformSharedStationResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn explain_track(&mut self, track_token: &str) -> Result<ExplainTrackResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing explain track request"
+        })?;
+
         trace!("explainTrack()");
         ExplainTrack::from(&track_token)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn validate_username(&mut self, username: &str) -> Result<ValidateUsernameResponse> {
-        self.partner_login()?;
+        self.partner_login().with_context(|| {
+            "Failed to ensure valid partner login before completing validate username request"
+        })?;
+
         trace!("validateUsername()");
         ValidateUsername::from(&username)
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn password_recovery(&mut self, username: &str) -> Result<()> {
-        self.partner_login()?;
+        self.partner_login().with_context(|| {
+            "Failed to ensure valid partner login before completing password recovery request"
+        })?;
+
         trace!("emailPassword()");
         EmailPassword::from(&username)
             .response(&mut self.inner)
             .map(|_: EmailPasswordResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_bookmarks(&mut self) -> Result<GetBookmarksResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get bookmarks request"
+        })?;
+
         trace!("getBookmarks()");
         GetBookmarks::new()
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_station_list_checksum(&mut self) -> Result<String> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get station list checksum request"
+        })?;
+
         trace!("getStationListChecksum()");
         GetStationListChecksum::new()
             .response(&mut self.inner)
             .map(|sc: GetStationListChecksumResponse| sc.checksum)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_station_list(&mut self) -> Result<GetStationListResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get station list request"
+        })?;
+
         trace!("getStationList()");
         GetStationList::new()
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn get_usage_info(&mut self) -> Result<GetUsageInfoResponse> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing get usage info request"
+        })?;
+
         trace!("getUsageInfo()");
         GetUsageInfo::new()
             .response(&mut self.inner)
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn set_quick_mix(&mut self, quick_mix_station_ids: Vec<String>) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing set quick mix request"
+        })?;
+
         trace!("setQuickMix()");
         let mut sqm = SetQuickMix::new();
         sqm.quick_mix_station_ids = quick_mix_station_ids;
         sqm.response(&mut self.inner)
             .map(|_: SetQuickMixResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 
     pub fn sleep_song(&mut self, track_token: &str) -> Result<()> {
-        self.user_login()?;
+        self.user_login().with_context(|| {
+            "Failed to ensure valid user login before completing sleep song request"
+        })?;
+
         trace!("sleepSong()");
         SleepSong::from(&track_token)
             .response(&mut self.inner)
             .map(|_: SleepSongResponse| ())
-            .map_err(Error::from)
+            .map_err(anyhow::Error::from)
     }
 }

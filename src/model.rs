@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
+use anyhow::{Context, Result};
 use log::{debug, error, info, trace};
 use rodio::source::Source;
 use rodio::DeviceTrait;
@@ -12,7 +13,7 @@ use pandora_api::json::{station::PlaylistTrack, user::Station};
 
 use crate::caching;
 use crate::config::{CachePolicy, Config, PartialConfig};
-use crate::errors::{Error, Result};
+use crate::errors::Error;
 use crate::pandora::PandoraSession;
 
 pub(crate) trait StateMediator {
@@ -142,13 +143,20 @@ impl AudioDevice {
             path.as_ref().to_string_lossy()
         );
         self.play_from_reader(std::io::BufReader::new(
-            std::fs::File::open(path).map_err(|e| Error::MediaReadFailure(Box::new(e)))?,
+            std::fs::File::open(path.as_ref()).with_context(|| {
+                format!(
+                    "Failed reading media file at {}",
+                    path.as_ref().to_string_lossy()
+                )
+            })?,
         ))
     }
 
     fn play_from_reader<R: Read + Seek + Send + 'static>(&mut self, reader: R) -> Result<()> {
         let start_paused = false;
-        let decoder = rodio::decoder::Decoder::new(reader)?.pausable(start_paused);
+        let decoder = rodio::decoder::Decoder::new(reader)
+            .with_context(|| "Failed initializing media decoder")?
+            .pausable(start_paused);
 
         // Force the sink to be deleted and recreated, ensuring it's in
         // a good state
@@ -603,12 +611,7 @@ impl StateMediator for Model {
         let failed_auth =
             PartialConfig::default().login(self.config.borrow().login_credentials().as_invalid());
         self.dirty |= true;
-        if let Err(e) = self.config.borrow_mut().update_from(&failed_auth) {
-            error!(
-                "Failed while updating configuration for failed authentication: {:?}",
-                e
-            );
-        }
+        self.config.borrow_mut().update_from(&failed_auth);
     }
 
     fn connected(&self) -> bool {
@@ -618,20 +621,22 @@ impl StateMediator for Model {
     fn connect(&mut self) {
         if !self.connected() {
             trace!("Attempting pandora login...");
-            match self.session.user_login() {
-                Ok(_) => trace!("Successfully logged into Pandora."),
-                Err(Error::PanharmoniconMissingAuthToken) => {
+            if let Err(e) = self.session.user_login() {
+                if e.downcast_ref::<Error>()
+                    .map(|e| *e == Error::PanharmoniconMissingAuthToken)
+                    .unwrap_or(false)
+                {
                     error!("Required authentication token is missing.");
                     self.fail_authentication();
-                }
-                Err(Error::PandoraFailure(e)) => {
+                } else if let Some(e) = e.downcast_ref::<pandora_api::errors::Error>() {
                     error!("Pandora authentication failure: {:?}", e);
                     self.fail_authentication();
-                }
-                Err(e) => {
+                } else {
                     error!("Unknown error while logging in: {:?}", e);
                     self.fail_authentication();
                 }
+            } else {
+                trace!("Successfully logged into Pandora.");
             }
             self.dirty |= true;
         } else {
@@ -654,13 +659,9 @@ impl StateMediator for Model {
             return;
         }
         trace!("Updating station on model");
-        if let Err(e) = self
-            .config
+        self.config
             .borrow_mut()
-            .update_from(&PartialConfig::default().station(Some(station_id)))
-        {
-            error!("Failed updating configuration file on disk: {:?}", e);
-        }
+            .update_from(&PartialConfig::default().station(Some(station_id)));
         self.dirty |= true;
 
         if !self.connected() {
@@ -676,13 +677,9 @@ impl StateMediator for Model {
 
     fn untune(&mut self) {
         if self.tuned().is_some() {
-            if let Err(e) = self
-                .config
+            self.config
                 .borrow_mut()
-                .update_from(&PartialConfig::default().station(None))
-            {
-                error!("Failed updating configuration file on disk: {:?}", e);
-            }
+                .update_from(&PartialConfig::default().station(None));
             self.dirty |= true;
         }
 
@@ -856,13 +853,9 @@ impl AudioMediator for Model {
 
     fn set_volume(&mut self, new_volume: f32) {
         self.playing.set_volume(new_volume);
-        if let Err(e) = self
-            .config
+        self.config
             .borrow_mut()
-            .update_from(&PartialConfig::default().volume(new_volume))
-        {
-            error!("Failure updating volume in config file: {:?}", e);
-        }
+            .update_from(&PartialConfig::default().volume(new_volume));
         self.dirty |= true;
     }
 

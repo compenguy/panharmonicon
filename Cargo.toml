@@ -13,6 +13,8 @@ emoji_labels = []
 
 [dependencies]
 human-panic = "1"
+anyhow = "1"
+thiserror = "1"
 clap = "2.33"
 log = { version = "0.4", default-features = true, features = ["std"] }
 lazy_static = "1"

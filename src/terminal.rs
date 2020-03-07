@@ -12,7 +12,6 @@ use log::{debug, trace};
 use cursive::view::{Nameable, Resizable};
 
 use crate::config::{Config, Credentials};
-use crate::errors::Result;
 use crate::model::Model;
 use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
 
@@ -414,7 +413,7 @@ impl Terminal {
         self.update_playback_state();
     }
 
-    pub(crate) fn run(&mut self) -> Result<()> {
+    pub(crate) fn run(&mut self) {
         self.siv.set_fps(1);
         self.siv.refresh();
         let heartbeat_frequency = Duration::from_millis(500);
@@ -438,7 +437,6 @@ impl Terminal {
                 timeout = Instant::now();
             }
         }
-        Ok(())
     }
 }
 
@@ -520,14 +518,10 @@ mod siv_cb {
                 .unwrap_or(Ok(new_cred));
             match new_cred {
                 Ok(c) => {
-                    let result = config
+                    config
                         .borrow_mut()
                         .update_from(&PartialConfig::default().login(c));
-                    if let Err(e) = result {
-                        error!("Failed while updating configuration settings: {:?}", e);
-                    } else {
-                        model.connect();
-                    }
+                    model.connect();
                 }
                 Err(e) => {
                     error!("Failed while updating password: {:?}", e);

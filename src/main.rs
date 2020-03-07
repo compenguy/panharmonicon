@@ -2,13 +2,14 @@
 use std::boxed::Box;
 use std::{cell::RefCell, rc::Rc};
 
+use anyhow::{Context, Result};
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
 use flexi_logger::{colored_default_format, detailed_format, Logger};
 use human_panic::setup_panic;
-use log::{debug, error, trace};
+use log::{debug, trace};
 
 mod errors;
-use crate::errors::{Error, Result};
+use crate::errors::Error;
 
 mod config;
 use crate::config::Config;
@@ -26,7 +27,7 @@ fn main() -> Result<()> {
         homepage: "".into(),
     });
     let config_file = dirs::config_dir()
-        .ok_or_else(|| Error::AppDirNotFound)?
+        .ok_or(Error::AppDirNotFound)?
         .join(crate_name!())
         .join("config.json");
     let matches = app_from_crate!("")
@@ -85,14 +86,18 @@ fn main() -> Result<()> {
 
     if matches.is_present("debug-log") {
         let data_local_dir = dirs::data_local_dir()
-            .ok_or_else(|| Error::AppDirNotFound)?
+            .ok_or(Error::AppDirNotFound)?
             .join(crate_name!());
         let log_dir = data_local_dir
             .join("logs")
             .join(format!("{}", chrono::offset::Utc::now()));
         if !log_dir.is_dir() {
-            std::fs::create_dir_all(&log_dir)
-                .map_err(|e| Error::AppDirCreateFailure(Box::new(e)))?;
+            std::fs::create_dir_all(&log_dir).with_context(|| {
+                format!(
+                    "Failed to create application directory {}",
+                    log_dir.to_string_lossy()
+                )
+            })?;
         }
         log_builder = log_builder
             .log_to_file()
@@ -103,7 +108,7 @@ fn main() -> Result<()> {
 
     log_builder
         .start()
-        .map_err(|e| Error::FlexiLoggerFailure(Box::new(e)))?;
+        .with_context(|| "Failed to start FlexiLogger logging backend")?;
 
     debug!("{} version {}", crate_name!(), crate_version!());
 
@@ -115,12 +120,7 @@ fn main() -> Result<()> {
     trace!("Initializing terminal interface");
     let mut ui = terminal::Terminal::new(conf_ref);
     trace!("Starting app");
-    // Exit condition occurs when run() returns Ok(_)
-    while let Err(e) = ui.run() {
-        error!("{:?}", e);
-        ui.initialize();
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-    }
+    ui.run();
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);
 

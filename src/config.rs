@@ -2,11 +2,12 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
+use anyhow::{Context, Result};
 use clap::crate_name;
 use log::{debug, trace, warn};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::errors::{Error, Result};
+use crate::errors::Error;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum CachePolicy {
@@ -97,7 +98,12 @@ impl Credentials {
 
     pub(crate) fn password(&self) -> Result<Option<String>> {
         match self {
-            Credentials::Keyring(u) => Credentials::get_from_keyring(&u),
+            Credentials::Keyring(u) => Credentials::get_from_keyring(&u).with_context(|| {
+                format!(
+                    "Failed retrieving secrets for user {} from session keyring",
+                    &u,
+                )
+            }),
             Credentials::ConfigFile(_, p) if p.is_empty() => Ok(None),
             Credentials::ConfigFile(_, p) => Ok(Some(p.clone())),
             Credentials::Session(_, o_p) if o_p.as_ref().map(|p| p.is_empty()).unwrap_or(true) => {
@@ -137,7 +143,11 @@ impl Credentials {
     pub(crate) fn update_password(&self, password: &str) -> Result<Credentials> {
         let mut dup = self.clone();
         match &mut dup {
-            Credentials::Keyring(u) => Credentials::set_on_keyring(&u, password)?,
+            Credentials::Keyring(u) => {
+                Credentials::set_on_keyring(&u, password).with_context(|| {
+                    format!("Failed updating secret for user {} on session keyring", &u)
+                })?
+            }
             Credentials::ConfigFile(_, ref mut p) => {
                 if *p != password {
                     *p = password.to_string();
@@ -213,7 +223,9 @@ impl Credentials {
         match keyring.get_password() {
             Ok(p) => Ok(Some(p)),
             Err(keyring::KeyringError::NoPasswordFound) => Ok(None),
-            Err(e) => Err(Error::KeyringFailure(Box::new(e))),
+            Err(e) => Err(Error::from(e)).with_context(|| {
+                format!("Error contacting session keyring for user {}", &username)
+            }),
         }
     }
 
@@ -222,7 +234,13 @@ impl Credentials {
         let keyring = keyring::Keyring::new(&service, username);
         keyring
             .set_password(password)
-            .map_err(|e| Error::KeyringFailure(Box::new(e)))
+            .map_err(Error::from)
+            .with_context(|| {
+                format!(
+                    "Failed updating secret for user {} on session keyring",
+                    &username
+                )
+            })
     }
 }
 
@@ -252,7 +270,7 @@ impl std::cmp::PartialEq<Credentials> for Credentials {
             return false;
         }
 
-        if self.password() != other.password() {
+        if self.password().ok() != other.password().ok() {
             return false;
         }
 
@@ -371,9 +389,13 @@ impl Config {
         if let Ok(config_file) = File::open(file_path.as_ref()) {
             trace!("Reading config file");
             config.update_from(
-                &serde_json::from_reader(BufReader::new(config_file))
-                    .map_err(|e| Error::ConfigParseFailure(Box::new(e)))?,
-            )?;
+                &serde_json::from_reader(BufReader::new(config_file)).with_context(|| {
+                    format!(
+                        "Error parsing application configuration file at {}",
+                        file_path.as_ref().to_string_lossy()
+                    )
+                })?,
+            );
             config.dirty = false;
         }
         if write_back {
@@ -386,12 +408,25 @@ impl Config {
 
     pub(crate) fn write<P: AsRef<Path>>(&self, file_path: P) -> Result<()> {
         if let Some(dir) = file_path.as_ref().parent() {
-            create_dir_all(dir).map_err(|e| Error::AppDirCreateFailure(Box::new(e)))?;
+            create_dir_all(dir).with_context(|| {
+                format!(
+                    "Failed to create directory for application configuration file as {}",
+                    dir.to_string_lossy()
+                )
+            })?;
         }
-        let updated_config_file =
-            std::fs::File::create(file_path).map_err(|e| Error::ConfigWriteFailure(Box::new(e)))?;
-        serde_json::to_writer_pretty(BufWriter::new(updated_config_file), self)
-            .map_err(|e| Error::JsonSerializeFailure(Box::new(e)))
+        let updated_config_file = std::fs::File::create(file_path.as_ref()).with_context(|| {
+            format!(
+                "Failed writing to application configuration file as {}",
+                file_path.as_ref().to_string_lossy()
+            )
+        })?;
+        serde_json::to_writer_pretty(BufWriter::new(updated_config_file), self).with_context(|| {
+            format!(
+                "Failed while serializing configuration settings as JSON to disk as {}",
+                file_path.as_ref().to_string_lossy()
+            )
+        })
     }
 
     pub(crate) fn flush(&mut self) -> Result<()> {
@@ -402,14 +437,19 @@ impl Config {
                 trace!(
                     "Current settings differ from those on disk, writing updated settings to disk"
                 );
-                self.write(&path)?;
+                self.write(&path).with_context(|| {
+                    format!(
+                        "Failed while flushing application configuration changes to disk as {}",
+                        path.to_string_lossy()
+                    )
+                })?;
             }
             self.dirty = false;
         }
         Ok(())
     }
 
-    pub(crate) fn update_from(&mut self, other: &PartialConfig) -> Result<()> {
+    pub(crate) fn update_from(&mut self, other: &PartialConfig) {
         debug!("Settings before update: {:?}", self);
         debug!("Settings being applied: {:?}", other);
         if let Some(login) = &other.login {
@@ -447,7 +487,6 @@ impl Config {
             }
         }
         debug!("Settings after update: {:?}", self);
-        Ok(())
     }
 
     pub(crate) fn login_credentials(&self) -> &Credentials {

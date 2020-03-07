@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use anyhow::{Context, Result};
 use clap::crate_name;
 use log::{error, trace};
 use pandora_api::json::station::PlaylistTrack;
 
-use crate::errors::{Error, Result};
+use crate::errors::Error;
 
 // https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
 fn sanitize_filename(text: &str) -> String {
@@ -25,7 +26,7 @@ fn sanitize_filename(text: &str) -> String {
 
 fn app_cache_dir() -> Result<PathBuf> {
     Ok(dirs::cache_dir()
-        .ok_or_else(|| Error::AppDirNotFound)?
+        .ok_or(Error::AppDirNotFound)?
         .join(crate_name!()))
 }
 
@@ -56,8 +57,12 @@ fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<Pat
     let mut track_cache_path = app_cache_dir()?.join(&artist).join(&album);
 
     if create_path {
-        std::fs::create_dir_all(&track_cache_path)
-            .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+        std::fs::create_dir_all(&track_cache_path).with_context(|| {
+            format!(
+                "Failed to create directory for caching track as {}",
+                track_cache_path.to_string_lossy()
+            )
+        })?;
     }
     let filename = format!("{} - {}.{}", artist, song, "mp3");
     track_cache_path.push(filename);
@@ -102,13 +107,18 @@ pub(crate) fn add_to_cache(track: &mut PlaylistTrack) -> Result<PathBuf> {
 fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
     let id3_ver = id3::Version::Id3v23;
     trace!("Reading tags from mp3");
-    let mut tag = match id3::Tag::read_from_path(&path) {
+    let mut tag = match id3::Tag::read_from_path(path.as_ref()) {
         Ok(tag) => tag,
         Err(id3::Error {
             kind: id3::ErrorKind::NoTag,
             ..
         }) => id3::Tag::new(),
-        err => err?,
+        err => err.with_context(|| {
+            format!(
+                "Failed reading mp3 file at {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?,
     };
 
     let duration: Option<u32> = track
@@ -147,17 +157,34 @@ fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
 
     trace!("Writing tags back to file");
     if dirty {
-        tag.write_to_path(&path, id3_ver)?;
+        tag.write_to_path(path.as_ref(), id3_ver).with_context(|| {
+            format!(
+                "Failed while writing updated MP3 tags back to {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?;
     }
     Ok(())
 }
 
 fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
-    let mut resp = reqwest::blocking::get(url)?;
+    let mut resp = reqwest::blocking::get(url)
+        .with_context(|| format!("Failed while retrieving content from url {}", url))?;
 
-    let file = std::fs::File::create(path).map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+    let file = std::fs::File::create(path.as_ref()).with_context(|| {
+        format!(
+            "Failed creating file on disk as {}",
+            path.as_ref().to_string_lossy()
+        )
+    })?;
 
     resp.copy_to(&mut std::io::BufWriter::new(file))
-        .map_err(|e| Error::FileWriteFailure(Box::new(e)))?;
+        .with_context(|| {
+            format!(
+                "Failed writing content from url {} as file {}",
+                url,
+                path.as_ref().to_string_lossy()
+            )
+        })?;
     Ok(())
 }
