@@ -4149,7 +4149,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o flexi_logger_0.13.4
           o ident_case_1.0.1
           o openssl_0.10.28
-          o panharmonicon_0.1.1
+          o panharmonicon_0.2.0
           o security-framework_0.3.4
           o security-framework-sys_0.3.3
           o typenum_1.11.2
