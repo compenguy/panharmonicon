@@ -2616,6 +2616,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o ahash_0.3.2
+          o anyhow_1.0.26
           o arc-swap_0.4.4
           o array-macro_1.0.4
           o backtrace_0.3.44
@@ -2683,6 +2684,8 @@ This page lists the licenses of the projects used in panharmonicon.
           o syn_1.0.16
           o tempdir_0.3.7
           o tempfile_3.1.0
+          o thiserror_1.0.11
+          o thiserror-impl_1.0.11
           o thread_local_1.0.1
           o time_0.1.42
           o toml_0.4.10
