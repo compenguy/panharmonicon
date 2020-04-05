@@ -17,7 +17,7 @@ use crate::config::Config;
 mod caching;
 mod model;
 mod pandora;
-mod terminal;
+mod term_ui;
 
 fn main() -> Result<()> {
     setup_panic!(Metadata {
@@ -118,7 +118,7 @@ fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     trace!("Initializing terminal interface");
-    let mut ui = terminal::Terminal::new(conf_ref);
+    let mut ui = term_ui::Terminal::new(conf_ref);
     trace!("Starting app");
     ui.run();
     // Explicitly drop the UI to force it to write changed settings out
