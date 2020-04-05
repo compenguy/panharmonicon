@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
-use log::{debug, trace, warn};
+use log::{debug, trace};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
@@ -69,8 +69,6 @@ pub(crate) enum Credentials {
     ConfigFile(String, String),
     #[serde(with = "serde_session")]
     Session(Option<String>, Option<String>),
-    #[serde(skip)]
-    Invalid(String),
 }
 
 impl Credentials {
@@ -91,8 +89,6 @@ impl Credentials {
                 None
             }
             Credentials::Session(o_u, _) => o_u.clone(),
-            Credentials::Invalid(u) if u.is_empty() => None,
-            Credentials::Invalid(u) => Some(u.clone()),
         }
     }
 
@@ -110,7 +106,6 @@ impl Credentials {
                 Ok(None)
             }
             Credentials::Session(_, o_p) => Ok(o_p.clone()),
-            Credentials::Invalid(_) => Ok(None),
         }
     }
 
@@ -131,9 +126,6 @@ impl Credentials {
                 } else {
                     Some(username)
                 };
-            }
-            Credentials::Invalid(ref mut u) => {
-                *u = username;
             }
         }
         dup
@@ -159,9 +151,6 @@ impl Credentials {
                 } else {
                     Some(password.to_string())
                 };
-            }
-            Credentials::Invalid(_) => {
-                warn!("Ignoring request to update password on Invalid type credentials.");
             }
         }
         Ok(dup)
@@ -209,11 +198,9 @@ impl Credentials {
     #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
     pub(crate) fn as_invalid(&self) -> Credentials {
         match self {
-            Self::Invalid(_) => self.clone(),
-            c => {
-                let username = c.username().unwrap_or_default();
-                Self::Invalid(username)
-            }
+            Self::Session(u, _) => Self::Session(u.clone().map(String::from), None),
+            Self::ConfigFile(u, _) => Self::ConfigFile(u.to_string(), String::new()),
+            Self::Keyring(_) => self.clone(),
         }
     }
 
@@ -255,7 +242,6 @@ impl std::fmt::Debug for Credentials {
             Self::Session(Some(u), None) => write!(f, "ConfigFile({}, [missing])", u),
             Self::Session(None, Some(_)) => write!(f, "ConfigFile([missing], ******)"),
             Self::Session(None, None) => write!(f, "ConfigFile([missing], [missing])"),
-            Self::Invalid(u) => write!(f, "Invalid({})", u),
         }
     }
 }

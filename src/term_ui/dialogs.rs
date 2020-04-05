@@ -23,7 +23,6 @@ impl From<Credentials> for Store {
             Credentials::Keyring(_) => Self::Keyring,
             Credentials::ConfigFile(_, _) => Self::ConfigFile,
             Credentials::Session(_, _) => Self::Session,
-            Credentials::Invalid(_) => Self::Session,
         }
     }
 }
