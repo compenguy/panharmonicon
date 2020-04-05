@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use std::{cell::RefCell, rc::Rc};
 
-use anyhow;
 use anyhow::{Context, Result};
 use log::trace;
 
