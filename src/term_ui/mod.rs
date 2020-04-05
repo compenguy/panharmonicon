@@ -41,7 +41,7 @@ pub(crate) struct Terminal {
 
 impl Terminal {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        let model = Rc::new(RefCell::new(Model::new(config.clone())));
+        let model = Rc::new(RefCell::new(Model::new(config)));
         let mut siv = Cursive::crossterm().expect("Failed to initialize terminal");
         siv.set_user_data(model.clone());
         let mut term = Self { model, siv };
@@ -192,6 +192,7 @@ impl Terminal {
                 {
                     trace!("Updating stations list");
                     v.clear();
+                    v.add_item("", String::new());
                     v.add_all(model.station_list().into_iter());
                     v.sort_by_label();
                     if let Some(station_id) = model.tuned() {
@@ -204,6 +205,8 @@ impl Terminal {
                         if let Some(idx) = opt_idx {
                             v.set_selection(idx);
                         }
+                    } else {
+                        v.set_selection(0);
                     }
                 } else if model.station_count() == 0 {
                     trace!("Clearing UI station list to match model");
