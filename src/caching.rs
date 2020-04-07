@@ -169,7 +169,9 @@ fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
 
 fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
     let mut resp = reqwest::blocking::get(url)
-        .with_context(|| format!("Failed while retrieving content from url {}", url))?;
+        .with_context(|| format!("Failed while retrieving content from url {}", url))?
+        .error_for_status()
+        .with_context(|| format!("Error response while retrieving content from url {}", url))?;
 
     let file = std::fs::File::create(path.as_ref()).with_context(|| {
         format!(

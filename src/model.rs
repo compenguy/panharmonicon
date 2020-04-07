@@ -395,6 +395,13 @@ impl PlaybackMediator for Playing {
                 Some(serde_json::value::Value::String(cached)) => PathBuf::from(cached.clone()),
                 _ => match caching::add_to_cache(track) {
                     Err(e) => {
+                        if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+                            if e.is_status() {
+                                error!("Failed caching track due to http error: {:?}", e);
+                                self.evict_playing();
+                                return;
+                            }
+                        }
                         error!("Failed caching track: {:?}", e);
                         return;
                     }
@@ -727,6 +734,7 @@ impl StateMediator for Model {
                 trace!("start dirtied");
             }
         } else if self.config.borrow().login_credentials().get().is_some() {
+            self.disconnect();
             self.connect();
             if !old_dirty && (old_dirty != self.dirty) {
                 trace!("connect dirtied");
