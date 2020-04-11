@@ -11,55 +11,27 @@ use crate::errors::Error;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum CachePolicy {
-    NoCaching,
+    // This entry is now superceded by, and behaves the same as, EvictCompleted
+    // and is kept only to preserve compatibility for config files generated
+    // prior to the introduction of the new values
     CachePlayingEvictCompleted,
-    CacheNextEvictCompleted,
-    CacheAllNoEviction,
+    EvictCompleted,
+    NoEviction,
 }
 
 impl CachePolicy {
-    /* TODO: There's no UI to expose this configuration option
-    pub(crate) fn cache_playing(self) -> bool {
-        match self {
-            Self::NoCaching => false,
-            Self::CachePlayingEvictCompleted => true,
-            Self::CacheNextEvictCompleted => true,
-            Self::CacheAllNoEviction => true,
-        }
-    }
-    */
-
-    pub(crate) fn cache_plus_one(self) -> bool {
-        match self {
-            Self::NoCaching => false,
-            Self::CachePlayingEvictCompleted => false,
-            Self::CacheNextEvictCompleted => true,
-            Self::CacheAllNoEviction => true,
-        }
-    }
-
-    pub(crate) fn cache_all(self) -> bool {
-        match self {
-            Self::NoCaching => false,
-            Self::CachePlayingEvictCompleted => false,
-            Self::CacheNextEvictCompleted => false,
-            Self::CacheAllNoEviction => true,
-        }
-    }
-
     pub(crate) fn evict_completed(self) -> bool {
         match self {
-            Self::NoCaching => false,
             Self::CachePlayingEvictCompleted => true,
-            Self::CacheNextEvictCompleted => true,
-            Self::CacheAllNoEviction => false,
+            Self::EvictCompleted => true,
+            Self::NoEviction => false,
         }
     }
 }
 
 impl Default for CachePolicy {
     fn default() -> Self {
-        Self::CachePlayingEvictCompleted
+        Self::EvictCompleted
     }
 }
 

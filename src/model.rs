@@ -281,6 +281,7 @@ struct Playing {
     elapsed: Duration,
     duration: Duration,
     playlist: VecDeque<PlaylistTrack>,
+    track_cacher: caching::TrackCacher,
 }
 
 impl Playing {
@@ -299,44 +300,30 @@ impl Playing {
         }
     }
 
-    fn playlist(&self) -> &VecDeque<PlaylistTrack> {
-        &self.playlist
+    fn playlist_len(&self) -> usize {
+        self.playlist.len() + self.track_cacher.pending_count()
     }
 
     fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) {
-        self.playlist.extend(new_playlist.into_iter());
-        trace!("New playlist length: {}", self.playlist.len());
+        self.track_cacher.enqueue(new_playlist);
+        trace!(
+            "New playlist length: {}",
+            self.playlist.len() + self.track_cacher.pending_count()
+        );
     }
 
     fn stop_all(&mut self) {
         self.stop();
         self.playlist.clear();
+        self.track_cacher.clear();
     }
 
     fn precache_playlist_track(&mut self) {
-        if self.cache_policy.cache_plus_one() {
-            for track in self.playlist.iter_mut().take(2) {
-                if track.optional.get("cached").is_some() {
-                    continue;
-                }
-                match caching::add_to_cache(track) {
-                    Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
-                    Err(e) => trace!("Error caching track to path: {:?}", e),
-                }
-                break;
-            }
-        } else if self.cache_policy.cache_all() {
-            for track in self.playlist.iter_mut() {
-                if track.optional.get("cached").is_some() {
-                    continue;
-                }
-                match caching::add_to_cache(track) {
-                    Ok(path) => trace!("Cached track to {}", path.to_string_lossy()),
-                    Err(e) => trace!("Error caching track to path: {:?}", e),
-                }
-                break;
-            }
+        if let Err(e) = self.track_cacher.update() {
+            error!("Error while updating track cache: {}", e);
         }
+        self.playlist
+            .extend(self.track_cacher.get_ready().drain(..));
     }
 
     fn evict_playing(&mut self) {
@@ -391,43 +378,24 @@ impl PlaybackMediator for Playing {
         }
         if let Some(track) = self.playlist.front_mut() {
             debug!("Track: {:?}", &track);
-            let cached = match track.optional.get("cached") {
-                Some(serde_json::value::Value::String(cached)) => PathBuf::from(cached.clone()),
-                _ => match caching::add_to_cache(track) {
-                    Err(e) => {
-                        if let Some(e) = e.downcast_ref::<reqwest::Error>() {
-                            if e.is_status() {
-                                error!("Failed caching track due to http error: {:?}", e);
-                                self.evict_playing();
-                                return;
-                            }
-                        }
-                        error!("Failed caching track: {:?}", e);
-                        return;
-                    }
-                    Ok(cached) => {
-                        trace!("Added track to cache as {}", cached.to_string_lossy());
-                        cached
-                    }
-                },
-            };
-            trace!("Starting decoding of track {}", cached.to_string_lossy());
-            if let Err(e) = self.audio_device.play_from_file(PathBuf::from(&cached)) {
-                error!(
-                    "Error starting track at {}: {:?}",
-                    cached.to_string_lossy(),
-                    e
-                );
-            } else {
-                self.duration = track
-                    .optional
-                    .get("trackLength")
-                    .and_then(|v| v.as_u64())
-                    .map(Duration::from_secs)
-                    .unwrap_or_default();
+            if let Some(serde_json::value::Value::String(cached)) = track.optional.get("cached") {
+                trace!("Starting decoding of track {}", cached);
+                if let Err(e) = self.audio_device.play_from_file(PathBuf::from(&cached)) {
+                    error!("Error starting track at {}: {:?}", cached, e);
+                } else {
+                    self.duration = track
+                        .optional
+                        .get("trackLength")
+                        .and_then(|v| v.as_u64())
+                        .map(Duration::from_secs)
+                        .unwrap_or_default();
 
-                self.last_started = Some(Instant::now());
-                trace!("Started track at {}.", cached.to_string_lossy());
+                    self.last_started = Some(Instant::now());
+                    trace!("Started track at {}.", cached);
+                }
+            } else {
+                error!("Uncached track in playlist! Evicting...");
+                self.stop();
             }
         } else {
             trace!("Cannot start track if the playlist is empty.");
@@ -536,7 +504,7 @@ impl Model {
     fn refill_playlist(&mut self) {
         // If the playing track and at least one more are still
         // in the queue, then we don't refill.
-        let playlist_len = self.playing.playlist().len();
+        let playlist_len = self.playing.playlist_len();
         if playlist_len >= 2 {
             return;
         }
