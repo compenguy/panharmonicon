@@ -5,7 +5,7 @@ use cursive::align::HAlign;
 use cursive::views::{
     Button, DummyView, HideableView, LinearLayout, Panel, SelectView, SliderView, TextView,
 };
-use cursive::Cursive;
+use cursive::{Cursive, CursiveExt};
 use log::{debug, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};

@@ -1,9 +1,8 @@
 //#![feature(with_options)]
-use std::boxed::Box;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
-use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version};
+use clap::{app_from_crate, crate_name, crate_version};
 use flexi_logger::{colored_default_format, detailed_format, Logger};
 use human_panic::setup_panic;
 use log::{debug, trace};
@@ -35,9 +34,9 @@ fn main() -> Result<()> {
         .setting(clap::AppSettings::ColoredHelp)
         .arg(
             clap::Arg::with_name("gen-config")
-                .short("c")
+                .short('c')
                 .long("gen-config")
-                .help(
+                .about(
                     format!(
                         "Generate a default config file at {}",
                         config_file.to_string_lossy()
@@ -47,18 +46,18 @@ fn main() -> Result<()> {
         )
         .arg(
             clap::Arg::with_name("debug")
-                .short("g")
+                .short('g')
                 .long("debug")
                 .multiple(true)
                 .hidden(true)
-                .help("Enable debug-level output"),
+                .about("Enable debug-level output"),
         )
         .arg(
             clap::Arg::with_name("debug-log")
-                .short("l")
+                .short('l')
                 .long("debug-log")
                 .hidden(true)
-                .help("Whether to write a debug log file."),
+                .about("Whether to write a debug log file."),
         )
         .get_matches();
 
