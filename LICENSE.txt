@@ -1,22 +1,22 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * MIT_License (36)
-    * Apache_License_2.0 (28)
+    * MIT_License (37)
+    * Apache_License_2.0 (30)
     * BSD_3-Clause_"New"_or_"Revised"_License (2)
-    * zlib_License (2)
     * BSD_2-Clause_"Simplified"_License (1)
     * Creative_Commons_Zero_v1.0_Universal (1)
     * Mozilla_Public_License_2.0 (1)
+    * zlib_License (1)
 ***** All license text: *****
     * **** Apache License 2.0 ****
       *** Used by: ***
           o claxon_0.4.2
           o encoding_rs_0.8.23
           o hound_3.4.0
-          o pin-project_0.4.17
-          o pin-project-internal_0.4.17
-          o pin-project-lite_0.1.5
+          o pin-project_0.4.22
+          o pin-project-internal_0.4.22
+          o pin-project-lite_0.1.7
           o syn-mid_0.5.0
                                        Apache License
                                  Version 2.0, January 2004
@@ -223,7 +223,7 @@ This page lists the licenses of the projects used in panharmonicon.
       *** Used by: ***
           o cpal_0.11.0
           o os_str_bytes_2.3.1
-          o ryu_1.0.4
+          o ryu_1.0.5
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -427,7 +427,211 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o winapi_0.3.8
+          o ntapi_0.3.4
+                                       Apache License
+                                 Version 2.0, January 2004
+                              http://www.apache.org/licenses/
+
+         TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+         1. Definitions.
+
+            "License" shall mean the terms and conditions for use, reproduction,
+            and distribution as defined by Sections 1 through 9 of this document.
+
+            "Licensor" shall mean the copyright owner or entity authorized by
+            the copyright owner that is granting the License.
+
+            "Legal Entity" shall mean the union of the acting entity and all
+            other entities that control, are controlled by, or are under common
+            control with that entity. For the purposes of this definition,
+            "control" means (i) the power, direct or indirect, to cause the
+            direction or management of such entity, whether by contract or
+            otherwise, or (ii) ownership of fifty percent (50%) or more of the
+            outstanding shares, or (iii) beneficial ownership of such entity.
+
+            "You" (or "Your") shall mean an individual or Legal Entity
+            exercising permissions granted by this License.
+
+            "Source" form shall mean the preferred form for making modifications,
+            including but not limited to software source code, documentation
+            source, and configuration files.
+
+            "Object" form shall mean any form resulting from mechanical
+            transformation or translation of a Source form, including but
+            not limited to compiled object code, generated documentation,
+            and conversions to other media types.
+
+            "Work" shall mean the work of authorship, whether in Source or
+            Object form, made available under the License, as indicated by a
+            copyright notice that is included in or attached to the work
+            (an example is provided in the Appendix below).
+
+            "Derivative Works" shall mean any work, whether in Source or Object
+            form, that is based on (or derived from) the Work and for which the
+            editorial revisions, annotations, elaborations, or other modifications
+            represent, as a whole, an original work of authorship. For the purposes
+            of this License, Derivative Works shall not include works that remain
+            separable from, or merely link (or bind by name) to the interfaces of,
+            the Work and Derivative Works thereof.
+
+            "Contribution" shall mean any work of authorship, including
+            the original version of the Work and any modifications or additions
+            to that Work or Derivative Works thereof, that is intentionally
+            submitted to Licensor for inclusion in the Work by the copyright owner
+            or by an individual or Legal Entity authorized to submit on behalf of
+            the copyright owner. For the purposes of this definition, "submitted"
+            means any form of electronic, verbal, or written communication sent
+            to the Licensor or its representatives, including but not limited to
+            communication on electronic mailing lists, source code control systems,
+            and issue tracking systems that are managed by, or on behalf of, the
+            Licensor for the purpose of discussing and improving the Work, but
+            excluding communication that is conspicuously marked or otherwise
+            designated in writing by the copyright owner as "Not a Contribution."
+
+            "Contributor" shall mean Licensor and any individual or Legal Entity
+            on behalf of whom a Contribution has been received by Licensor and
+            subsequently incorporated within the Work.
+
+         2. Grant of Copyright License. Subject to the terms and conditions of
+            this License, each Contributor hereby grants to You a perpetual,
+            worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+            copyright license to reproduce, prepare Derivative Works of,
+            publicly display, publicly perform, sublicense, and distribute the
+            Work and such Derivative Works in Source or Object form.
+
+         3. Grant of Patent License. Subject to the terms and conditions of
+            this License, each Contributor hereby grants to You a perpetual,
+            worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+            (except as stated in this section) patent license to make, have made,
+            use, offer to sell, sell, import, and otherwise transfer the Work,
+            where such license applies only to those patent claims licensable
+            by such Contributor that are necessarily infringed by their
+            Contribution(s) alone or by combination of their Contribution(s)
+            with the Work to which such Contribution(s) was submitted. If You
+            institute patent litigation against any entity (including a
+            cross-claim or counterclaim in a lawsuit) alleging that the Work
+            or a Contribution incorporated within the Work constitutes direct
+            or contributory patent infringement, then any patent licenses
+            granted to You under this License for that Work shall terminate
+            as of the date such litigation is filed.
+
+         4. Redistribution. You may reproduce and distribute copies of the
+            Work or Derivative Works thereof in any medium, with or without
+            modifications, and in Source or Object form, provided that You
+            meet the following conditions:
+
+            (a) You must give any other recipients of the Work or
+                Derivative Works a copy of this License; and
+
+            (b) You must cause any modified files to carry prominent notices
+                stating that You changed the files; and
+
+            (c) You must retain, in the Source form of any Derivative Works
+                that You distribute, all copyright, patent, trademark, and
+                attribution notices from the Source form of the Work,
+                excluding those notices that do not pertain to any part of
+                the Derivative Works; and
+
+            (d) If the Work includes a "NOTICE" text file as part of its
+                distribution, then any Derivative Works that You distribute must
+                include a readable copy of the attribution notices contained
+                within such NOTICE file, excluding those notices that do not
+                pertain to any part of the Derivative Works, in at least one
+                of the following places: within a NOTICE text file distributed
+                as part of the Derivative Works; within the Source form or
+                documentation, if provided along with the Derivative Works; or,
+                within a display generated by the Derivative Works, if and
+                wherever such third-party notices normally appear. The contents
+                of the NOTICE file are for informational purposes only and
+                do not modify the License. You may add Your own attribution
+                notices within Derivative Works that You distribute, alongside
+                or as an addendum to the NOTICE text from the Work, provided
+                that such additional attribution notices cannot be construed
+                as modifying the License.
+
+            You may add Your own copyright statement to Your modifications and
+            may provide additional or different license terms and conditions
+            for use, reproduction, or distribution of Your modifications, or
+            for any such Derivative Works as a whole, provided Your use,
+            reproduction, and distribution of the Work otherwise complies with
+            the conditions stated in this License.
+
+         5. Submission of Contributions. Unless You explicitly state otherwise,
+            any Contribution intentionally submitted for inclusion in the Work
+            by You to the Licensor shall be under the terms and conditions of
+            this License, without any additional terms or conditions.
+            Notwithstanding the above, nothing herein shall supersede or modify
+            the terms of any separate license agreement you may have executed
+            with Licensor regarding such Contributions.
+
+         6. Trademarks. This License does not grant permission to use the trade
+            names, trademarks, service marks, or product names of the Licensor,
+            except as required for reasonable and customary use in describing the
+            origin of the Work and reproducing the content of the NOTICE file.
+
+         7. Disclaimer of Warranty. Unless required by applicable law or
+            agreed to in writing, Licensor provides the Work (and each
+            Contributor provides its Contributions) on an "AS IS" BASIS,
+            WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+            implied, including, without limitation, any warranties or conditions
+            of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+            PARTICULAR PURPOSE. You are solely responsible for determining the
+            appropriateness of using or redistributing the Work and assume any
+            risks associated with Your exercise of permissions under this License.
+
+         8. Limitation of Liability. In no event and under no legal theory,
+            whether in tort (including negligence), contract, or otherwise,
+            unless required by applicable law (such as deliberate and grossly
+            negligent acts) or agreed to in writing, shall any Contributor be
+            liable to You for damages, including any direct, indirect, special,
+            incidental, or consequential damages of any character arising as a
+            result of this License or out of the use or inability to use the
+            Work (including but not limited to damages for loss of goodwill,
+            work stoppage, computer failure or malfunction, or any and all
+            other commercial damages or losses), even if such Contributor
+            has been advised of the possibility of such damages.
+
+         9. Accepting Warranty or Additional Liability. While redistributing
+            the Work or Derivative Works thereof, You may choose to offer,
+            and charge a fee for, acceptance of support, warranty, indemnity,
+            or other liability obligations and/or rights consistent with this
+            License. However, in accepting such obligations, You may act only
+            on Your own behalf and on Your sole responsibility, not on behalf
+            of any other Contributor, and only if You agree to indemnify,
+            defend, and hold each Contributor harmless for any liability
+            incurred by, or claims asserted against, such Contributor by reason
+            of your accepting any such warranty or additional liability.
+
+         END OF TERMS AND CONDITIONS
+
+         APPENDIX: How to apply the Apache License to your work.
+
+            To apply the Apache License to your work, attach the following
+            boilerplate notice, with the fields enclosed by brackets "[]"
+            replaced with your own identifying information. (Don't include
+            the brackets!)  The text should be enclosed in the appropriate
+            comment syntax for the file format. We also recommend that a
+            file or class name and description of purpose be included on the
+            same "printed page" as the copyright notice for easier
+            identification within third-party archives.
+
+         Copyright [yyyy] [name of copyright owner]
+
+         Licensed under the Apache License, Version 2.0 (the "License");
+         you may not use this file except in compliance with the License.
+         You may obtain a copy of the License at
+
+             http://www.apache.org/licenses/LICENSE-2.0
+
+         Unless required by applicable law or agreed to in writing, software
+         distributed under the License is distributed on an "AS IS" BASIS,
+         WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+         See the License for the specific language governing permissions and
+         limitations under the License.
+    * **** Apache License 2.0 ****
+      *** Used by: ***
+          o winapi_0.3.9
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1031,7 +1235,8 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o dirs_1.0.5
+          o dirs_3.0.1
+          o dirs-sys_0.3.5
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -2617,7 +2822,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o keyring_0.8.0
+          o keyring_0.9.0
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -2821,7 +3026,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o flexi_logger_0.15.2
+          o flexi_logger_0.15.10
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -3025,89 +3230,92 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o addr2line_0.12.1
-          o ahash_0.3.5
+          o addr2line_0.13.0
+          o ahash_0.3.8
+          o ahash_0.4.3
           o anyhow_1.0.31
-          o arc-swap_0.4.6
+          o arc-swap_0.4.7
           o array-macro_1.0.5
-          o backtrace_0.3.48
-          o base64_0.11.0
+          o backtrace_0.3.50
+          o base64_0.12.3
           o bitflags_1.2.1
           o cfg-if_0.1.10
           o const-random_0.1.8
           o const-random-macro_0.1.8
-          o core-foundation_0.6.4
           o core-foundation_0.7.0
           o core-foundation-sys_0.6.2
           o core-foundation-sys_0.7.0
           o coreaudio-rs_0.9.1
-          o crossbeam-channel_0.4.2
+          o crossbeam-channel_0.4.3
           o crossbeam-utils_0.7.2
-          o dtoa_0.4.5
-          o flate2_1.0.14
+          o dtoa_0.4.6
+          o flate2_1.0.16
           o fnv_1.0.7
-          o gimli_0.21.0
+          o gimli_0.22.0
           o glob_0.3.0
+          o hashbrown_0.8.1
           o heck_0.3.1
           o httparse_1.3.4
-          o hyper-tls_0.4.1
+          o hyper-tls_0.4.3
           o idna_0.2.0
-          o indexmap_1.3.2
-          o itoa_0.4.5
+          o indexmap_1.5.0
+          o itoa_0.4.6
           o lazy_static_1.4.0
-          o libc_0.2.70
+          o libc_0.2.73
           o lock_api_0.3.4
-          o log_0.4.8
-          o maybe-uninit_2.0.0
           o mime_0.3.16
           o miow_0.2.1
           o net2_0.2.34
           o num_0.2.1
+          o num_0.3.0
           o num-bigint_0.2.6
           o num-complex_0.2.4
-          o num-integer_0.1.42
-          o num-iter_0.1.40
+          o num-complex_0.3.0
+          o num-integer_0.1.43
+          o num-iter_0.1.41
           o num-rational_0.2.4
-          o num-traits_0.2.11
+          o num-rational_0.3.0
+          o num-traits_0.2.12
           o num_cpus_1.13.0
-          o object_0.19.0
+          o object_0.20.0
           o once_cell_1.4.0
           o parking_lot_0.10.2
           o parking_lot_core_0.7.2
           o percent-encoding_2.1.0
-          o proc-macro-hack_0.5.15
-          o proc-macro2_1.0.13
-          o quote_1.0.6
+          o proc-macro-hack_0.5.16
+          o proc-macro2_1.0.19
+          o quote_1.0.7
           o rand_0.3.23
           o rand_0.4.6
-          o regex_1.3.7
-          o regex-syntax_0.6.17
-          o reqwest_0.10.4
+          o regex_1.3.9
+          o regex-syntax_0.6.18
+          o reqwest_0.10.6
           o rustc-demangle_0.1.16
           o rustc-serialize_0.3.24
           o scopeguard_1.1.0
           o secret-service_1.1.0
-          o serde_1.0.110
-          o serde_derive_1.0.110
-          o serde_json_1.0.53
-          o signal-hook_0.1.15
+          o serde_1.0.114
+          o serde_derive_1.0.114
+          o serde_json_1.0.56
+          o signal-hook_0.1.16
           o signal-hook-registry_1.2.0
           o slice-deque_0.3.0
-          o smallvec_1.4.0
-          o stable_deref_trait_1.1.1
-          o syn_1.0.22
+          o smallvec_1.4.1
+          o socket2_0.3.12
+          o stable_deref_trait_1.2.0
+          o syn_1.0.35
           o tempfile_3.1.0
-          o thiserror_1.0.18
-          o thiserror-impl_1.0.18
+          o thiserror_1.0.20
+          o thiserror-impl_1.0.20
           o thread_local_1.0.1
           o time_0.1.43
           o toml_0.5.6
           o unicase_2.6.0
           o unicode-bidi_0.3.4
-          o unicode-normalization_0.1.12
+          o unicode-normalization_0.1.13
           o unicode-segmentation_1.6.0
-          o unicode-width_0.1.7
-          o unicode-xid_0.2.0
+          o unicode-width_0.1.8
+          o unicode-xid_0.2.1
           o url_2.1.1
           o uuid_0.7.4
           o uuid_0.8.1
@@ -3736,7 +3944,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o hmac_0.7.1
           o opaque-debug_0.2.3
           o rust-crypto_0.2.36
-          o sha2_0.8.1
+          o sha2_0.8.2
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4157,6 +4365,210 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
+          o adler_0.2.3
+                                    Apache License
+                              Version 2.0, January 2004
+                           https://www.apache.org/licenses/LICENSE-2.0
+
+      TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+      1. Definitions.
+
+         "License" shall mean the terms and conditions for use, reproduction,
+         and distribution as defined by Sections 1 through 9 of this document.
+
+         "Licensor" shall mean the copyright owner or entity authorized by
+         the copyright owner that is granting the License.
+
+         "Legal Entity" shall mean the union of the acting entity and all
+         other entities that control, are controlled by, or are under common
+         control with that entity. For the purposes of this definition,
+         "control" means (i) the power, direct or indirect, to cause the
+         direction or management of such entity, whether by contract or
+         otherwise, or (ii) ownership of fifty percent (50%) or more of the
+         outstanding shares, or (iii) beneficial ownership of such entity.
+
+         "You" (or "Your") shall mean an individual or Legal Entity
+         exercising permissions granted by this License.
+
+         "Source" form shall mean the preferred form for making modifications,
+         including but not limited to software source code, documentation
+         source, and configuration files.
+
+         "Object" form shall mean any form resulting from mechanical
+         transformation or translation of a Source form, including but
+         not limited to compiled object code, generated documentation,
+         and conversions to other media types.
+
+         "Work" shall mean the work of authorship, whether in Source or
+         Object form, made available under the License, as indicated by a
+         copyright notice that is included in or attached to the work
+         (an example is provided in the Appendix below).
+
+         "Derivative Works" shall mean any work, whether in Source or Object
+         form, that is based on (or derived from) the Work and for which the
+         editorial revisions, annotations, elaborations, or other modifications
+         represent, as a whole, an original work of authorship. For the purposes
+         of this License, Derivative Works shall not include works that remain
+         separable from, or merely link (or bind by name) to the interfaces of,
+         the Work and Derivative Works thereof.
+
+         "Contribution" shall mean any work of authorship, including
+         the original version of the Work and any modifications or additions
+         to that Work or Derivative Works thereof, that is intentionally
+         submitted to Licensor for inclusion in the Work by the copyright owner
+         or by an individual or Legal Entity authorized to submit on behalf of
+         the copyright owner. For the purposes of this definition, "submitted"
+         means any form of electronic, verbal, or written communication sent
+         to the Licensor or its representatives, including but not limited to
+         communication on electronic mailing lists, source code control systems,
+         and issue tracking systems that are managed by, or on behalf of, the
+         Licensor for the purpose of discussing and improving the Work, but
+         excluding communication that is conspicuously marked or otherwise
+         designated in writing by the copyright owner as "Not a Contribution."
+
+         "Contributor" shall mean Licensor and any individual or Legal Entity
+         on behalf of whom a Contribution has been received by Licensor and
+         subsequently incorporated within the Work.
+
+      2. Grant of Copyright License. Subject to the terms and conditions of
+         this License, each Contributor hereby grants to You a perpetual,
+         worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+         copyright license to reproduce, prepare Derivative Works of,
+         publicly display, publicly perform, sublicense, and distribute the
+         Work and such Derivative Works in Source or Object form.
+
+      3. Grant of Patent License. Subject to the terms and conditions of
+         this License, each Contributor hereby grants to You a perpetual,
+         worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+         (except as stated in this section) patent license to make, have made,
+         use, offer to sell, sell, import, and otherwise transfer the Work,
+         where such license applies only to those patent claims licensable
+         by such Contributor that are necessarily infringed by their
+         Contribution(s) alone or by combination of their Contribution(s)
+         with the Work to which such Contribution(s) was submitted. If You
+         institute patent litigation against any entity (including a
+         cross-claim or counterclaim in a lawsuit) alleging that the Work
+         or a Contribution incorporated within the Work constitutes direct
+         or contributory patent infringement, then any patent licenses
+         granted to You under this License for that Work shall terminate
+         as of the date such litigation is filed.
+
+      4. Redistribution. You may reproduce and distribute copies of the
+         Work or Derivative Works thereof in any medium, with or without
+         modifications, and in Source or Object form, provided that You
+         meet the following conditions:
+
+         (a) You must give any other recipients of the Work or
+             Derivative Works a copy of this License; and
+
+         (b) You must cause any modified files to carry prominent notices
+             stating that You changed the files; and
+
+         (c) You must retain, in the Source form of any Derivative Works
+             that You distribute, all copyright, patent, trademark, and
+             attribution notices from the Source form of the Work,
+             excluding those notices that do not pertain to any part of
+             the Derivative Works; and
+
+         (d) If the Work includes a "NOTICE" text file as part of its
+             distribution, then any Derivative Works that You distribute must
+             include a readable copy of the attribution notices contained
+             within such NOTICE file, excluding those notices that do not
+             pertain to any part of the Derivative Works, in at least one
+             of the following places: within a NOTICE text file distributed
+             as part of the Derivative Works; within the Source form or
+             documentation, if provided along with the Derivative Works; or,
+             within a display generated by the Derivative Works, if and
+             wherever such third-party notices normally appear. The contents
+             of the NOTICE file are for informational purposes only and
+             do not modify the License. You may add Your own attribution
+             notices within Derivative Works that You distribute, alongside
+             or as an addendum to the NOTICE text from the Work, provided
+             that such additional attribution notices cannot be construed
+             as modifying the License.
+
+         You may add Your own copyright statement to Your modifications and
+         may provide additional or different license terms and conditions
+         for use, reproduction, or distribution of Your modifications, or
+         for any such Derivative Works as a whole, provided Your use,
+         reproduction, and distribution of the Work otherwise complies with
+         the conditions stated in this License.
+
+      5. Submission of Contributions. Unless You explicitly state otherwise,
+         any Contribution intentionally submitted for inclusion in the Work
+         by You to the Licensor shall be under the terms and conditions of
+         this License, without any additional terms or conditions.
+         Notwithstanding the above, nothing herein shall supersede or modify
+         the terms of any separate license agreement you may have executed
+         with Licensor regarding such Contributions.
+
+      6. Trademarks. This License does not grant permission to use the trade
+         names, trademarks, service marks, or product names of the Licensor,
+         except as required for reasonable and customary use in describing the
+         origin of the Work and reproducing the content of the NOTICE file.
+
+      7. Disclaimer of Warranty. Unless required by applicable law or
+         agreed to in writing, Licensor provides the Work (and each
+         Contributor provides its Contributions) on an "AS IS" BASIS,
+         WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+         implied, including, without limitation, any warranties or conditions
+         of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+         PARTICULAR PURPOSE. You are solely responsible for determining the
+         appropriateness of using or redistributing the Work and assume any
+         risks associated with Your exercise of permissions under this License.
+
+      8. Limitation of Liability. In no event and under no legal theory,
+         whether in tort (including negligence), contract, or otherwise,
+         unless required by applicable law (such as deliberate and grossly
+         negligent acts) or agreed to in writing, shall any Contributor be
+         liable to You for damages, including any direct, indirect, special,
+         incidental, or consequential damages of any character arising as a
+         result of this License or out of the use or inability to use the
+         Work (including but not limited to damages for loss of goodwill,
+         work stoppage, computer failure or malfunction, or any and all
+         other commercial damages or losses), even if such Contributor
+         has been advised of the possibility of such damages.
+
+      9. Accepting Warranty or Additional Liability. While redistributing
+         the Work or Derivative Works thereof, You may choose to offer,
+         and charge a fee for, acceptance of support, warranty, indemnity,
+         or other liability obligations and/or rights consistent with this
+         License. However, in accepting such obligations, You may act only
+         on Your own behalf and on Your sole responsibility, not on behalf
+         of any other Contributor, and only if You agree to indemnify,
+         defend, and hold each Contributor harmless for any liability
+         incurred by, or claims asserted against, such Contributor by reason
+         of your accepting any such warranty or additional liability.
+
+      END OF TERMS AND CONDITIONS
+
+      APPENDIX: How to apply the Apache License to your work.
+
+         To apply the Apache License to your work, attach the following
+         boilerplate notice, with the fields enclosed by brackets "[]"
+         replaced with your own identifying information. (Don't include
+         the brackets!)  The text should be enclosed in the appropriate
+         comment syntax for the file format. We also recommend that a
+         file or class name and description of purpose be included on the
+         same "printed page" as the copyright notice for easier
+         identification within third-party archives.
+
+      Copyright [yyyy] [name of copyright owner]
+
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+      You may obtain a copy of the License at
+
+      	https://www.apache.org/licenses/LICENSE-2.0
+
+      Unless required by applicable law or agreed to in writing, software
+      distributed under the License is distributed on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+      See the License for the specific language governing permissions and
+      limitations under the License.
+    * **** Apache License 2.0 ****
+      *** Used by: ***
           o proc-macro-error_0.4.12
                                     Apache License
                               Version 2.0, January 2004
@@ -4361,6 +4773,8 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
+          o log_0.4.11
+          o miow_0.3.5
           o openssl-probe_0.1.2
                                     Apache License
                               Version 2.0, January 2004
@@ -4565,7 +4979,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o remove_dir_all_0.5.2
+          o remove_dir_all_0.5.3
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4765,14 +5179,12 @@ This page lists the licenses of the projects used in panharmonicon.
           o enumset_1.0.0
           o enumset_derive_0.5.0
           o ident_case_1.0.1
-          o openssl_0.10.29
-          o panharmonicon_0.3.1
-          o security-framework_0.3.4
+          o openssl_0.10.30
+          o panharmonicon_0.3.2
           o security-framework_0.4.4
-          o security-framework-sys_0.3.3
           o security-framework-sys_0.4.3
           o typenum_1.12.0
-          o xi-unicode_0.2.0
+          o xi-unicode_0.2.1
       Apache License
 
       Version 2.0, January 2004
@@ -5604,7 +6016,7 @@ This page lists the licenses of the projects used in panharmonicon.
          END OF TERMS AND CONDITIONS
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o chrono_0.4.11
+          o chrono_0.4.13
       Rust-chrono is dual-licensed under The MIT License [1] and
       Apache 2.0 License [2]. Copyright (c) 2014--2017, Kang Seonghoon and
       contributors.
@@ -6070,7 +6482,35 @@ This page lists the licenses of the projects used in panharmonicon.
       use of the Work.
     * **** MIT License ****
       *** Used by: ***
-          o openssl-sys_0.9.56
+          o tracing-core_0.1.11
+      Copyright (c) 2010 The Rust Project Developers
+
+      Permission is hereby granted, free of charge, to any
+      person obtaining a copy of this software and associated
+      documentation files (the "Software"), to deal in the
+      Software without restriction, including without
+      limitation the rights to use, copy, modify, merge,
+      publish, distribute, sublicense, and/or sell copies of
+      the Software, and to permit persons to whom the Software
+      is furnished to do so, subject to the following
+      conditions:
+
+      The above copyright notice and this permission notice
+      shall be included in all copies or substantial portions
+      of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
+          o openssl-sys_0.9.58
       Copyright (c) 2014 Alex Crichton
 
       Permission is hereby granted, free of charge, to any
@@ -6099,6 +6539,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o mio_0.6.22
+          o mio_0.7.0
       Copyright (c) 2014 Carl Lerche and other MIO contributors
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -6148,7 +6589,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o hyper_0.13.5
+          o hyper_0.13.7
       Copyright (c) 2014-2018 Sean McArthur
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -6170,7 +6611,7 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o coreaudio-sys_0.2.4
+          o coreaudio-sys_0.2.5
       Copyright (c) 2015
 
       Permission is hereby granted, free of charge, to any
@@ -6198,7 +6639,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o winreg_0.6.2
+          o winreg_0.7.0
       Copyright (c) 2015 Igor Shaula
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -6303,7 +6744,7 @@ This page lists the licenses of the projects used in panharmonicon.
 
     * **** MIT License ****
       *** Used by: ***
-          o h2_0.2.5
+          o h2_0.2.6
       Copyright (c) 2017 h2 authors
 
       Permission is hereby granted, free of charge, to any
@@ -6331,7 +6772,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o bytes_0.5.4
+          o bytes_0.5.6
       Copyright (c) 2018 Carl Lerche
 
       Permission is hereby granted, free of charge, to any
@@ -6359,7 +6800,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o try-lock_0.2.2
+          o try-lock_0.2.3
       Copyright (c) 2018 Sean McArthur
       Copyright (c) 2016 Alex Crichton
 
@@ -6460,7 +6901,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o tokio_0.2.21
+          o tokio_0.2.22
           o tokio-tls_0.3.1
           o tokio-util_0.3.1
       Copyright (c) 2019 Tokio Contributors
@@ -6564,7 +7005,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o miniz_oxide_0.3.6
+          o miniz_oxide_0.4.0
       MIT License
 
       Copyright (c) 2017 Frommi
@@ -6662,7 +7103,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o crossterm_0.17.4
+          o crossterm_0.17.7
           o crossterm_winapi_0.6.1
       MIT License
 
@@ -6687,10 +7128,11 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o cursive_0.15.0-alpha.0
-          o cursive_core_0.1.0
+          o cursive_0.15.0
+          o cursive_core_0.1.1
           o kernel32-sys_0.2.2
           o minimp3-sys_0.3.2
+          o tracing_0.1.17
           o ws2_32-sys_0.2.1
       MIT License Copyright (c) <year> <copyright holders>
 
@@ -6761,7 +7203,7 @@ This page lists the licenses of the projects used in panharmonicon.
       CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o aho-corasick_0.7.10
+          o aho-corasick_0.7.13
           o byteorder_1.3.4
           o memchr_2.3.3
           o termcolor_1.1.0
@@ -7379,25 +7821,3 @@ This page lists the licenses of the projects used in panharmonicon.
       misrepresented as being the original software.
 
       3. This notice may not be removed or altered from any source distribution.
-    * **** zlib License ****
-      *** Used by: ***
-          o adler32_1.0.4
-      zlib License Copyright (c) <year> <copyright holders>
-
-      This software is provided 'as-is', without any express or implied warranty. In no
-      event will the authors be held liable for any damages arising from the use of this
-      software.
-
-      Permission is granted to anyone to use this software for any purpose, including
-      commercial applications, and to alter it and redistribute it freely, subject to
-      the following restrictions:
-
-         1. The origin of this software must not be misrepresented; you must not claim
-      that you wrote the original software. If you use this software in a product, an
-      acknowledgment in the product documentation would be appreciated but is not
-      required.
-
-         2. Altered source versions must be plainly marked as such, and must not be
-      misrepresented as being the original software.
-
-         3. This notice may not be removed or altered from any source distribution.
