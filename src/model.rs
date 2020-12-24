@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
+use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, info, trace};
 use rodio::source::Source;
-use rodio::DeviceTrait;
 
 use pandora_api::json::{station::PlaylistTrack, user::Station};
 
@@ -131,7 +131,11 @@ impl Default for Volume {
 // We can't derive Debug or Clone since the rodio members
 // don't implement it
 struct AudioDevice {
-    device: rodio::Device,
+    device: cpal::Device,
+    // If the stream gets dropped, the device (handle) closes
+    // so we hold it, but we don't ever use it
+    _stream: rodio::OutputStream,
+    handle: rodio::OutputStreamHandle,
     sink: rodio::Sink,
     volume: Volume,
 }
@@ -169,7 +173,8 @@ impl AudioDevice {
 
 impl AudioMediator for AudioDevice {
     fn reset(&mut self) {
-        self.sink = rodio::Sink::new(&self.device);
+        self.sink = rodio::Sink::try_new(&self.handle)
+            .expect("Failed to initialize audio device for playback");
         self.sink.set_volume(self.volume.volume());
     }
 
@@ -219,11 +224,17 @@ impl AudioMediator for AudioDevice {
 
 impl Default for AudioDevice {
     fn default() -> Self {
-        let device = rodio::default_output_device()
-            .expect("Failed to locate/initialize default audio device");
-        let sink = rodio::Sink::new(&device);
+        let device = cpal::default_host()
+            .default_output_device()
+            .expect("Failed to locate default audio device");
+        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+            .expect("Failed to initialize audio device for playback");
+        let sink =
+            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
         Self {
             device,
+            _stream,
+            handle,
             sink,
             volume: Volume::default(),
         }
@@ -235,17 +246,25 @@ impl Clone for AudioDevice {
         // Since we can't clone the device, we're going to look for the device
         // from the output devices list that has the same name as the our
         // current one.  If none matches, we'll use the default output device.
-        let device = rodio::output_devices()
+        let device = cpal::default_host()
+            .devices()
             .map(|mut devs| devs.find(|d| d.name().ok() == self.device.name().ok()))
             .ok()
             .flatten()
             .unwrap_or_else(|| {
-                rodio::default_output_device()
-                    .expect("Failed to locate/initialize default audio device")
+                cpal::default_host()
+                    .default_output_device()
+                    .expect("Failed to locate default audio device")
             });
-        let sink = rodio::Sink::new(&device);
+        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+            .expect("Failed to initialize audio device for playback");
+        let sink =
+            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
+
         AudioDevice {
             device,
+            _stream,
+            handle,
             sink,
             volume: self.volume,
         }
@@ -261,10 +280,12 @@ impl std::fmt::Debug for AudioDevice {
             "not paused"
         };
 
+        // rodio, around version 0.12, stopped making attributes of the
+        // underlying audio device available, so we can't report anything
+        // about it
         write!(
             f,
-            "AudioDevice {{ device: {}, sink: ({}, {}, volume {:.2}), volume: {:?} }}",
-            self.device.name().expect("Error retrieving device name"),
+            "AudioDevice {{ sink: ({}, {}, volume {:.2}), volume: {:?} }}",
             queued,
             paused,
             self.sink.volume(),

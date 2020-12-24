@@ -67,7 +67,10 @@ impl TrackCacher {
 
     // Enqueue tracks for caching
     pub(crate) fn enqueue(&mut self, mut playlist: Vec<PlaylistTrack>) {
-        trace!("Adding {} new tracks to caching fetch queue.", playlist.len());
+        trace!(
+            "Adding {} new tracks to caching fetch queue.",
+            playlist.len()
+        );
         self.waiting.extend(playlist.drain(..));
         trace!("Fetch queue length: {}", self.waiting.len());
     }
@@ -149,7 +152,12 @@ impl TrackCacher {
     pub(crate) fn update(&mut self) -> Result<usize> {
         self.fetch_waiting()?;
         self.make_ready();
-        trace!("Fetcher waiting/in-work/ready queue lengths: {}/{}/{}", self.waiting.len(), self.in_work.len(), self.ready.len());
+        trace!(
+            "Fetcher waiting/in-work/ready queue lengths: {}/{}/{}",
+            self.waiting.len(),
+            self.in_work.len(),
+            self.ready.len()
+        );
         Ok(self.pending_count())
     }
 
@@ -161,7 +169,10 @@ impl TrackCacher {
     fn run_thread(recv: Receiver<FetchRequest>, send: Sender<FetchResponse>) {
         trace!("[fetcher thread] Starting track fetcher thread...");
         for msg in recv.iter() {
-            trace!("fetcher thread] Got request to fetch a track: {}", &msg.path);
+            trace!(
+                "[fetcher thread] Got request to fetch a track: {}",
+                &msg.path
+            );
             let result = save_url_to_file(&msg.uri, &msg.path);
             trace!("[fetcher thread] Track fetched: {}", &msg.path);
             let _todo = send.send(FetchResponse {

@@ -33,7 +33,7 @@ fn main() -> Result<()> {
         .setting(clap::AppSettings::ColorAuto)
         .setting(clap::AppSettings::ColoredHelp)
         .arg(
-            clap::Arg::with_name("gen-config")
+            clap::Arg::new("gen-config")
                 .short('c')
                 .long("gen-config")
                 .about(
@@ -45,7 +45,7 @@ fn main() -> Result<()> {
                 ),
         )
         .arg(
-            clap::Arg::with_name("debug")
+            clap::Arg::new("debug")
                 .short('g')
                 .long("debug")
                 .multiple(true)
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
                 .about("Enable debug-level output"),
         )
         .arg(
-            clap::Arg::with_name("debug-log")
+            clap::Arg::new("debug-log")
                 .short('l')
                 .long("debug-log")
                 .hidden(true)
