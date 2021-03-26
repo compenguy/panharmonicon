@@ -5,7 +5,7 @@ use cursive::align::HAlign;
 use cursive::views::{
     Button, DummyView, HideableView, LinearLayout, Panel, SelectView, SliderView, TextView,
 };
-use cursive::{CursiveRunnable, CursiveRunner, Cursive};
+use cursive::{Cursive, CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
@@ -226,7 +226,7 @@ impl Terminal {
             debug!("Playing title {} ({})", song_name, song_rating);
             let mut title = song_name.clone();
             if song_rating > 0 {
-                title.push_str(" ");
+                title.push(' ');
                 title.push_str(labels::LABEL_THUMBS_UP);
             }
             v.set_content(title);
@@ -341,8 +341,8 @@ impl Terminal {
                 timeout = Instant::now();
             }
 
-            if ! dirty {
-                std::thread::sleep(heartbeat_frequency.clone());
+            if !dirty {
+                std::thread::sleep(heartbeat_frequency);
             }
         }
     }

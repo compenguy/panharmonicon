@@ -338,6 +338,7 @@ impl std::default::Default for Config {
 }
 
 impl Config {
+    #[allow(clippy::field_reassign_with_default)]
     pub(crate) fn get_config<P: AsRef<Path> + Clone>(
         file_path: P,
         write_back: bool,

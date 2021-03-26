@@ -87,7 +87,7 @@ pub(crate) fn connect_button(s: &mut Cursive) {
         s.call_on_name("password", |v: &mut EditView| v.get_content().to_string());
     let store: Option<Store> = s
         .call_on_name("store", |v: &mut SelectView<Store>| {
-            v.selection().map(|s| (*s).clone())
+            v.selection().map(|s| (*s))
         })
         .flatten();
     s.with_user_data(|m: &mut Rc<RefCell<Model>>| {

@@ -306,6 +306,7 @@ struct Playing {
 }
 
 impl Playing {
+    #[allow(clippy::field_reassign_with_default)]
     fn new(cache_policy: CachePolicy, volume: f32) -> Self {
         let mut pl = Self::default();
         pl.cache_policy = cache_policy;
@@ -570,10 +571,10 @@ impl Model {
             } else if let Err(e) = self.session.delete_feedback_for_track(&st_id, &track) {
                 error!("Failed submitting track rating: {:?}", e);
             } else {
-                self.playing
-                    .playlist
-                    .front_mut()
-                    .map(|t| t.song_rating = new_rating_value);
+                if let Some(t) = self.playing.playlist.front_mut() {
+                    t.song_rating = new_rating_value;
+                }
+
                 self.dirty |= true;
                 trace!("Successfully removed track rating.");
             }
