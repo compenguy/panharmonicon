@@ -5,7 +5,7 @@ use cursive::align::HAlign;
 use cursive::views::{
     Button, DummyView, HideableView, LinearLayout, Panel, SelectView, SliderView, TextView,
 };
-use cursive::{Cursive, CursiveExt};
+use cursive::{CursiveRunnable, CursiveRunner, Cursive};
 use log::{debug, trace};
 // Traits pulled in to add methods to types
 use cursive::view::{Nameable, Resizable};
@@ -36,13 +36,13 @@ mod labels {
 
 pub(crate) struct Terminal {
     model: Rc<RefCell<Model>>,
-    siv: Cursive,
+    siv: CursiveRunner<CursiveRunnable>,
 }
 
 impl Terminal {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
         let model = Rc::new(RefCell::new(Model::new(config)));
-        let mut siv = Cursive::crossterm().expect("Failed to initialize terminal");
+        let mut siv = cursive::crossterm().into_runner();
         siv.set_user_data(model.clone());
         let mut term = Self { model, siv };
         term.initialize();
@@ -314,12 +314,14 @@ impl Terminal {
     }
 
     pub(crate) fn run(&mut self) {
-        self.siv.set_fps(1);
-        self.siv.refresh();
-        let heartbeat_frequency = Duration::from_millis(500);
+        let heartbeat_frequency = Duration::from_millis(250);
         let mut timeout = Instant::now();
+        let mut dirty = true;
         while !self.model.borrow().quitting() {
-            self.siv.step();
+            if dirty {
+                dirty = self.siv.step();
+                self.siv.refresh();
+            }
 
             // Drive the UI state, then if the UI yielded an event, drive the
             // model state and refresh all the controls, otherwise, do a
@@ -328,15 +330,19 @@ impl Terminal {
                 if let Some(dialog) = dialogs::login_dialog(&mut self.siv, self.model.clone()) {
                     self.siv.add_layer(dialog);
                 }
+                log::debug!("model update reported state change");
                 self.update_connected();
-
-                self.siv.refresh();
+                dirty = true;
                 timeout = Instant::now();
             } else if timeout.elapsed() > heartbeat_frequency {
+                log::debug!("timer expired with no events, drive a playback state update");
                 self.update_playback_state();
-
-                self.siv.refresh();
+                dirty = true;
                 timeout = Instant::now();
+            }
+
+            if ! dirty {
+                std::thread::sleep(heartbeat_frequency.clone());
             }
         }
     }

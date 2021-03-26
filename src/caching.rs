@@ -14,7 +14,7 @@ use crate::errors::Error;
 #[derive(Debug, Clone)]
 struct FetchRequest {
     track_token: String,
-    uri: String,
+    uri: Vec<String>,
     path: String,
 }
 
@@ -173,7 +173,7 @@ impl TrackCacher {
                 "[fetcher thread] Got request to fetch a track: {}",
                 &msg.path
             );
-            let result = save_url_to_file(&msg.uri, &msg.path);
+            let result = save_url_to_file(&msg.uri[0], &msg.path);
             trace!("[fetcher thread] Track fetched: {}", &msg.path);
             let _todo = send.send(FetchResponse {
                 track_token: msg.track_token,
