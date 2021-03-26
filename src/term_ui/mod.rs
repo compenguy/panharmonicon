@@ -314,7 +314,7 @@ impl Terminal {
     }
 
     pub(crate) fn run(&mut self) {
-        let heartbeat_frequency = Duration::from_millis(250);
+        let heartbeat_frequency = Duration::from_millis(1000);
         let mut timeout = Instant::now();
         let mut dirty = true;
         while !self.model.borrow().quitting() {
