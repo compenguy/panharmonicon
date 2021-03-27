@@ -48,7 +48,7 @@ fn main() -> Result<()> {
             clap::Arg::new("debug")
                 .short('g')
                 .long("debug")
-                .multiple(true)
+                .multiple_occurrences(true)
                 .hidden(true)
                 .about("Enable debug-level output"),
         )
