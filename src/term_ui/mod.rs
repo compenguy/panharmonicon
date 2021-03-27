@@ -173,7 +173,6 @@ impl Terminal {
             .child(playing);
         self.siv.add_fullscreen_layer(layout);
 
-        callbacks::ui_scale(&mut self.siv);
         // Catch screen resize requests, and hide/show appropriate controls to
         // fit the most important parts of the interface to the terminal size.
         self.siv
@@ -314,18 +313,47 @@ impl Terminal {
     }
 
     pub(crate) fn run(&mut self) {
-        let heartbeat_frequency = Duration::from_millis(1000);
+        // When idle, how long to sleep between checking for input
+        let input_polling_frequency = Duration::from_millis(100);
+        // Make sure the UI doesn't go more than 0.5s between updates
+        // so that track playtime gets updated consistently
+        let heartbeat_frequency = Duration::from_millis(500);
+
+        // reference time for measuring heartbeat
         let mut timeout = Instant::now();
+        // something changed state, drive updates to UI and model
         let mut dirty = true;
+
+        // `refresh()` needs to be called before the first `step()` or
+        // else the `callbacks::scale_ui()` callback will be told to
+        // scale for a window size of 0,0
+        self.siv.refresh();
+
         while !self.model.borrow().quitting() {
             if dirty {
                 dirty = self.siv.step();
                 self.siv.refresh();
+            } else {
+                // Nothing has happened, so we'll sleep in increments to wait
+                // out the heartbeat timer.
+                // But we'll check every once in awhile to see if there's input
+                // we should handle, and if so, we'll break out and handle it.
+                while timeout.elapsed() <= heartbeat_frequency {
+                    let heartbeat_remaining = heartbeat_frequency - timeout.elapsed();
+                    std::thread::sleep(input_polling_frequency.min(heartbeat_remaining));
+                    if self.siv.process_events() {
+                        self.siv.post_events(true);
+                        self.siv.refresh();
+                        break;
+                    }
+                }
             }
 
-            // Drive the UI state, then if the UI yielded an event, drive the
-            // model state and refresh all the controls, otherwise, do a
-            // heartbeat update of the playback state.
+            // Update the model state, then if the model yielded an event,
+            // refresh all the controls
+            // If the model state didn't change, and the heartbeat timer
+            // expired, update only the playback state controls to update the
+            // track elapsed timer.
             if self.model.borrow_mut().update() {
                 if let Some(dialog) = dialogs::login_dialog(&mut self.siv, self.model.clone()) {
                     self.siv.add_layer(dialog);
@@ -339,10 +367,6 @@ impl Terminal {
                 self.update_playback_state();
                 dirty = true;
                 timeout = Instant::now();
-            }
-
-            if !dirty {
-                std::thread::sleep(heartbeat_frequency);
             }
         }
     }
