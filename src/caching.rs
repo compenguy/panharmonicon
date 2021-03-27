@@ -173,13 +173,17 @@ impl TrackCacher {
                 "[fetcher thread] Got request to fetch a track: {}",
                 &msg.path
             );
-            let result = save_url_to_file(&msg.uri[0], &msg.path);
-            trace!("[fetcher thread] Track fetched: {}", &msg.path);
-            let _todo = send.send(FetchResponse {
-                track_token: msg.track_token,
-                path: msg.path,
-                result,
-            });
+            if let Some(uri) = msg.uri.first() {
+                let result = save_url_to_file(&uri, &msg.path);
+                trace!("[fetcher thread] Track fetched: {}", &msg.path);
+                let _todo = send.send(FetchResponse {
+                    track_token: msg.track_token,
+                    path: msg.path,
+                    result,
+                });
+            } else {
+                warn!("[fetcher thread] Received fetch request for track to be saved as {}, but no uris were provided", msg.path);
+            }
             trace!("[fetcher thread] Sleeping until next track fetch request...");
         }
         trace!("[fetcher thread] Track fetcher thread terminating...");
