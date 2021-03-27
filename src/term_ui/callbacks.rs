@@ -124,16 +124,18 @@ pub(crate) fn connect_button(s: &mut Cursive) {
 }
 
 pub(crate) fn ui_scale(s: &mut Cursive) {
-    let height = s.screen_size().y;
-    trace!("Window resize. New height: {}", height);
-    match height {
-        h if h <= 5 => {
+    let size = s.screen_size();
+    trace!("Window resize. New size: {},{}", size.x, size.y);
+    match size.y {
+        // Disable spacer for height<5, we already use up the whole vertical space
+        // Also disable the stations list so that we see more of the current track info
+        _ if size.y <= 5 => {
             trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
             s.call_on_name(
                 "spacer_hideable",
                 |v: &mut HideableView<ResizedView<DummyView>>| {
                     v.hide();
-                    trace!("Spaced hidden.")
+                    trace!("Spacer hidden.")
                 },
             );
             trace!("Hiding stations ({:?})", s.debug_name("stations_hideable"));
@@ -142,7 +144,10 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
                 trace!("Stations hidden.")
             });
         }
-        h if h <= 6 => {
+
+        // Disable spacer for height==6, we already use up the whole vertical space
+        // But show the station list - there's just enough room for it and all track info
+        _ if size.y == 6 => {
             trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
             s.call_on_name(
                 "spacer_hideable",
@@ -157,6 +162,9 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
                 trace!("Stations unhidden.")
             });
         }
+
+        // Enable spacer for height>6 so that the controls all appear at the bottom
+        // Also ensure station list is visible
         _ => {
             trace!("Showing spacer ({:?})", s.debug_name("spacer_hideable"));
             s.call_on_name(
@@ -173,4 +181,5 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
             });
         }
     }
+    s.clear();
 }
