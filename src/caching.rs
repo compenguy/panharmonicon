@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::crate_name;
 use crossbeam_channel::{Receiver, Sender};
-use log::{error, trace, warn};
+use log::{debug, error, trace, warn};
 use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
@@ -14,7 +14,7 @@ use crate::errors::Error;
 #[derive(Debug, Clone)]
 struct FetchRequest {
     track_token: String,
-    uri: Vec<String>,
+    uri: String,
     path: String,
 }
 
@@ -22,11 +22,14 @@ impl TryFrom<&PlaylistTrack> for FetchRequest {
     type Error = anyhow::Error;
 
     fn try_from(track: &PlaylistTrack) -> Result<Self, Self::Error> {
-        let path = cached_path_for_track(track, true)?;
+        let path = cached_path_for_track(track, true)?
+            .to_string_lossy()
+            .to_string();
+        let uri = track.audio_url_map.high_quality.audio_url.clone();
         Ok(Self {
             track_token: track.track_token.clone(),
-            uri: track.additional_audio_url.clone(),
-            path: path.to_string_lossy().to_string(),
+            uri,
+            path,
         })
     }
 }
@@ -78,11 +81,19 @@ impl TrackCacher {
     // If there are no tracks currently being fetched, but there are tracks
     // waiting to be fetched, send another track to the fetcher
     fn fetch_waiting(&mut self) -> Result<()> {
+        debug!("self.waiting.len() = {}", self.waiting.len());
+        debug!(
+            "self.send_to_fetcher.is_full() = {}",
+            self.send_to_fetcher.is_full()
+        );
         while !self.waiting.is_empty() && !self.send_to_fetcher.is_full() {
             trace!("Track fetcher is ready");
             if let Some(mut track) = self.waiting.pop_front() {
-                trace!("Sending a track for fetching");
                 let request = FetchRequest::try_from(&track)?;
+                trace!(
+                    "Sending a track for fetching with audio url {:?}",
+                    &request.uri
+                );
                 // If the track is already being fetched from an earlier request,
                 // we quietly drop this request
                 if self.in_work.contains_key(&request.track_token) {
@@ -111,27 +122,33 @@ impl TrackCacher {
 
     fn make_ready(&mut self) {
         for response in self.recv_from_fetcher.try_iter() {
-            // Could switch to filter_map()ing out bad results, but for now we
-            // want traceability on them
-            if let Err(e) = response.result {
-                error!(
-                    "Dropping track {}.  Failed attempting to cache it: {}",
-                    response.track_token, e
-                );
-                continue;
-            }
-            // caching completed, add to ready queue
-            if let Some(mut track) = self.in_work.remove(&response.track_token) {
-                if let Err(e) = tag_mp3(&track, &response.path) {
-                    error!("Error tagging track at {}: {:?}", response.path, &e);
-                    let _ = std::fs::remove_file(&response.path);
-                } else {
-                    track.optional.insert(
-                        String::from("cached"),
-                        serde_json::value::Value::String(response.path),
+            trace!("Response from fetcher: {:?}", &response);
+            let (track_token, path) = match response {
+                FetchResponse {
+                    track_token,
+                    path,
+                    result: Ok(()),
+                } => (track_token, path),
+                FetchResponse {
+                    track_token,
+                    path: _,
+                    result: Err(e),
+                } => {
+                    error!(
+                        "Dropping track {}.  Failed attempting to cache it: {}",
+                        track_token, e
                     );
-                    self.ready.push(track);
+                    continue;
                 }
+            };
+            // caching completed, add to ready queue
+            if let Some(mut track) = self.in_work.remove(&track_token) {
+                trace!("Track caching completed.");
+                track.optional.insert(
+                    String::from("cached"),
+                    serde_json::value::Value::String(path),
+                );
+                self.ready.push(track);
             } else {
                 // This can happen if clear() was called on the track cacher after
                 // the track was sent for fetching, before it was fetched
@@ -167,26 +184,14 @@ impl TrackCacher {
     }
 
     fn run_thread(recv: Receiver<FetchRequest>, send: Sender<FetchResponse>) {
-        trace!("[fetcher thread] Starting track fetcher thread...");
         for msg in recv.iter() {
-            trace!(
-                "[fetcher thread] Got request to fetch a track: {}",
-                &msg.path
-            );
-            if let Some(uri) = msg.uri.first() {
-                let result = save_url_to_file(&uri, &msg.path);
-                trace!("[fetcher thread] Track fetched: {}", &msg.path);
-                let _todo = send.send(FetchResponse {
-                    track_token: msg.track_token,
-                    path: msg.path,
-                    result,
-                });
-            } else {
-                warn!("[fetcher thread] Received fetch request for track to be saved as {}, but no uris were provided", msg.path);
-            }
-            trace!("[fetcher thread] Sleeping until next track fetch request...");
+            let result = save_url_to_file(&msg.uri, &msg.path);
+            let _todo = send.send(FetchResponse {
+                track_token: msg.track_token,
+                path: msg.path,
+                result,
+            });
         }
-        trace!("[fetcher thread] Track fetcher thread terminating...");
     }
 }
 
@@ -253,11 +258,12 @@ fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<Pat
             )
         })?;
     }
-    let filename = format!("{} - {}.{}", artist, song, "mp3");
+    let filename = format!("{} - {}.{}", artist, song, "m4a");
     track_cache_path.push(filename);
     Ok(track_cache_path)
 }
 
+/*
 fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
     let id3_ver = id3::Version::Id3v23;
     trace!("Reading tags from mp3");
@@ -320,6 +326,47 @@ fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
     }
     Ok(())
 }
+
+fn tag_m4a<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
+    trace!("Reading tags from m4a");
+    let mut tag = match mp4ameta::Tag::read_from_path(path.as_ref()) {
+        Ok(tag) => tag,
+        err => err.with_context(|| {
+            format!(
+                "Failed reading m4a file at {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?,
+    };
+
+    trace!("Updating tags with pandora metadata");
+    let mut dirty = false;
+
+    if tag.artist().is_none() {
+        tag.set_artist(&track.artist_name);
+        dirty = true;
+    }
+    if tag.album().is_none() {
+        tag.set_album(&track.album_name);
+        dirty = true;
+    }
+    if tag.title().is_none() {
+        tag.set_title(&track.song_name);
+        dirty = true;
+    }
+
+    trace!("Writing tags back to file");
+    if dirty {
+        tag.write_to_path(path.as_ref()).with_context(|| {
+            format!(
+                "Failed while writing updated MP3 tags back to {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?;
+    }
+    Ok(())
+}
+*/
 
 fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
     trace!(

@@ -1,4 +1,6 @@
 use std::collections::{HashMap, VecDeque};
+use std::fs::File;
+use std::io::BufReader;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -7,7 +9,7 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, info, trace};
-use rodio::source::Source;
+use rodio::{source::Source, Sample};
 
 use pandora_api::json::{station::PlaylistTrack, user::Station};
 
@@ -141,32 +143,58 @@ struct AudioDevice {
 }
 
 impl AudioDevice {
-    fn play_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        trace!(
-            "Reading track at {} for playback",
-            path.as_ref().to_string_lossy()
-        );
-        self.play_from_reader(std::io::BufReader::new(
-            std::fs::File::open(path.as_ref()).with_context(|| {
-                format!(
-                    "Failed reading media file at {}",
-                    path.as_ref().to_string_lossy()
-                )
-            })?,
-        ))
+    fn play_m4a_from_path<P>(&mut self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let decoder: redlux::Decoder<BufReader<File>> = self.decoder_for_path(path)?;
+        self.play_from_source(decoder)
     }
 
-    fn play_from_reader<R: Read + Seek + Send + 'static>(&mut self, reader: R) -> Result<()> {
-        let start_paused = false;
-        let decoder = rodio::decoder::Decoder::new(reader)
-            .with_context(|| "Failed initializing media decoder")?
-            .pausable(start_paused);
+    fn decoder_for_path<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<redlux::Decoder<BufReader<File>>> {
+        trace!(
+            "Creating decoder for track at {} for playback",
+            path.as_ref().to_string_lossy()
+        );
+        let file = File::open(path.as_ref()).with_context(|| {
+            format!(
+                "Failed opening media file at {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?;
+        let metadata = file.metadata().with_context(|| {
+            format!(
+                "Failed retrieving metadata for media file at {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?;
+        self.m4a_decoder_for_reader(file, metadata.len())
+    }
 
-        // Force the sink to be deleted and recreated, ensuring it's in
-        // a good state
+    fn m4a_decoder_for_reader<R: Read + Seek + Send + 'static>(
+        &mut self,
+        reader: R,
+        size: u64,
+    ) -> Result<redlux::Decoder<BufReader<R>>> {
+        let reader = BufReader::new(reader);
+        redlux::Decoder::new_mpeg4(reader, size)
+            .with_context(|| "Failed initializing media decoder")
+    }
+
+    fn play_from_source<S>(&mut self, source: S) -> Result<()>
+    where
+        S: Source + Send + 'static,
+        S::Item: Sample,
+        S::Item: Send,
+    {
         self.reset();
 
-        self.sink.append(decoder);
+        let start_paused = false;
+        self.sink.append(source.pausable(start_paused));
+        self.sink.play();
         Ok(())
     }
 }
@@ -402,7 +430,7 @@ impl PlaybackMediator for Playing {
             debug!("Track: {:?}", &track);
             if let Some(serde_json::value::Value::String(cached)) = track.optional.get("cached") {
                 trace!("Starting decoding of track {}", cached);
-                if let Err(e) = self.audio_device.play_from_file(PathBuf::from(&cached)) {
+                if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
                     error!("Error starting track at {}: {:?}", cached, e);
                 } else {
                     self.duration = track
