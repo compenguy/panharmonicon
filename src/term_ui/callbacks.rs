@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use cursive::views::{DummyView, EditView, HideableView, LinearLayout, ResizedView, SelectView};
 use cursive::Cursive;
+use cursive::View;
 use log::{error, trace};
 
 use crate::model::Model;
@@ -127,9 +128,9 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
     let size = s.screen_size();
     trace!("Window resize. New size: {},{}", size.x, size.y);
     match size.y {
-        // Disable spacer for height<5, we already use up the whole vertical space
+        // Disable spacer for height<=6, we already use up the whole vertical space
         // Also disable the stations list so that we see more of the current track info
-        _ if size.y <= 5 => {
+        _ if size.y <= 6 => {
             trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
             s.call_on_name(
                 "spacer_hideable",
@@ -142,24 +143,6 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
             s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
                 v.hide();
                 trace!("Stations hidden.")
-            });
-        }
-
-        // Disable spacer for height==6, we already use up the whole vertical space
-        // But show the station list - there's just enough room for it and all track info
-        _ if size.y == 6 => {
-            trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
-            s.call_on_name(
-                "spacer_hideable",
-                |v: &mut HideableView<ResizedView<DummyView>>| {
-                    v.hide();
-                    trace!("Spacer hidden.")
-                },
-            );
-            trace!("Showing stations ({:?})", s.debug_name("stations_hideable"));
-            s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
-                v.unhide();
-                trace!("Stations unhidden.")
             });
         }
 
@@ -181,5 +164,9 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
             });
         }
     }
+
+    s.screen_mut().layout(size);
+
+    // This is the default action for this event, which we have replaced
     s.clear();
 }
