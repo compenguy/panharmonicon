@@ -427,7 +427,7 @@ impl PlaybackMediator for Playing {
             return;
         }
         if let Some(track) = self.playlist.front_mut() {
-            debug!("Track: {:?}", &track);
+            debug!("Starting track: {:?}", &track.song_name);
             if let Some(serde_json::value::Value::String(cached)) = track.optional.get("cached") {
                 trace!("Starting decoding of track {}", cached);
                 if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
