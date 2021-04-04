@@ -1,14 +1,9 @@
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
-use cursive::align::HAlign;
-use cursive::views::{
-    Button, DummyView, HideableView, LinearLayout, Panel, SelectView, SliderView, TextView,
-};
-use cursive::{Cursive, CursiveRunnable, CursiveRunner};
+use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
+use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
-// Traits pulled in to add methods to types
-use cursive::view::{Nameable, Resizable};
 
 use crate::config::Config;
 use crate::model::Model;
@@ -81,97 +76,7 @@ impl Terminal {
     }
 
     fn init_playback(&mut self) {
-        let stations = LinearLayout::horizontal()
-            .child(TextView::new("Station:"))
-            .child(
-                SelectView::<String>::new()
-                    .popup()
-                    .item("No Stations", String::from(""))
-                    .selected(0)
-                    .on_submit(|s: &mut Cursive, item: &String| {
-                        s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                            trace!("Tuning to station {}", item.clone());
-                            m.borrow_mut().tune(item.clone())
-                        });
-                    })
-                    .with_name("stations")
-                    .fixed_height(1),
-            );
-
-        let controls_bar = LinearLayout::vertical()
-            .child(
-                LinearLayout::horizontal()
-                    .child(TextView::new("Volume").fixed_width(7))
-                    .child(
-                        SliderView::horizontal(11)
-                            .on_change(|s, v| {
-                                let new_volume: f32 = ((v as f32) / 10.0).min(1.0f32).max(0.0f32);
-                                trace!(
-                                    "Submitting updated volume from slider: {} ({:.2})",
-                                    v,
-                                    new_volume
-                                );
-                                s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                                    m.borrow_mut().set_volume(new_volume)
-                                });
-                            })
-                            .with_name("volume"),
-                    ),
-            )
-            .child(
-                LinearLayout::horizontal()
-                    .child(Button::new(
-                        labels::LABEL_PLAY_PAUSE,
-                        callbacks::toggle_pause,
-                    ))
-                    .child(Button::new(labels::LABEL_SKIP, callbacks::stop)),
-            )
-            .child(
-                LinearLayout::horizontal()
-                    .child(Button::new(
-                        labels::LABEL_THUMBS_UP,
-                        callbacks::rate_track_up,
-                    ))
-                    .child(Button::new(
-                        labels::LABEL_THUMBS_DOWN,
-                        callbacks::rate_track_down,
-                    ))
-                    .child(Button::new(labels::LABEL_TIRED, callbacks::sleep_track)),
-            );
-        let playing = Panel::new(
-            LinearLayout::horizontal()
-                .child(
-                    LinearLayout::vertical()
-                        .child(
-                            LinearLayout::horizontal()
-                                .child(TextView::new("Title").fixed_width(7))
-                                .child(TextView::empty().with_name("title")),
-                        )
-                        .child(
-                            LinearLayout::horizontal()
-                                .child(TextView::new("Artist").fixed_width(7))
-                                .child(TextView::empty().with_name("artist")),
-                        )
-                        .child(
-                            LinearLayout::horizontal()
-                                .child(TextView::new("Album").fixed_width(7))
-                                .child(TextView::empty().with_name("album")),
-                        )
-                        .max_height(3)
-                        .full_width(),
-                )
-                .child(DummyView.min_width(4))
-                .child(controls_bar),
-        )
-        .title("Disconnected")
-        .title_position(HAlign::Left)
-        .with_name("playing");
-
-        let layout = LinearLayout::vertical()
-            .child(HideableView::new(DummyView.full_height()).with_name("spacer_hideable"))
-            .child(HideableView::new(stations).with_name("stations_hideable"))
-            .child(playing);
-        self.siv.add_fullscreen_layer(layout);
+        self.siv.add_fullscreen_layer(dialogs::playing_view());
 
         // Catch screen resize requests, and hide/show appropriate controls to
         // fit the most important parts of the interface to the terminal size.
@@ -312,6 +217,41 @@ impl Terminal {
         self.update_playback_state();
     }
 
+    fn update_connection(&mut self) {
+        let connected = {
+            let mut model = self.model.borrow_mut();
+
+            // Expired connections already have all necessary credentials,
+            // and only need that we try to connect.
+            model.connect();
+
+            model.connected()
+        };
+        let login_prompt_active = self.siv.find_name::<EditView>("username").is_some();
+        match (connected, login_prompt_active) {
+            (true, true) => {
+                debug!("Login prompt active, but we have a valid connection.");
+                self.siv.pop_layer();
+            }
+            (true, false) => {
+                // Connection is valid, and the login prompt is disabled
+            }
+            (false, true) => {
+                // No connection, and the login prompt is already visible
+            }
+            (false, false) => {
+                trace!("Activating login dialog");
+
+                if let Some(dialog) = dialogs::login_dialog(self.model.clone()) {
+                    self.siv.add_layer(dialog);
+                }
+            }
+        }
+
+        log::debug!("model update reported state change");
+        self.update_connected();
+    }
+
     pub(crate) fn run(&mut self) {
         // When idle, how long to sleep between checking for input
         let input_polling_frequency = Duration::from_millis(100);
@@ -355,11 +295,7 @@ impl Terminal {
             // expired, update only the playback state controls to update the
             // track elapsed timer.
             if self.model.borrow_mut().update() {
-                if let Some(dialog) = dialogs::login_dialog(&mut self.siv, self.model.clone()) {
-                    self.siv.add_layer(dialog);
-                }
-                log::debug!("model update reported state change");
-                self.update_connected();
+                self.update_connection();
                 dirty = true;
                 timeout = Instant::now();
             } else if timeout.elapsed() > heartbeat_frequency {
