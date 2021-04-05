@@ -1,7 +1,7 @@
 [package]
 name = "panharmonicon"
 description = "A command line music player, unofficial client for Pandora"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND MPL-2.0 AND Zlib"
@@ -30,7 +30,7 @@ reqwest = { version = "0.11", default-features = true, features = ["blocking"] }
 crossbeam-channel = "0.5"
 rodio = { version = "0.13", default-features = false, features = ["mp3"] }
 cpal = "0.13"
-redlux = { git = "https://github.com/compenguy/redlux.git", branch = "sbr-support", version = "0.2" }
+redlux = "0.3"
 mp4ameta = "0.9"
 cursive = { version = "0.16", default-features = false, features = ["crossterm-backend", "toml"] }
 mktemp = "0.4"

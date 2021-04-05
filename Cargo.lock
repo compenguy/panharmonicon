@@ -1554,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "panharmonicon"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1819,8 +1819,9 @@ dependencies = [
 
 [[package]]
 name = "redlux"
-version = "0.2.0"
-source = "git+https://github.com/compenguy/redlux.git?branch=sbr-support#02fcf38e4f514a98879a75143f7afd65e9ba086c"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e7a408d9f0e00b824bb56469b3222d0aa17d754200cab4b4e00ebf2ea431e57"
 dependencies = [
  "fdk-aac",
  "mp4",
