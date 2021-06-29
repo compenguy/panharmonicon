@@ -1,7 +1,7 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * MIT_License (35)
+    * MIT_License (34)
     * Apache_License_2.0 (32)
     * BSD_3-Clause_"New"_or_"Revised"_License (2)
     * BSD_2-Clause_"Simplified"_License (1)
@@ -29,12 +29,12 @@ This page lists the licenses of the projects used in panharmonicon.
           o form_urlencoded_1.0.1
           o gimli_0.24.0
           o glob_0.3.0
-          o hashbrown_0.9.1
+          o hashbrown_0.11.2
           o heck_0.3.3
           o httparse_1.4.1
           o hyper-tls_0.5.0
           o idna_0.2.3
-          o indexmap_1.6.2
+          o indexmap_1.7.0
           o itoa_0.4.7
           o lazy_static_1.4.0
           o libc_0.2.97
@@ -72,7 +72,6 @@ This page lists the licenses of the projects used in panharmonicon.
           o signal-hook_0.1.17
           o signal-hook_0.3.9
           o signal-hook-registry_1.4.0
-          o slice-deque_0.3.0
           o smallvec_1.6.1
           o socket2_0.4.0
           o stable_deref_trait_1.2.0
@@ -717,7 +716,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o enum-map_0.6.4
           o enum-map-derive_0.4.6
           o ident_case_1.0.1
-          o mp4ameta_proc_0.4.0
+          o mp4ameta_proc_0.6.0
           o openssl_0.10.35
           o panharmonicon_0.4.2
           o security-framework_0.4.4
@@ -4371,7 +4370,7 @@ This page lists the licenses of the projects used in panharmonicon.
          END OF TERMS AND CONDITIONS
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o mp4ameta_0.9.1
+          o mp4ameta_0.11.0
                                     Apache License
                               Version 2.0, January 2004
                            https://www.apache.org/licenses/
@@ -5380,7 +5379,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o rodio_0.13.1
+          o rodio_0.14.0
       Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -6827,7 +6826,6 @@ This page lists the licenses of the projects used in panharmonicon.
           o cursive_core_0.2.2
           o fdk-aac_0.4.0
           o fdk-aac-sys_0.4.0
-          o minimp3-sys_0.3.2
       MIT License
 
       Copyright (c) <year> <copyright holders>
@@ -7004,30 +7002,6 @@ This page lists the licenses of the projects used in panharmonicon.
       OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
       IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
       DEALINGS IN THE SOFTWARE.
-    * **** MIT License ****
-      *** Used by: ***
-          o minimp3_0.5.1
-      MIT License
-
-      Copyright (c) 2018 German Gomez Bajo
-
-      Permission is hereby granted, free of charge, to any person obtaining a copy
-      of this software and associated documentation files (the "Software"), to deal
-      in the Software without restriction, including without limitation the rights
-      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-      copies of the Software, and to permit persons to whom the Software is
-      furnished to do so, subject to the following conditions:
-
-      The above copyright notice and this permission notice shall be included in all
-      copies or substantial portions of the Software.
-
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-      SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
           o mio_0.7.13
@@ -7237,7 +7211,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o redlux_0.3.0
+          o redlux_0.4.0
       MIT License
 
       Copyright (c) 2021 Kasper Henningsen
