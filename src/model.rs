@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::BufReader;
-use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
@@ -147,41 +146,12 @@ impl AudioDevice {
     where
         P: AsRef<Path>,
     {
-        let decoder: redlux::Decoder<BufReader<File>> = self.decoder_for_path(path)?;
-        self.play_from_source(decoder)
-    }
-
-    fn decoder_for_path<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-    ) -> Result<redlux::Decoder<BufReader<File>>> {
-        trace!(
-            "Creating decoder for track at {} for playback",
-            path.as_ref().to_string_lossy()
+        let reader = BufReader::new(
+            File::open(&path).with_context(|| "Failed to open requested media file")?,
         );
-        let file = File::open(path.as_ref()).with_context(|| {
-            format!(
-                "Failed opening media file at {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-        let metadata = file.metadata().with_context(|| {
-            format!(
-                "Failed retrieving metadata for media file at {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-        self.m4a_decoder_for_reader(file, metadata.len())
-    }
-
-    fn m4a_decoder_for_reader<R: Read + Seek + Send + 'static>(
-        &mut self,
-        reader: R,
-        size: u64,
-    ) -> Result<redlux::Decoder<BufReader<R>>> {
-        let reader = BufReader::new(reader);
-        redlux::Decoder::new_mpeg4(reader, size)
-            .with_context(|| "Failed initializing media decoder")
+        let decoder = rodio::decoder::Decoder::new(reader)
+            .with_context(|| "Failed initializing media decoder")?;
+        self.play_from_source(decoder)
     }
 
     fn play_from_source<S>(&mut self, source: S) -> Result<()>
