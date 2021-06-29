@@ -28,10 +28,10 @@ keyring = "0.10"
 pandora-api = { git = "https://github.com/compenguy/pandora-api.git", version = "0.4.0" }
 reqwest = { version = "0.11", default-features = true, features = ["blocking"] }
 crossbeam-channel = "0.5"
-rodio = { version = "0.13", default-features = false, features = ["mp3"] }
+rodio = { version = "0.14", default-features = false }
 cpal = "0.13"
-redlux = "0.3"
-mp4ameta = "0.9"
+redlux = "0.4"
+mp4ameta = "0.11"
 cursive = { version = "0.16", default-features = false, features = ["crossterm-backend", "toml"] }
 mktemp = "0.4"
 
