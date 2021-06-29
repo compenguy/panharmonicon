@@ -79,7 +79,7 @@ fn main() -> Result<()> {
         crate_name!(),
         crate_log_level
     );
-    let mut log_builder = Logger::with_str(&spec)
+    let mut log_builder = Logger::try_with_str(&spec)?
         .format(detailed_format)
         .format_for_stderr(colored_default_format);
 
@@ -98,10 +98,11 @@ fn main() -> Result<()> {
                 )
             })?;
         }
-        log_builder = log_builder
-            .log_to_file()
-            .suppress_timestamp()
-            .directory(&log_dir);
+        log_builder = log_builder.log_to_file(
+            flexi_logger::FileSpec::default()
+                .suppress_timestamp()
+                .directory(&log_dir),
+        );
         println!("Logging debug output to {}", log_dir.to_string_lossy());
     }
 

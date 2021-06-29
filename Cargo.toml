@@ -18,7 +18,7 @@ thiserror = "1"
 clap = { version = "3.0.0-beta.2", default-features = false, features = ["color", "std", "cargo"] }
 log = { version = "0.4", default-features = true, features = ["std"] }
 lazy_static = "1"
-flexi_logger = { version = "0.17", default-features = false, features = ["colors"] }
+flexi_logger = { version = "0.18", default-features = false, features = ["colors"] }
 chrono = "0.4"
 dirs = "3"
 serde = "1.0"
