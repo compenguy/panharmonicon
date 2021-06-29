@@ -127,44 +127,33 @@ pub(crate) fn connect_button(s: &mut Cursive) {
 pub(crate) fn ui_scale(s: &mut Cursive) {
     let size = s.screen_size();
     trace!("Window resize. New size: {},{}", size.x, size.y);
-    match size.y {
-        // Disable spacer for height<=6, we already use up the whole vertical space
-        // Also disable the stations list so that we see more of the current track info
-        _ if size.y <= 6 => {
-            trace!("Hiding spacer ({:?})", s.debug_name("spacer_hideable"));
-            s.call_on_name(
-                "spacer_hideable",
-                |v: &mut HideableView<ResizedView<DummyView>>| {
-                    v.hide();
-                    trace!("Spacer hidden.")
-                },
-            );
-            trace!("Hiding stations ({:?})", s.debug_name("stations_hideable"));
-            s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
+
+    // Hide the station selector if there's less than 6 vertical lines
+    s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
+        if size.y < 5 {
+            v.hide();
+            trace!("Stations hidden.")
+        } else {
+            v.unhide();
+            trace!("Stations unhidden.")
+        }
+    });
+
+    // Hide the spacer if there's less than 6 vertical lines
+    s.call_on_name(
+        "spacer_hideable",
+        |v: &mut HideableView<ResizedView<DummyView>>| {
+            if size.y < 7 {
                 v.hide();
-                trace!("Stations hidden.")
-            });
-        }
-
-        // Enable spacer for height>6 so that the controls all appear at the bottom
-        // Also ensure station list is visible
-        _ => {
-            trace!("Showing spacer ({:?})", s.debug_name("spacer_hideable"));
-            s.call_on_name(
-                "spacer_hideable",
-                |v: &mut HideableView<ResizedView<DummyView>>| {
-                    v.unhide();
-                    trace!("Spacer unhidden.")
-                },
-            );
-            trace!("Showing stations ({:?})", s.debug_name("stations_hideable"));
-            s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
+                trace!("Spacer hidden.")
+            } else {
                 v.unhide();
-                trace!("Stations unhidden.")
-            });
-        }
-    }
+                trace!("Spacer unhidden.")
+            }
+        },
+    );
 
+    // Force a layout update
     s.screen_mut().layout(size);
 
     // This is the default action for this event, which we have replaced
