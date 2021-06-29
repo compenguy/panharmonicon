@@ -144,6 +144,9 @@ impl TrackCacher {
             // caching completed, add to ready queue
             if let Some(mut track) = self.in_work.remove(&track_token) {
                 trace!("Track caching completed.");
+                if let Err(e) = tag_m4a(&track, &path) {
+                    error!("Error tagging track at {}: {:?}", path, &e);
+                }
                 track.optional.insert(
                     String::from("cached"),
                     serde_json::value::Value::String(path),
@@ -263,74 +266,14 @@ fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<Pat
     Ok(track_cache_path)
 }
 
-/*
-fn tag_mp3<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
-    let id3_ver = id3::Version::Id3v23;
-    trace!("Reading tags from mp3");
-    let mut tag = match id3::Tag::read_from_path(path.as_ref()) {
-        Ok(tag) => tag,
-        Err(id3::Error {
-            kind: id3::ErrorKind::NoTag,
-            ..
-        }) => id3::Tag::new(),
-        err => err.with_context(|| {
-            format!(
-                "Failed reading mp3 file at {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?,
-    };
-
-    let duration: Option<u32> = track
-        .optional
-        .get("trackLength")
-        .and_then(|v| v.as_u64())
-        .map(|n| n as u32);
-
-    // TODO: if track.replaygain parses correctly, create replaygain
-    // frame for the:
-    //   * RVA2 tag (if using v2.4)
-    //   * XRVA tag (http://id3.org/Experimental%20RVA2)
-    //   * http://id3.org/id3v2.4.0-frames section 4.11
-
-    trace!("Updating tags with pandora metadata");
-    let mut dirty = false;
-
-    if tag.artist().is_none() {
-        tag.set_artist(&track.artist_name);
-        dirty = true;
-    }
-    if tag.album().is_none() {
-        tag.set_album(&track.album_name);
-        dirty = true;
-    }
-    if tag.title().is_none() {
-        tag.set_title(&track.song_name);
-        dirty = true;
-    }
-    if tag.duration().is_none() {
-        if let Some(duration) = duration {
-            tag.set_duration(duration);
-            dirty = true;
-        }
-    }
-
-    trace!("Writing tags back to file");
-    if dirty {
-        tag.write_to_path(path.as_ref(), id3_ver).with_context(|| {
-            format!(
-                "Failed while writing updated MP3 tags back to {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-    }
-    Ok(())
-}
-
 fn tag_m4a<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
     trace!("Reading tags from m4a");
     let mut tag = match mp4ameta::Tag::read_from_path(path.as_ref()) {
         Ok(tag) => tag,
+        Err(mp4ameta::Error {
+            kind: mp4ameta::ErrorKind::NoTag,
+            ..
+        }) => mp4ameta::Tag::default(),
         err => err.with_context(|| {
             format!(
                 "Failed reading m4a file at {}",
@@ -366,7 +309,6 @@ fn tag_m4a<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
     }
     Ok(())
 }
-*/
 
 fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
     trace!(
