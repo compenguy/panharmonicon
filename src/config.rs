@@ -66,7 +66,7 @@ impl Credentials {
 
     pub(crate) fn password(&self) -> Result<Option<String>> {
         match self {
-            Credentials::Keyring(u) => Credentials::get_from_keyring(&u).with_context(|| {
+            Credentials::Keyring(u) => Credentials::get_from_keyring(u).with_context(|| {
                 format!(
                     "Failed retrieving secrets for user {} from session keyring",
                     &u,
@@ -108,7 +108,7 @@ impl Credentials {
         let mut dup = self.clone();
         match &mut dup {
             Credentials::Keyring(u) => {
-                Credentials::set_on_keyring(&u, password).with_context(|| {
+                Credentials::set_on_keyring(u, password).with_context(|| {
                     format!("Failed updating secret for user {} on session keyring", &u)
                 })?
             }
@@ -220,7 +220,7 @@ impl std::fmt::Debug for Credentials {
 
 impl std::cmp::PartialEq<Credentials> for Credentials {
     fn eq(&self, other: &Credentials) -> bool {
-        if std::mem::discriminant(self) != std::mem::discriminant(&other) {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) {
             return false;
         }
 
