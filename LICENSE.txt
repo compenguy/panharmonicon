@@ -718,7 +718,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o ident_case_1.0.1
           o mp4ameta_proc_0.6.0
           o openssl_0.10.35
-          o panharmonicon_0.4.2
+          o panharmonicon_0.4.3
           o security-framework_0.4.4
           o security-framework_2.3.1
           o security-framework-sys_0.4.3
