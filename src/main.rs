@@ -30,8 +30,7 @@ fn main() -> Result<()> {
         .join(crate_name!())
         .join("config.json");
     let matches = app_from_crate!("")
-        .setting(clap::AppSettings::ColorAuto)
-        .setting(clap::AppSettings::ColoredHelp)
+        .color(clap::ColorChoice::Auto)
         .arg(
             clap::Arg::new("gen-config")
                 .short('c')
