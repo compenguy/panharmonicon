@@ -1,84 +1,80 @@
-use std::{cell::RefCell, rc::Rc};
-
 use cursive::views::{DummyView, EditView, HideableView, LinearLayout, ResizedView, SelectView};
 use cursive::Cursive;
 use cursive::View;
 use log::{error, trace};
 
-use crate::model::Model;
-use crate::model::{AudioMediator, PlaybackMediator, StateMediator};
+use crate::messages;
 use crate::term_ui::dialogs::Store;
+use crate::term_ui::TerminalContext;
 
 use crate::config::PartialConfig;
 
-fn model_quit(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().quit();
-}
-fn model_pause(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().pause();
-}
-fn model_unpause(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().unpause();
-}
-fn model_toggle_pause(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().toggle_pause();
-}
-fn model_decrease_volume(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().decrease_volume();
-}
-fn model_increase_volume(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().increase_volume();
-}
-fn model_stop(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().stop();
-}
-fn model_sleep_track(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().sleep_track();
-}
-fn model_rate_track_up(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().rate_track(Some(true));
-}
-fn model_rate_track_down(m: &mut Rc<RefCell<Model>>) {
-    let mut model = m.borrow_mut();
-    model.rate_track(Some(false));
-    model.stop();
-}
-fn model_clear_rating(m: &mut Rc<RefCell<Model>>) {
-    m.borrow_mut().rate_track(None);
-}
-
 pub(crate) fn quit(s: &mut Cursive) {
-    s.with_user_data(model_quit);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'quit'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::Quit);
+    });
 }
 pub(crate) fn pause(s: &mut Cursive) {
-    s.with_user_data(model_pause);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'pause'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::Pause);
+    });
 }
 pub(crate) fn unpause(s: &mut Cursive) {
-    s.with_user_data(model_unpause);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'unpause'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::Unpause);
+    });
 }
 pub(crate) fn toggle_pause(s: &mut Cursive) {
-    s.with_user_data(model_toggle_pause);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'toggle pause'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::TogglePause);
+    });
 }
 pub(crate) fn decrease_volume(s: &mut Cursive) {
-    s.with_user_data(model_decrease_volume);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'volume down'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::VolumeDown);
+    });
 }
 pub(crate) fn increase_volume(s: &mut Cursive) {
-    s.with_user_data(model_increase_volume);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'volume down'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::VolumeUp);
+    });
 }
 pub(crate) fn stop(s: &mut Cursive) {
-    s.with_user_data(model_stop);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'stop'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::Stop);
+    });
 }
 pub(crate) fn sleep_track(s: &mut Cursive) {
-    s.with_user_data(model_sleep_track);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'sleep track'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::SleepTrack);
+    });
 }
 pub(crate) fn rate_track_up(s: &mut Cursive) {
-    s.with_user_data(model_rate_track_up);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'rate up'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::RateUp);
+    });
 }
 pub(crate) fn rate_track_down(s: &mut Cursive) {
-    s.with_user_data(model_rate_track_down);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'rate down and stop'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::RateDown);
+        let _ = ctx.publisher.try_broadcast(messages::Request::Stop);
+    });
 }
 pub(crate) fn clear_rating(s: &mut Cursive) {
-    s.with_user_data(model_clear_rating);
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'unrate'");
+        let _ = ctx.publisher.try_broadcast(messages::Request::UnRate);
+    });
 }
 
 pub(crate) fn connect_button(s: &mut Cursive) {
@@ -91,17 +87,16 @@ pub(crate) fn connect_button(s: &mut Cursive) {
             v.selection().map(|s| (*s))
         })
         .flatten();
-    s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-        let mut model = m.borrow_mut();
-        let config = model.config();
+    s.with_user_data(|ctx: &mut TerminalContext| {
         let new_cred = match store.unwrap_or_default() {
-            Store::Keyring => config
+            Store::Keyring => ctx
+                .config
                 .borrow()
                 .login_credentials()
                 .as_keyring()
                 .expect("Error updating keyring with password"),
-            Store::ConfigFile => config.borrow().login_credentials().as_configfile(),
-            Store::Session => config.borrow().login_credentials().as_session(),
+            Store::ConfigFile => ctx.config.borrow().login_credentials().as_configfile(),
+            Store::Session => ctx.config.borrow().login_credentials().as_session(),
         };
         let new_cred = username
             .map(|u| new_cred.update_username(&u))
@@ -111,10 +106,11 @@ pub(crate) fn connect_button(s: &mut Cursive) {
             .unwrap_or(Ok(new_cred));
         match new_cred {
             Ok(c) => {
-                config
+                ctx.config
                     .borrow_mut()
                     .update_from(&PartialConfig::default().login(c));
-                model.connect();
+                trace!("send request 'connect'");
+                let _ = ctx.publisher.try_broadcast(messages::Request::Connect);
             }
             Err(e) => {
                 error!("Failed while updating password: {:?}", e);

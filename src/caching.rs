@@ -4,8 +4,8 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use async_broadcast::{Receiver, Sender};
 use clap::crate_name;
-use crossbeam_channel::{Receiver, Sender};
 use log::{debug, error, trace, warn};
 use pandora_api::json::station::PlaylistTrack;
 
@@ -34,11 +34,11 @@ impl TryFrom<&PlaylistTrack> for FetchRequest {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FetchResponse {
     track_token: String,
     path: String,
-    result: Result<()>,
+    result: std::result::Result<(), String>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,12 +52,9 @@ pub(crate) struct TrackCacher {
 
 impl TrackCacher {
     pub(crate) fn new() -> Self {
-        // Bounded channel, so that we don't build up a backlog of tracks to fetch
-        // in case we get clear()ed.
-        let (send_to_fetcher, fetcher_recv) = crossbeam_channel::bounded(1);
-        // Processing messages about completed fetches are cheap, though, so that can be
-        // unbounded
-        let (fetcher_send, recv_from_fetcher) = crossbeam_channel::unbounded();
+        let (send_to_fetcher, fetcher_recv) = async_broadcast::broadcast(8);
+        // Processing messages about completed fetches are cheap, though, so keep a longer list
+        let (fetcher_send, recv_from_fetcher) = async_broadcast::broadcast(16);
         std::thread::spawn(move || TrackCacher::run_thread(fetcher_recv, fetcher_send));
         TrackCacher {
             waiting: VecDeque::new(),
@@ -112,7 +109,8 @@ impl TrackCacher {
                     continue;
                 }
                 trace!("Cache miss!");
-                self.send_to_fetcher.send(request)?;
+                trace!("send request {:?}", request);
+                self.send_to_fetcher.try_broadcast(request)?;
                 self.in_work.insert(track.track_token.clone(), track);
                 trace!("Track is being fetched");
             }
@@ -121,8 +119,8 @@ impl TrackCacher {
     }
 
     fn make_ready(&mut self) {
-        for response in self.recv_from_fetcher.try_iter() {
-            trace!("Response from fetcher: {:?}", &response);
+        while let Ok(response) = self.recv_from_fetcher.try_recv() {
+            trace!("received response {:?}", &response);
             let (track_token, path) = match response {
                 FetchResponse {
                     track_token,
@@ -186,10 +184,10 @@ impl TrackCacher {
         self.ready.clear();
     }
 
-    fn run_thread(recv: Receiver<FetchRequest>, send: Sender<FetchResponse>) {
-        for msg in recv.iter() {
-            let result = save_url_to_file(&msg.uri, &msg.path);
-            let _todo = send.send(FetchResponse {
+    fn run_thread(mut recv: Receiver<FetchRequest>, send: Sender<FetchResponse>) {
+        while let Ok(msg) = recv.try_recv() {
+            let result = save_url_to_file(&msg.uri, &msg.path).map_err(|e| e.to_string());
+            let _todo = send.try_broadcast(FetchResponse {
                 track_token: msg.track_token,
                 path: msg.path,
                 result,

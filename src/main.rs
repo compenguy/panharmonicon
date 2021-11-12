@@ -14,7 +14,9 @@ mod config;
 use crate::config::Config;
 
 mod caching;
+mod messages;
 mod model;
+use model::StateMediator;
 mod pandora;
 mod term_ui;
 
@@ -116,10 +118,29 @@ fn main() -> Result<()> {
     debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));
 
+    trace!("Initializing application core");
+    let mut model = model::Model::new(conf_ref.clone());
+    let req_chan = model.init_request_channel();
+    let notif_chan = model.init_notification_channel();
+
     trace!("Initializing terminal interface");
-    let mut ui = term_ui::Terminal::new(conf_ref);
+    let mut ui = term_ui::Terminal::new(conf_ref, notif_chan, req_chan);
+
     trace!("Starting app");
-    ui.run();
+    while !model.quitting() {
+        let mut dirty = false;
+        dirty |= ui.update();
+        dirty |= model.update();
+        /*
+        if !dirty {
+            trace!("Nothing happening... sleeping...");
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        } else {
+            trace!("Something happened.");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        */
+    }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);
 

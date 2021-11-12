@@ -1,4 +1,3 @@
-use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
@@ -6,8 +5,8 @@ use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
 use crate::config::Config;
-use crate::model::Model;
-use crate::model::{AudioMediator, PlaybackMediator, StateMediator, StationMediator};
+use crate::messages;
+use pandora_api::json::station::PlaylistTrack;
 
 mod callbacks;
 mod dialogs;
@@ -29,17 +28,33 @@ mod labels {
     pub(crate) const LABEL_TIRED: &str = ".zZ";
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TerminalContext {
+    config: Rc<RefCell<Config>>,
+    publisher: async_broadcast::Sender<messages::Request>,
+}
+
 pub(crate) struct Terminal {
-    model: Rc<RefCell<Model>>,
     siv: CursiveRunner<CursiveRunnable>,
+    subscriber: async_broadcast::Receiver<messages::Notification>,
+    context: TerminalContext,
 }
 
 impl Terminal {
-    pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        let model = Rc::new(RefCell::new(Model::new(config)));
+    pub(crate) fn new(
+        config: Rc<RefCell<Config>>,
+        subscriber: async_broadcast::Receiver<messages::Notification>,
+        publisher: async_broadcast::Sender<messages::Request>,
+    ) -> Self {
         let mut siv = cursive::crossterm().into_runner();
-        siv.set_user_data(model.clone());
-        let mut term = Self { model, siv };
+        let context = TerminalContext { config, publisher };
+        siv.set_user_data(context.clone());
+        siv.set_fps(5);
+        let mut term = Self {
+            siv,
+            subscriber,
+            context,
+        };
         term.initialize();
         term
     }
@@ -48,6 +63,7 @@ impl Terminal {
         self.init_key_mappings();
         self.init_theme();
         self.init_playback();
+        self.siv.refresh();
     }
 
     fn init_key_mappings(&mut self) {
@@ -84,48 +100,44 @@ impl Terminal {
             .set_on_pre_event(cursive::event::Event::WindowResize, callbacks::ui_scale);
     }
 
-    fn update_stations(&mut self) {
-        trace!("Checking stations list...");
-        let model = self.model.borrow_mut();
+    fn added_station(&mut self, name: String, id: String) {
+        trace!("Adding station {}[{}] to list...", name, id);
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
-                // If the list is empty, or there's exactly one item with an empty value
-                // we should populate it a station list
-                if v.is_empty()
-                    || (v.len() == 1 && v.get_item(0).map(|(_, s)| s.is_empty()).unwrap_or(true))
-                {
-                    trace!("Updating stations list");
-                    v.clear();
+                if v.is_empty() {
                     v.add_item("", String::new());
-                    v.add_all(model.station_list().into_iter());
-                    v.sort_by_label();
-                    if let Some(station_id) = model.tuned() {
-                        trace!("Updating selected station in UI to match model");
-                        let opt_idx = v
-                            .iter()
-                            .enumerate()
-                            .find(|(_, (_, st_id))| *st_id == &station_id)
-                            .map(|(i, _)| i);
-                        if let Some(idx) = opt_idx {
-                            v.set_selection(idx);
-                        }
-                    } else {
-                        v.set_selection(0);
-                    }
-                } else if model.station_count() == 0 {
-                    trace!("Clearing UI station list to match model");
-                    v.clear();
+                }
+                v.add_item(name, id);
+                v.sort_by_label();
+            });
+    }
+
+    fn tuned_station(&mut self, id: String) {
+        trace!("Tuning station {}...", id);
+        self.siv
+            .call_on_name("stations", |v: &mut SelectView<String>| {
+                let opt_idx = v
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (_, st_id))| *st_id == &id)
+                    .map(|(i, _)| i);
+                if let Some(idx) = opt_idx {
+                    v.set_selection(idx);
+                } else {
+                    v.set_selection(0);
                 }
             });
     }
 
-    fn update_track_info(&mut self) {
+    fn playing_track(&mut self, track: PlaylistTrack) {
         trace!("Updating track info box...");
-        let model = self.model.borrow_mut();
-        let (song_name, artist_name, album_name, song_rating) = model
-            .playing()
-            .map(|t| (t.song_name, t.artist_name, t.album_name, t.song_rating))
-            .unwrap_or_default();
+        let PlaylistTrack {
+            song_name,
+            artist_name,
+            album_name,
+            song_rating,
+            ..
+        } = track;
         self.siv.call_on_name("title", |v: &mut TextView| {
             debug!("Playing title {} ({})", song_name, song_rating);
             let mut title = song_name.clone();
@@ -145,165 +157,152 @@ impl Terminal {
         });
     }
 
-    fn update_volume(&mut self) {
-        trace!("Updating volume...");
-        let model = self.model.borrow_mut();
-        self.siv.call_on_name("volume", |v: &mut SliderView| {
-            let volume = ((model.volume() * 10.0).round() as usize).min(10).max(0);
-            trace!(
-                "Converted model volume from {:.2} to {}",
-                model.volume(),
-                volume
-            );
-            v.set_value(volume);
+    fn rated_track(&mut self, rating: u32) {
+        trace!("Updating track rating...");
+        self.siv.call_on_name("title", |v: &mut TextView| {
+            let mut title = v
+                .get_content()
+                .source()
+                .trim_end_matches(labels::LABEL_THUMBS_UP)
+                .trim_end()
+                .to_string();
+
+            debug!("Rating title {}", title);
+
+            if rating > 0 {
+                title.push(' ');
+                title.push_str(labels::LABEL_THUMBS_UP);
+            }
+            v.set_content(title);
         });
     }
 
-    fn update_playback_state(&mut self) {
-        trace!("Updating track info box title...");
-        let model = self.model.borrow_mut();
+    fn unrated_track(&mut self) {
+        trace!("Removing track rating...");
+        self.siv.call_on_name("title", |v: &mut TextView| {
+            let title = v
+                .get_content()
+                .source()
+                .trim_end_matches(labels::LABEL_THUMBS_UP)
+                .trim_end()
+                .to_string();
+
+            v.set_content(title);
+        });
+    }
+
+    fn next_track(&mut self, track: PlaylistTrack) {
+        trace!("TODO: UI for displaying next track ({})", track.song_name);
+    }
+
+    fn update_playing(
+        &mut self,
+        elapsed: std::time::Duration,
+        duration: std::time::Duration,
+        paused: bool,
+    ) {
+        trace!("Updating track duration...");
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
-                if model.playing().is_some() {
-                    let playpause = if model.paused() { "Paused" } else { "Play" };
-                    let total_elapsed = model.elapsed().as_secs();
-                    let elapsed_minutes = total_elapsed / 60;
-                    let elapsed_seconds = total_elapsed % 60;
-                    let total_duration = model.duration().as_secs();
-                    let duration_minutes = total_duration / 60;
-                    let duration_seconds = total_duration % 60;
-                    let text = if total_duration > 0 {
-                        format!(
-                            "{:<6} [{:>2}:{:02}/{:>2}:{:02}]",
-                            playpause,
-                            elapsed_minutes,
-                            elapsed_seconds,
-                            duration_minutes,
-                            duration_seconds
-                        )
-                    } else {
-                        format!(
-                            "{:<6} [{:>2}:{:02}]",
-                            playpause, elapsed_minutes, elapsed_seconds
-                        )
-                    };
-                    trace!("track is {}", text);
-                    v.set_title(text);
-                } else if model.ready() {
-                    trace!("Playing panel title: waiting on playlist");
-                    v.set_title("Waiting on playlist");
-                } else if model.tuned().is_some() {
-                    trace!("Playing panel title: tuned to station");
-                    v.set_title("Tuned to station");
-                } else if model.connected() {
-                    trace!("Playing panel title: connected");
-                    v.set_title("Connected");
+                let playpause = if paused { "Paused" } else { "Play" };
+                let total_elapsed = elapsed.as_secs();
+                let elapsed_minutes = total_elapsed / 60;
+                let elapsed_seconds = total_elapsed % 60;
+                let total_duration = duration.as_secs();
+                let duration_minutes = total_duration / 60;
+                let duration_seconds = total_duration % 60;
+                let text = if total_duration > 0 {
+                    format!(
+                        "{:<6} [{:>2}:{:02}/{:>2}:{:02}]",
+                        playpause,
+                        elapsed_minutes,
+                        elapsed_seconds,
+                        duration_minutes,
+                        duration_seconds
+                    )
                 } else {
-                    trace!("Playing panel title: disconnected");
-                    v.set_title("Disconnected");
-                }
+                    format!(
+                        "{:<6} [{:>2}:{:02}]",
+                        playpause, elapsed_minutes, elapsed_seconds
+                    )
+                };
+                trace!("Playing panel title: {}", text);
+                v.set_title(text);
             });
     }
 
-    fn update_connected(&mut self) {
-        if !self.model.borrow().connected() {
-            trace!("Not connected. Not updating UI widgets that reflect connection status.");
-            return;
-        }
+    fn update_state_disconnected(&mut self) {
+        self.siv
+            .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
+                trace!("Playing panel title: disconnected");
+                v.set_title("Disconnected");
+            });
+        if self.siv.find_name::<EditView>("username").is_none() {
+            trace!("Activating login dialog");
 
-        self.update_stations();
-        self.update_track_info();
-        self.update_volume();
-        self.update_playback_state();
+            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {
+                self.siv.add_layer(dialog);
+            }
+        }
     }
 
-    fn update_connection(&mut self) {
-        let connected = {
-            let mut model = self.model.borrow_mut();
-
-            // Expired connections already have all necessary credentials,
-            // and only need that we try to connect.
-            model.connect();
-
-            model.connected()
-        };
-        let login_prompt_active = self.siv.find_name::<EditView>("username").is_some();
-        match (connected, login_prompt_active) {
-            (true, true) => {
-                debug!("Login prompt active, but we have a valid connection.");
-                self.siv.pop_layer();
-            }
-            (true, false) => {
-                // Connection is valid, and the login prompt is disabled
-            }
-            (false, true) => {
-                // No connection, and the login prompt is already visible
-            }
-            (false, false) => {
-                trace!("Activating login dialog");
-
-                if let Some(dialog) = dialogs::login_dialog(self.model.clone()) {
-                    self.siv.add_layer(dialog);
-                }
-            }
+    fn update_state_stopped(&mut self) {
+        self.siv
+            .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
+                trace!("Playing panel title: stopped");
+                v.set_title("Stopped");
+            });
+        if self.siv.find_name::<EditView>("username").is_some() {
+            debug!("Login prompt active, but we have a valid connection.");
+            trace!("Deactivating login dialog");
+            self.siv.pop_layer();
         }
-
-        log::debug!("model update reported state change");
-        self.update_connected();
     }
 
-    pub(crate) fn run(&mut self) {
-        // When idle, how long to sleep between checking for input
-        let input_polling_frequency = Duration::from_millis(100);
-        // Make sure the UI doesn't go more than 0.5s between updates
-        // so that track playtime gets updated consistently
-        let heartbeat_frequency = Duration::from_millis(500);
+    fn update_volume(&mut self, volume: f32) {
+        trace!("Updating volume...");
+        self.siv.call_on_name("volume", |v: &mut SliderView| {
+            let volume_adj = ((volume * 10.0).round() as usize).min(10).max(0);
+            trace!(
+                "Converted model volume from {:.2} to {}",
+                volume,
+                volume_adj
+            );
+            v.set_value(volume_adj);
+        });
+    }
 
-        // reference time for measuring heartbeat
-        let mut timeout = Instant::now();
-        // something changed state, drive updates to UI and model
-        let mut dirty = true;
+    pub(crate) fn update(&mut self) -> bool {
+        let mut dirty: bool = false;
 
-        // `refresh()` needs to be called before the first `step()` or
-        // else the `callbacks::scale_ui()` callback will be told to
-        // scale for a window size of 0,0
-        self.siv.refresh();
-
-        while !self.model.borrow().quitting() {
-            if dirty {
-                dirty = self.siv.step();
-                self.siv.refresh();
-            } else {
-                // Nothing has happened, so we'll sleep in increments to wait
-                // out the heartbeat timer.
-                // But we'll check every once in awhile to see if there's input
-                // we should handle, and if so, we'll break out and handle it.
-                while timeout.elapsed() <= heartbeat_frequency {
-                    let heartbeat_remaining = heartbeat_frequency - timeout.elapsed();
-                    std::thread::sleep(input_polling_frequency.min(heartbeat_remaining));
-                    if self.siv.process_events() {
-                        self.siv.post_events(true);
-                        self.siv.refresh();
-                        break;
-                    }
+        trace!("checking for player notifications...");
+        while let Ok(notification) = self.subscriber.try_recv() {
+            trace!("receive notification {:?}", notification);
+            match notification {
+                messages::Notification::Connected => self.update_state_stopped(),
+                messages::Notification::Disconnected => self.update_state_disconnected(),
+                messages::Notification::AddStation(name, id) => self.added_station(name, id),
+                messages::Notification::Tuned(name) => self.tuned_station(name),
+                messages::Notification::Starting(track) => self.playing_track(track),
+                messages::Notification::Rated(val) => self.rated_track(val),
+                messages::Notification::Unrated => self.unrated_track(),
+                messages::Notification::Next(track) => self.next_track(track),
+                messages::Notification::Playing(elapsed, duration) => {
+                    self.update_playing(elapsed, duration, false)
                 }
+                messages::Notification::Volume(v) => self.update_volume(v),
+                messages::Notification::Paused(elapsed, duration) => {
+                    self.update_playing(elapsed, duration, true)
+                }
+                messages::Notification::Stopped => self.update_state_stopped(),
+                messages::Notification::Muted => (),
+                messages::Notification::Unmuted => (),
+                messages::Notification::Quit => (),
             }
-
-            // Update the model state, then if the model yielded an event,
-            // refresh all the controls
-            // If the model state didn't change, and the heartbeat timer
-            // expired, update only the playback state controls to update the
-            // track elapsed timer.
-            if self.model.borrow_mut().update() {
-                self.update_connection();
-                dirty = true;
-                timeout = Instant::now();
-            } else if timeout.elapsed() > heartbeat_frequency {
-                log::debug!("timer expired with no events, drive a playback state update");
-                self.update_playback_state();
-                dirty = true;
-                timeout = Instant::now();
-            }
+            dirty = true;
         }
+
+        dirty |= self.siv.step();
+        dirty
     }
 }

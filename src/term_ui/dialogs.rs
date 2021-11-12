@@ -6,15 +6,14 @@ use cursive::views::{
 };
 use cursive::Cursive;
 // Traits pulled in to add methods to types
-use crate::model::{AudioMediator, StateMediator};
 use cursive::align::HAlign;
 use cursive::view::{Nameable, Resizable};
 
 use log::trace;
 
-use crate::config::Credentials;
-use crate::model::Model;
-use crate::term_ui::{callbacks, labels};
+use crate::config::{Config, Credentials};
+use crate::messages;
+use crate::term_ui::{callbacks, labels, TerminalContext};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Store {
@@ -48,9 +47,12 @@ pub(crate) fn playing_view() -> LinearLayout {
                 .item("No Stations", String::from(""))
                 .selected(0)
                 .on_submit(|s: &mut Cursive, item: &String| {
-                    s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
+                    trace!("send request 'tune'");
+                    s.with_user_data(|ctx: &mut TerminalContext| {
                         trace!("Tuning to station {}", item.clone());
-                        m.borrow_mut().tune(item.clone())
+                        let _ = ctx
+                            .publisher
+                            .try_broadcast(messages::Request::Tune(item.clone()));
                     });
                 })
                 .with_name("stations")
@@ -70,8 +72,11 @@ pub(crate) fn playing_view() -> LinearLayout {
                                 v,
                                 new_volume
                             );
-                            s.with_user_data(|m: &mut Rc<RefCell<Model>>| {
-                                m.borrow_mut().set_volume(new_volume)
+                            trace!("send request 'volume'");
+                            s.with_user_data(|ctx: &mut TerminalContext| {
+                                let _ = ctx
+                                    .publisher
+                                    .try_broadcast(messages::Request::Volume(new_volume));
                             });
                         })
                         .with_name("volume"),
@@ -132,9 +137,7 @@ pub(crate) fn playing_view() -> LinearLayout {
         .child(playing)
 }
 
-pub(crate) fn login_dialog(model: Rc<RefCell<Model>>) -> Option<Dialog> {
-    let model = model.borrow_mut();
-    let config = model.config();
+pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
     let credentials = config.borrow().login_credentials().clone();
     let username = credentials.username().unwrap_or_default();
     let password = credentials.password().ok().flatten().unwrap_or_default();
