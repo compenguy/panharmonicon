@@ -8,6 +8,8 @@ pub(crate) enum Error {
     PanharmoniconMissingAuthToken,
     #[error("Error accessing session keyring {0}")]
     KeyringFailure(String),
+    #[error("Error invalid operation {0} for state {1}")]
+    InvalidOperationForState(String, String),
 }
 
 impl From<keyring::KeyringError> for Error {

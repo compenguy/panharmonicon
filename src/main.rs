@@ -16,7 +16,6 @@ use crate::config::Config;
 mod caching;
 mod messages;
 mod model;
-use model::StateMediator;
 mod pandora;
 mod term_ui;
 
@@ -131,7 +130,6 @@ fn main() -> Result<()> {
         let mut dirty = false;
         dirty |= ui.update();
         dirty |= model.update();
-        /*
         if !dirty {
             trace!("Nothing happening... sleeping...");
             std::thread::sleep(std::time::Duration::from_millis(250));
@@ -139,7 +137,6 @@ fn main() -> Result<()> {
             trace!("Something happened.");
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        */
     }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);

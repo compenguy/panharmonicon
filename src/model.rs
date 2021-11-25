@@ -14,79 +14,11 @@ use rodio::{source::Source, Sample};
 use pandora_api::json::{station::PlaylistTrack, user::Station};
 
 use crate::caching;
-use crate::config::{CachePolicy, Config, PartialConfig};
+use crate::caching::Cacheable;
+use crate::config::{Config, PartialConfig};
 use crate::errors::Error;
 use crate::messages;
 use crate::pandora::PandoraSession;
-
-pub(crate) trait StateMediator {
-    fn disconnected(&self) -> bool;
-    fn disconnect(&mut self);
-    fn fail_authentication(&mut self);
-    fn connected(&self) -> bool;
-    fn connect(&mut self);
-    fn tuned(&self) -> Option<String>;
-    fn tune(&mut self, station_id: String);
-    fn untune(&mut self);
-    fn ready(&self) -> bool;
-    fn playing(&self) -> Option<PlaylistTrack>;
-    fn update(&mut self) -> bool;
-    fn quitting(&self) -> bool;
-    fn quit(&mut self);
-}
-
-pub(crate) trait StationMediator {
-    fn fill_station_list(&mut self);
-    fn station_list(&self) -> Vec<(String, String)>;
-    fn station_count(&self) -> usize;
-}
-
-pub(crate) trait PlaybackMediator {
-    fn stopped(&self) -> bool;
-    fn stop(&mut self);
-    fn started(&self) -> bool;
-    fn start(&mut self);
-
-    fn elapsed(&self) -> Duration;
-    fn duration(&self) -> Duration;
-}
-
-pub(crate) trait AudioMediator {
-    fn reset(&mut self);
-    fn active(&self) -> bool;
-    fn paused(&self) -> bool;
-    fn pause(&mut self);
-    fn unpause(&mut self);
-    fn toggle_pause(&mut self) {
-        if self.paused() {
-            self.unpause();
-        } else {
-            self.pause();
-        }
-    }
-
-    fn volume(&self) -> f32;
-    fn set_volume(&mut self, new_volume: f32);
-    fn increase_volume(&mut self) {
-        self.set_volume(self.volume() + 0.1);
-    }
-
-    fn decrease_volume(&mut self) {
-        self.set_volume(self.volume() - 0.1);
-    }
-
-    fn refresh_volume(&mut self);
-    fn muted(&self) -> bool;
-    fn mute(&mut self);
-    fn unmute(&mut self);
-    fn toggle_mute(&mut self) {
-        if self.muted() {
-            self.unmute();
-        } else {
-            self.mute();
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 enum Volume {
@@ -144,6 +76,23 @@ struct AudioDevice {
 }
 
 impl AudioDevice {
+    pub(crate) fn new(volume: f32) -> Self {
+        let device = cpal::default_host()
+            .default_output_device()
+            .expect("Failed to locate default audio device");
+        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+            .expect("Failed to initialize audio device for playback");
+        let sink =
+            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
+        Self {
+            device,
+            _stream,
+            handle,
+            sink,
+            volume: Volume::Unmuted(volume),
+        }
+    }
+
     fn play_m4a_from_path<P>(&mut self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
@@ -198,9 +147,7 @@ impl AudioDevice {
         self.sink.play();
         Ok(())
     }
-}
 
-impl AudioMediator for AudioDevice {
     fn reset(&mut self) {
         self.sink = rodio::Sink::try_new(&self.handle)
             .expect("Failed to initialize audio device for playback");
@@ -248,25 +195,6 @@ impl AudioMediator for AudioDevice {
     fn unmute(&mut self) {
         self.volume.unmute();
         self.refresh_volume();
-    }
-}
-
-impl Default for AudioDevice {
-    fn default() -> Self {
-        let device = cpal::default_host()
-            .default_output_device()
-            .expect("Failed to locate default audio device");
-        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
-            .expect("Failed to initialize audio device for playback");
-        let sink =
-            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
-        Self {
-            device,
-            _stream,
-            handle,
-            sink,
-            volume: Volume::default(),
-        }
     }
 }
 
@@ -323,116 +251,69 @@ impl std::fmt::Debug for AudioDevice {
     }
 }
 
+impl Default for AudioDevice {
+    fn default() -> Self {
+        let device = cpal::default_host()
+            .default_output_device()
+            .expect("Failed to locate default audio device");
+        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+            .expect("Failed to initialize audio device for playback");
+        let sink =
+            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
+        Self {
+            device,
+            _stream,
+            handle,
+            sink,
+            volume: Volume::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-struct Playing {
+pub(crate) struct Playing {
+    active_track: PlaylistTrack,
     audio_device: AudioDevice,
-    cache_policy: CachePolicy,
     last_started: Option<Instant>,
     elapsed: Duration,
     duration: Duration,
-    playlist: VecDeque<PlaylistTrack>,
-    track_cacher: caching::TrackCacher,
-    notifier: Option<async_broadcast::Sender<messages::Notification>>,
-}
-
-impl Default for Playing {
-    fn default() -> Self {
-        Self {
-            audio_device: AudioDevice::default(),
-            cache_policy: CachePolicy::default(),
-            last_started: None,
-            elapsed: Duration::default(),
-            duration: Duration::default(),
-            playlist: VecDeque::with_capacity(4),
-            track_cacher: caching::TrackCacher::default(),
-            notifier: None,
-        }
-    }
+    elapsed_polled: Option<Duration>,
 }
 
 impl Playing {
-    #[allow(clippy::field_reassign_with_default)]
-    fn new(cache_policy: CachePolicy, volume: f32) -> Self {
-        let mut pl = Self::default();
-        pl.cache_policy = cache_policy;
-        pl.set_volume(volume);
-        pl
+    fn new(track: PlaylistTrack, volume: f32) -> Self {
+        let mut s = Self {
+            active_track: track,
+            audio_device: AudioDevice::new(volume),
+            last_started: None,
+            elapsed: Duration::default(),
+            duration: Duration::default(),
+            elapsed_polled: None,
+        };
+        s.start();
+        s
     }
 
-    fn set_notifier(&mut self, notifier: async_broadcast::Sender<messages::Notification>) {
-        self.notifier = Some(notifier);
-    }
+    fn start(&mut self) {
+        debug!("Starting track: {:?}", self.active_track.song_name);
+        if let Some(cached) = self.active_track.get_path() {
+            trace!("Starting decoding of track {}", cached.display());
+            if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
+                error!("Error starting track at {}: {:?}", cached.display(), e);
+            } else {
+                self.duration = self
+                    .active_track
+                    .optional
+                    .get("trackLength")
+                    .and_then(|v| v.as_u64())
+                    .map(Duration::from_secs)
+                    .unwrap_or_default();
 
-    fn playing(&self) -> Option<PlaylistTrack> {
-        if self.elapsed() > Duration::default() {
-            self.playlist.front().cloned()
+                self.last_started = Some(Instant::now());
+            }
         } else {
-            None
-        }
-    }
-
-    fn playlist_len(&self) -> usize {
-        self.playlist.len() + self.track_cacher.pending_count()
-    }
-
-    fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) {
-        self.track_cacher.enqueue(new_playlist);
-        trace!(
-            "New playlist length: {}",
-            self.playlist.len() + self.track_cacher.pending_count()
-        );
-    }
-
-    fn stop_all(&mut self) {
-        self.stop();
-        self.playlist.clear();
-        self.track_cacher.clear();
-    }
-
-    fn precache_playlist_track(&mut self) {
-        if let Err(e) = self.track_cacher.update() {
-            error!("Error while updating track cache: {}", e);
-        }
-        self.playlist
-            .extend(self.track_cacher.get_ready().drain(..));
-    }
-
-    fn evict_playing(&mut self) {
-        if let Some(track) = self.playlist.pop_front() {
-            if !self.cache_policy.evict_completed() {
-                return;
-            }
-            if let Some(serde_json::value::Value::String(path)) = track.optional.get("cached") {
-                let path = PathBuf::from(path);
-                trace!("Evicting track from cache: {}", path.to_string_lossy());
-                if let Err(e) = std::fs::remove_file(&path) {
-                    error!(
-                        "Error evicting track {} from cache: {:?}",
-                        path.to_string_lossy(),
-                        e
-                    );
-                }
-            }
-        }
-    }
-}
-
-impl PlaybackMediator for Playing {
-    fn stopped(&self) -> bool {
-        assert!(
-            !(self.active() && self.elapsed() == Duration::default()),
-            "Application state error: audio device is active, but no track playtime has elapsed."
-        );
-        !self.active()
-    }
-
-    fn stop(&mut self) {
-        if self.elapsed().as_millis() > 0 {
-            self.reset();
-            self.evict_playing();
-            self.last_started = None;
-            self.elapsed = Duration::default();
-            self.duration = Duration::default();
+            error!("Uncached track! Stopping...");
+            self.stop();
         }
     }
 
@@ -444,39 +325,28 @@ impl PlaybackMediator for Playing {
         self.active()
     }
 
-    fn start(&mut self) {
-        if self.started() {
-            trace!("A track is already playing. It needs to be stopped first.");
-            return;
+    fn stop(&mut self) {
+        if self.elapsed().as_millis() > 0 {
+            self.reset();
+            self.last_started = None;
+            self.elapsed = Duration::default();
+            self.duration = Duration::default();
         }
-        if let Some(track) = self.playlist.front_mut() {
-            debug!("Starting track: {:?}", &track.song_name);
-            if let Some(serde_json::value::Value::String(cached)) = track.optional.get("cached") {
-                trace!("Starting decoding of track {}", cached);
-                if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
-                    error!("Error starting track at {}: {:?}", cached, e);
-                } else {
-                    self.duration = track
-                        .optional
-                        .get("trackLength")
-                        .and_then(|v| v.as_u64())
-                        .map(Duration::from_secs)
-                        .unwrap_or_default();
+    }
 
-                    self.last_started = Some(Instant::now());
-                    trace!("Started track at {}.", cached);
-                    trace!("send notification 'starting track'");
-                    let _ = self
-                        .notifier
-                        .as_mut()
-                        .map(|c| c.try_broadcast(messages::Notification::Starting(track.clone())));
-                }
-            } else {
-                error!("Uncached track in playlist! Evicting...");
-                self.stop();
-            }
+    fn stopped(&self) -> bool {
+        assert!(
+            !(self.active() && self.elapsed() == Duration::default()),
+            "Application state error: audio device is active, but no track playtime has elapsed."
+        );
+        !self.active()
+    }
+
+    fn playing(&self) -> Option<&PlaylistTrack> {
+        if self.elapsed() > Duration::default() {
+            Some(&self.active_track)
         } else {
-            trace!("Cannot start track if the playlist is empty.");
+            None
         }
     }
 
@@ -488,9 +358,17 @@ impl PlaybackMediator for Playing {
     fn duration(&self) -> Duration {
         self.duration
     }
-}
 
-impl AudioMediator for Playing {
+    pub(crate) fn poll_progress(&mut self) -> Option<(Duration, Duration)> {
+        let elapsed = self.elapsed();
+        if self.elapsed_polled != Some(elapsed) {
+            self.elapsed_polled = Some(elapsed);
+            Some((elapsed, self.duration()))
+        } else {
+            None
+        }
+    }
+
     fn reset(&mut self) {
         self.audio_device.reset();
     }
@@ -533,10 +411,6 @@ impl AudioMediator for Playing {
         self.audio_device.set_volume(new_volume)
     }
 
-    fn refresh_volume(&mut self) {
-        self.audio_device.refresh_volume();
-    }
-
     fn muted(&self) -> bool {
         self.audio_device.muted()
     }
@@ -551,32 +425,420 @@ impl AudioMediator for Playing {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) enum ModelState {
+    Disconnected,
+    Connected {
+        session: PandoraSession,
+    },
+    Tuned {
+        session: PandoraSession,
+        station_id: String,
+        playlist: VecDeque<PlaylistTrack>,
+    },
+    Playing {
+        session: PandoraSession,
+        station_id: String,
+        playlist: VecDeque<PlaylistTrack>,
+        playing: Box<Playing>,
+    },
+    Quit,
+    Invalid,
+}
+
+impl Default for ModelState {
+    fn default() -> Self {
+        Self::Disconnected
+    }
+}
+
+impl std::fmt::Display for ModelState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Disconnected => write!(f, "Disconnected"),
+            Self::Connected { .. } => write!(f, "Connected"),
+            Self::Tuned {
+                station_id,
+                playlist,
+                ..
+            } => {
+                write!(f, "Tuned {{ ")?;
+                write!(f, "station id: {}, ", station_id)?;
+                write!(f, "playlist: [")?;
+                let pl = playlist.iter().fold(String::new(), |mut a, b| {
+                    a.reserve(b.song_name.len() + 1);
+                    a.push_str(&b.song_name);
+                    a.push_str(", ");
+                    a
+                });
+                write!(f, "{}]", pl.trim_end_matches(", "))?;
+                write!(f, "}}")
+            }
+            Self::Playing {
+                station_id,
+                playlist,
+                playing,
+                ..
+            } => {
+                write!(f, "Playing {{ ")?;
+                write!(f, "station id: {}, ", station_id)?;
+                write!(
+                    f,
+                    "track: {}, ",
+                    playing
+                        .playing()
+                        .map(|t| t.song_name.clone())
+                        .unwrap_or_else(String::default)
+                )?;
+                write!(f, "playlist: [")?;
+                let pl = playlist.iter().fold(String::new(), |mut a, b| {
+                    a.reserve(b.song_name.len() + 1);
+                    a.push_str(&b.song_name);
+                    a.push_str(", ");
+                    a
+                });
+                write!(f, "{}]", pl.trim_end_matches(", "))?;
+                write!(f, "}}")
+            }
+            Self::Quit => write!(f, "Quit"),
+            Self::Invalid => write!(f, "Invalid"),
+        }
+    }
+}
+
+impl ModelState {
+    pub(crate) fn connect(&mut self, mut session: PandoraSession) -> Result<()> {
+        session.partner_login()?;
+        session.user_login()?;
+        trace!("changing state from '{}' to 'Connected'", self);
+        *self = Self::Connected { session };
+        Ok(())
+    }
+
+    pub(crate) fn connected(&self) -> bool {
+        match self {
+            Self::Connected { .. } => true,
+            Self::Tuned { .. } => true,
+            Self::Playing { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn disconnect(&mut self) {
+        *self = Self::Disconnected;
+    }
+
+    /*
+    pub(crate) fn disconnected(&self) -> bool {
+        !self.connected()
+    }
+    */
+
+    fn test_connection(&mut self) -> bool {
+        match self {
+            Self::Connected { session } if session.connected() => {
+                true
+            }
+            Self::Tuned { session, .. } if session.connected() => {
+                true
+            }
+            Self::Playing { session, .. } if session.connected() => {
+                true
+            }
+            _ => {
+                false
+            }
+        }
+    }
+
+    pub(crate) fn tune(&mut self, station_id: String) -> Result<()> {
+        let self_name = self.to_string();
+        let old = std::mem::replace(self, Self::Invalid);
+        *self = match old {
+            Self::Connected { session } => {
+                trace!("changing state from '{}' to 'Tuned'", self_name);
+                Self::Tuned {
+                    session,
+                    station_id,
+                    playlist: VecDeque::new(),
+                }
+            }
+            Self::Tuned {
+                session,
+                station_id: cur_station_id,
+                playlist,
+                ..
+            } => {
+                if cur_station_id == station_id {
+                    trace!("station '{}' already tuned", station_id);
+                }
+                Self::Tuned {
+                    session,
+                    station_id,
+                    playlist,
+                }
+            }
+            Self::Playing {
+                session, playlist, ..
+            } => {
+                trace!("changing state from '{}' to 'Tuned'", self);
+                Self::Tuned {
+                    session,
+                    station_id,
+                    playlist,
+                }
+            }
+            _ => {
+                return Err(Error::InvalidOperationForState(String::from("tune"), self_name).into())
+            }
+        };
+        Ok(())
+    }
+
+    pub(crate) fn untune(&mut self) -> Result<()> {
+        let self_name = self.to_string();
+        let old = std::mem::replace(self, Self::Invalid);
+        *self = match old {
+            Self::Tuned { session, .. } => {
+                trace!("changing state from '{}' to 'Connected'", self_name);
+                Self::Connected { session }
+            }
+            Self::Playing { session, .. } => {
+                trace!("changing state from '{}' to 'Connected'", self_name);
+                Self::Connected { session }
+            }
+            _ => {
+                return Err(
+                    Error::InvalidOperationForState(String::from("untune"), self_name).into(),
+                )
+            }
+        };
+        Ok(())
+    }
+
+    pub(crate) fn tuned(&self) -> Option<String> {
+        match self {
+            Self::Tuned { station_id, .. } => Some(station_id.clone()),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn ready_next_track(&mut self, volume: f32) -> Result<Option<PlaylistTrack>> {
+        let self_name = self.to_string();
+        let old = std::mem::replace(self, Self::Invalid);
+        match old {
+            Self::Tuned {
+                session,
+                station_id,
+                mut playlist,
+                ..
+            } => {
+                if let Some(track) = playlist.pop_front() {
+                    trace!("changing state from '{:?}' to 'Playing'", self_name);
+                    *self = Self::Playing {
+                        session,
+                        station_id,
+                        playlist,
+                        playing: Box::new(Playing::new(track.clone(), volume)),
+                    };
+                    Ok(Some(track))
+                } else {
+                    trace!("no tracks ready - not changing state");
+                    *self = Self::Tuned {
+                        session,
+                        station_id,
+                        playlist,
+                    };
+                    Ok(None)
+                }
+            }
+            _ => Err(
+                Error::InvalidOperationForState(String::from("ready_next_track"), self_name).into(),
+            ),
+        }
+    }
+
+    pub(crate) fn enqueue_tracks<I>(&mut self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = PlaylistTrack>,
+    {
+        // TODO: Verify that the tracks are marked as already cached
+        match self {
+            Self::Tuned { playlist, .. } => {
+                playlist.extend(iter);
+                Ok(())
+            }
+            Self::Playing { playlist, .. } => {
+                playlist.extend(iter);
+                Ok(())
+            }
+            _ => panic!(
+                "Invalid operation '{}' for state '{}'",
+                "enqueue_tracks", self
+            ),
+        }
+    }
+
+    pub(crate) fn playlist_len(&self) -> Result<usize> {
+        match self {
+            Self::Tuned { playlist, .. } => Ok(playlist.len()),
+            Self::Playing { playlist, .. } => Ok(playlist.len()),
+            _ => Err(Error::InvalidOperationForState(
+                String::from("playlist_len"),
+                self.to_string(),
+            )
+            .into()),
+        }
+    }
+
+    pub(crate) fn stop(&mut self) -> Result<()> {
+        let self_name = self.to_string();
+        let old = std::mem::replace(self, Self::Invalid);
+        match old {
+            Self::Playing {
+                session,
+                station_id,
+                playlist,
+                ..
+            } => {
+                trace!("changing state from '{:?}' to 'Tuned'", self_name);
+                *self = Self::Tuned {
+                    session,
+                    station_id,
+                    playlist,
+                };
+                Ok(())
+            }
+            _ => {
+                *self = old;
+                Err(Error::InvalidOperationForState(String::from("stop"), self_name).into())
+            },
+        }
+    }
+
+    pub(crate) fn quit(&mut self) {
+        trace!("changing state from '{:?}' to 'Quit'", self);
+        *self = Self::Quit;
+    }
+
+    pub(crate) fn quitting(&self) -> bool {
+        matches!(self, Self::Quit)
+    }
+
+    pub(crate) fn get_session_mut(&mut self) -> Option<&mut PandoraSession> {
+        match self {
+            Self::Connected { ref mut session } => Some(session),
+            Self::Tuned {
+                ref mut session, ..
+            } => Some(session),
+            Self::Playing {
+                ref mut session, ..
+            } => Some(session),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn get_playing(&self) -> Option<&Playing> {
+        if let Self::Playing { playing, .. } = self {
+            Some(playing)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_playing_mut(&mut self) -> Option<&mut Playing> {
+        match self {
+            Self::Playing {
+                ref mut playing, ..
+            } => Some(playing),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn rate_track(&mut self, station: &str, rating: Option<bool>) -> Result<()> {
+        if let Self::Playing {
+            session, playing, ..
+        } = self
+        {
+            let new_rating_value: u32 = if rating.unwrap_or(false) { 1 } else { 0 };
+            if let Some(rating) = rating {
+                session.add_feedback(station, &playing.active_track.track_token, rating)?;
+                playing.active_track.song_rating = new_rating_value;
+                trace!(
+                    "Rated track {} with value {}",
+                    playing.active_track.song_name,
+                    rating
+                );
+            } else {
+                session.delete_feedback_for_track(station, &playing.active_track)?;
+                playing.active_track.song_rating = new_rating_value;
+                trace!("Successfully removed track rating.");
+            }
+            return Ok(());
+        }
+        Err(Error::InvalidOperationForState(String::from("rate_track"), self.to_string()).into())
+    }
+
+    pub(crate) fn sleep_track(&mut self) -> Result<()> {
+        if let Self::Playing {
+            session, playing, ..
+        } = self
+        {
+            session.sleep_song(&playing.active_track.track_token)?;
+            trace!("Successfully slept track.");
+            return Ok(());
+        }
+
+        Err(Error::InvalidOperationForState(String::from("sleep_track"), self.to_string()).into())
+    }
+
+    pub(crate) fn fetch_station_list(&mut self) -> Vec<Station> {
+        if let Some(session) = self.get_session_mut() {
+            if let Ok(list) = session.get_station_list() {
+                return list.stations;
+            }
+        }
+        Vec::new()
+    }
+
+    pub(crate) fn fetch_playlist(&mut self) -> Result<Vec<PlaylistTrack>> {
+        if let ModelState::Tuned {
+            session,
+            station_id,
+            ..
+        } = self
+        {
+            let playlist = session
+                .get_playlist(station_id)
+                .map(|pl| pl.into_iter().filter_map(|pe| pe.get_track()).collect());
+            trace!("Successfully fetched new playlist.");
+            return playlist;
+        }
+
+        Err(Error::InvalidOperationForState(String::from("sleep_track"), self.to_string()).into())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct Model {
+    state: ModelState,
     config: Rc<RefCell<Config>>,
-    session: PandoraSession,
     station_list: HashMap<String, Station>,
-    playing: Playing,
-    quitting: bool,
     dirty: bool,
     channel_in: Option<async_broadcast::Receiver<messages::Request>>,
     channel_out: Option<async_broadcast::Sender<messages::Notification>>,
-    last_elapsed_notification: std::time::Instant,
+    track_cacher: caching::TrackCacher,
 }
 
 impl Model {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
-        let policy = config.borrow_mut().cache_policy();
-        let volume = config.borrow_mut().volume();
         Self {
-            config: config.clone(),
-            session: PandoraSession::new(config),
+            state: ModelState::default(),
+            config,
             station_list: HashMap::new(),
-            playing: Playing::new(policy, volume),
-            quitting: false,
             dirty: true,
             channel_in: None,
             channel_out: None,
-            last_elapsed_notification: std::time::Instant::now(),
+            track_cacher: caching::TrackCacher::default(),
         }
     }
 
@@ -590,7 +852,6 @@ impl Model {
         &mut self,
     ) -> async_broadcast::Receiver<messages::Notification> {
         let (s, r) = async_broadcast::broadcast(32);
-        self.playing.set_notifier(s.clone());
         self.channel_out = Some(s);
         r
     }
@@ -600,9 +861,9 @@ impl Model {
             trace!("received request {:?}", do_msg);
             match do_msg {
                 messages::Request::Connect => self.connect(),
-                messages::Request::Tune(id) => self.tune(id),
+                messages::Request::Tune(s) => self.tune(s),
+                messages::Request::Untune => self.untune(),
                 messages::Request::Stop => self.stop(),
-                messages::Request::Start => self.start(),
                 messages::Request::Pause => self.pause(),
                 messages::Request::Unpause => self.unpause(),
                 messages::Request::TogglePause => self.toggle_pause(),
@@ -619,122 +880,201 @@ impl Model {
             }
             self.dirty |= true;
         }
+        // Check the health of the outgoing message channel, as well
+        trace!(
+            "Pending messages in notification channel: {}",
+            self.channel_out.as_ref().map(|c| c.len()).unwrap_or(0)
+        );
+        trace!(
+            "Number of listeners for notification channel: {}",
+            self.channel_out
+                .as_ref()
+                .map(|c| c.receiver_count())
+                .unwrap_or(0)
+        );
     }
 
-    fn refill_playlist(&mut self) {
-        // If the playing track and at least one more are still
-        // in the queue, then we don't refill.
-        let playlist_len = self.playing.playlist_len();
-        if playlist_len >= 2 {
-            return;
-        }
+    pub(crate) fn update(&mut self) -> bool {
+        self.process_messages();
 
-        trace!("Playlist length: {}", playlist_len);
-        if let Some(station) = self.tuned() {
-            match self.session.get_playlist(&station) {
-                Ok(playlist) => {
-                    trace!("Extending playlist.");
-                    let playlist: Vec<PlaylistTrack> = playlist
-                        .into_iter()
-                        .filter_map(|pe| pe.get_track())
-                        .collect();
-                    self.playing.extend_playlist(playlist);
-                    self.dirty |= true;
+        if self.state.connected() && !self.state.test_connection() {
+            self.disconnect();
+            // TODO: send notifications for change from old state
+            self.track_cacher.clear();
+            self.dirty = false;
+            return true;
+        }
+        // Disconnected
+        //   UI drives credential entry, saving them in config
+        // Disconnected -> Connected:
+        //   Connect using credentials saved in config
+        // Connected
+        //   UI drives station selection, saving it in config
+        // Connected -> Tuned:
+        //   Tune station saved in config
+        // Tuned
+        //   Start caching tracks
+        //   Add cached tracks to playlist
+        // Tuned -> Playing:
+        //   There is a ready track in playlist
+        // Playing
+        //   Notify UI of player progress
+        //   Check if track is completed
+        match self.state {
+            ModelState::Disconnected => {
+                if self.config.borrow().login_credentials().get().is_some() {
+                    self.connect();
                 }
-                Err(e) => error!("Failed while fetching new playlist: {:?}", e),
             }
+            ModelState::Connected { .. } => {
+                if self.station_list.is_empty() {
+                    self.fill_station_list();
+                }
+                let opt_station_id = self.config.borrow().station_id();
+                if let Some(station_id) = opt_station_id {
+                    self.tune(station_id);
+                }
+            }
+            ModelState::Tuned { .. } => {
+                self.refill_playlist();
+                self.cache_track();
+                self.start();
+            }
+            ModelState::Playing { .. } => {
+                self.cache_track();
+                self.poll_progress();
+            }
+            ModelState::Quit => (),
+            ModelState::Invalid => unreachable!("Invalid state"),
+        }
+        let old_dirty = self.dirty;
+        self.dirty = false;
+        old_dirty
+    }
+
+    fn poll_progress(&mut self) {
+        self.validate_playing();
+        if let Some((elapsed, duration)) =
+            self.state.get_playing_mut().and_then(|p| p.poll_progress())
+        {
+            self.dirty = true;
+            let notification = if self.paused() {
+                messages::Notification::Paused(elapsed, duration)
+            } else {
+                messages::Notification::Playing(elapsed, duration)
+            };
+            trace!("send notification 'Playing/Paused'");
+            let _ = self
+                .channel_out
+                .as_mut()
+                .map(|c| c.try_broadcast(notification));
+        }
+    }
+
+    fn validate_playing(&mut self) {
+        // If a track was started, but the audio device is no longer playing it
+        // force that track out of the playlist
+        if self
+            .state
+            .get_playing_mut()
+            .map(|p| p.stopped())
+            .unwrap_or_default()
+        {
+            trace!("Current track finished playing. Evicting from playlist...");
+            self.stop();
         }
     }
 
     fn cache_track(&mut self) {
-        self.playing.precache_playlist_track();
+        match self.track_cacher.update() {
+            Ok(0) => (),
+            Ok(_ready_count) => {
+                self.dirty = true;
+                if let Err(e) = self
+                    .state
+                    .enqueue_tracks(self.track_cacher.get_ready().drain(..))
+                {
+                    error!("Error while adding new tracks to track cache: {}", e);
+                }
+            }
+            Err(e) => error!("Error while updating track cache: {}", e),
+        }
+    }
+
+    pub(crate) fn playlist_len(&self) -> usize {
+        match self.state.playlist_len() {
+            Ok(len) => len + self.track_cacher.pending_count(),
+            Err(e) => {
+                error!("Error while checking playlist length: {}", e);
+                0
+            }
+        }
+    }
+
+    pub(crate) fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) {
+        self.dirty |= !new_playlist.is_empty();
+        self.track_cacher.enqueue(new_playlist);
+        trace!("New playlist length: {}", self.playlist_len());
+    }
+
+    fn refill_playlist(&mut self) {
+        // If there's at least one pending track in the queue,
+        // then we don't refill.
+        let playlist_len = self.playlist_len();
+        trace!("Playlist length: {}", playlist_len);
+        if playlist_len > 0 {
+            trace!("Not refilling.");
+            return;
+        }
+
+        match self.state.fetch_playlist() {
+            Ok(new_playlist) => {
+                trace!("Extending playlist.");
+                self.extend_playlist(new_playlist);
+            }
+            Err(e) => error!("Failed while fetching new playlist: {:?}", e),
+        }
     }
 
     pub(crate) fn rate_track(&mut self, rating: Option<bool>) {
-        if let (Some(track), Some(st_id)) = (self.playing(), self.tuned()) {
-            let new_rating_value: u32 = if rating.unwrap_or(false) { 1 } else { 0 };
-            if let Some(rating) = rating {
-                if let Err(e) = self
-                    .session
-                    .add_feedback(&st_id, &track.track_token, rating)
-                {
-                    error!("Failed submitting track rating: {:?}", e);
-                } else {
-                    if let Some(t) = self.playing.playlist.front_mut() {
-                        t.song_rating = new_rating_value;
-                        trace!("send notification 'rated'");
-                        let _ = self.channel_out.as_mut().map(|c| {
-                            c.try_broadcast(messages::Notification::Rated(new_rating_value))
-                        });
-                    }
-                    self.dirty |= true;
-                    trace!("Rated track {} with value {}", track.song_name, rating);
-                }
-            } else if let Err(e) = self.session.delete_feedback_for_track(&st_id, &track) {
-                error!("Failed submitting track rating: {:?}", e);
-            } else {
-                if let Some(t) = self.playing.playlist.front_mut() {
-                    t.song_rating = new_rating_value;
-                    trace!("send notification 'unrated'");
-                    let _ = self
-                        .channel_out
-                        .as_mut()
-                        .map(|c| c.try_broadcast(messages::Notification::Unrated));
-                }
-
-                self.dirty |= true;
-                trace!("Successfully removed track rating.");
+        if let Some(station_id) = self.tuned() {
+            if let Err(e) = self.state.rate_track(&station_id, rating) {
+                error!("Error rating track: {}", e);
+                return;
             }
+            if let Some(rating) = rating.map(|r| if r { 1 } else { 0 }) {
+                trace!("send notification 'rated'");
+                let _ = self
+                    .channel_out
+                    .as_mut()
+                    .map(|c| c.try_broadcast(messages::Notification::Rated(rating)));
+            } else {
+                trace!("send notification 'unrated'");
+                let _ = self
+                    .channel_out
+                    .as_mut()
+                    .map(|c| c.try_broadcast(messages::Notification::Unrated));
+            }
+            self.dirty |= true;
         }
     }
 
     pub(crate) fn sleep_track(&mut self) {
-        if let Err(e) = self
-            .playing()
-            .map(|t| self.session.sleep_song(&t.track_token))
-            .transpose()
-        {
+        if let Err(e) = self.state.sleep_track() {
             error!("Failed to sleep track: {:?}", e);
         }
+        // TODO: this probably merits a notification
         self.stop();
     }
 
-    fn playing_update_notify(&mut self) {
-        if self.started() {
-            if self.last_elapsed_notification.elapsed() >= std::time::Duration::from_millis(250) {
-                let elapsed = self.elapsed();
-                let duration = self.duration();
-                if self.paused() {
-                    trace!("send notification 'paused'");
-                    if let Some(Err(e)) = self
-                        .channel_out
-                        .as_mut()
-                        .map(|c| c.try_broadcast(messages::Notification::Paused(elapsed, duration)))
-                    {
-                        error!("notification queue error: {}", e);
-                    }
-                } else {
-                    trace!("send notification 'playing'");
-                    if let Some(Err(e)) = self.channel_out.as_mut().map(|c| {
-                        c.try_broadcast(messages::Notification::Playing(elapsed, duration))
-                    }) {
-                        error!("notification queue error: {}", e);
-                    }
-                }
-                self.last_elapsed_notification = std::time::Instant::now();
-            }
-        }
-    }
-}
-
-impl StateMediator for Model {
+    /*
     fn disconnected(&self) -> bool {
-        !self.session.connected()
+        self.state.disconnected()
     }
+    */
 
     fn disconnect(&mut self) {
-        // TODO: Evaluate whether session.user_logout() would better suit
-        self.session.partner_logout();
+        self.state.disconnect();
         self.dirty |= true;
         trace!("send notification 'disconnected'");
         let _ = self
@@ -744,20 +1084,32 @@ impl StateMediator for Model {
     }
 
     fn fail_authentication(&mut self) {
+        // TODO: send notification instead of clearing config?
+        // allows retry without erasing stored credentials
         let failed_auth =
             PartialConfig::default().login(self.config.borrow().login_credentials().as_invalid());
         self.dirty |= true;
         self.config.borrow_mut().update_from(&failed_auth);
+        self.disconnect();
     }
 
     fn connected(&self) -> bool {
-        self.session.connected()
+        self.state.connected()
     }
 
     fn connect(&mut self) {
-        if !self.connected() {
+        if self.connected() {
+            info!("Connect request ignored. Already connected.");
+            trace!("send notification 'connected'*");
+            let _ = self
+                .channel_out
+                .as_mut()
+                .map(|c| c.try_broadcast(messages::Notification::Connected));
+        } else {
             trace!("Attempting pandora login...");
-            if let Err(e) = self.session.user_login() {
+            self.dirty |= true;
+            let session = PandoraSession::new(self.config.clone());
+            if let Err(e) = self.state.connect(session) {
                 if e.downcast_ref::<Error>()
                     .map(|e| *e == Error::PanharmoniconMissingAuthToken)
                     .unwrap_or(false)
@@ -776,23 +1128,15 @@ impl StateMediator for Model {
                     .channel_out
                     .as_mut()
                     .map(|c| c.try_broadcast(messages::Notification::Disconnected));
-            } else {
-                trace!("Successfully logged into Pandora.");
-                trace!("send notification 'connected'");
-                let _ = self
-                    .channel_out
-                    .as_mut()
-                    .map(|c| c.try_broadcast(messages::Notification::Connected));
+                return;
             }
-            self.dirty |= true;
-        } else {
-            info!("Connect request ignored. Already connected.");
-            trace!("send notification 'connected'*");
-            let _ = self
-                .channel_out
-                .as_mut()
-                .map(|c| c.try_broadcast(messages::Notification::Connected));
+            trace!("Successfully logged into Pandora.");
         }
+        trace!("send notification 'connected'");
+        let _ = self
+            .channel_out
+            .as_mut()
+            .map(|c| c.try_broadcast(messages::Notification::Connected));
 
         // If a station was saved, send a Tuned notification for it
         if let Some(station_id) = self.tuned() {
@@ -811,16 +1155,13 @@ impl StateMediator for Model {
             .map(|c| c.try_broadcast(messages::Notification::Volume(volume)));
     }
 
-    fn tuned(&self) -> Option<String> {
-        self.config.borrow().station_id()
-    }
-
     fn tune(&mut self, station_id: String) {
+        self.untune();
         if self
             .tuned()
             .as_ref()
             .map(|s| s == &station_id)
-            .unwrap_or(false)
+            .unwrap_or_default()
         {
             trace!("Requested station is already tuned.");
             return;
@@ -829,115 +1170,48 @@ impl StateMediator for Model {
         self.config
             .borrow_mut()
             .update_from(&PartialConfig::default().station(Some(station_id.clone())));
+        if let Err(e) = self.state.tune(station_id) {
+            error!("Failed to tune station: {}", e);
+        }
         self.dirty |= true;
-
-        // This will stop the current track and flush the playlist of all queue
-        // tracks so that later we can fill it with tracks from the new station
-        if self.started() {
-            self.playing.stop_all();
-            self.dirty |= true;
-        }
-
-        if self.connected() {
-            trace!("send notification 'tuned'");
-            let _ = self
-                .channel_out
-                .as_mut()
-                .map(|c| c.try_broadcast(messages::Notification::Tuned(station_id)));
-        } else {
-            info!("Cannot start station until connected, but saving station for when connected.");
-        }
     }
 
     fn untune(&mut self) {
-        if self.tuned().is_some() {
-            self.config
-                .borrow_mut()
-                .update_from(&PartialConfig::default().station(None));
-            self.dirty |= true;
+        self.stop();
+        self.track_cacher.clear();
+        if self.tuned().is_none() {
+            return;
         }
 
-        // This will stop the current track and flush the playlist of all queue
-        if self.started() {
-            self.playing.stop_all();
-            self.dirty |= true;
+        if let Err(e) = self.state.untune() {
+            error!("Failed to untune station: {}", e);
         }
-        trace!("send notification 'stopped'");
+        self.config
+            .borrow_mut()
+            .update_from(&PartialConfig::default().station(None));
+
+        trace!("send notification 'Connected'");
         let _ = self
             .channel_out
             .as_mut()
-            .map(|c| c.try_broadcast(messages::Notification::Stopped));
+            .map(|c| c.try_broadcast(messages::Notification::Connected));
+
+        self.dirty |= true;
     }
 
-    fn ready(&self) -> bool {
-        self.stopped()
+    fn tuned(&self) -> Option<String> {
+        self.state.tuned()
     }
 
-    fn playing(&self) -> Option<PlaylistTrack> {
-        self.playing.playing()
+    /*
+    fn playing(&self) -> Option<&PlaylistTrack> {
+        self.state.get_playing().and_then(|p| p.playing())
     }
-
-    fn update(&mut self) -> bool {
-        let mut old_dirty = self.dirty;
-        trace!(
-            "Pending messages in notification channel: {}",
-            self.channel_out.as_ref().map(|c| c.len()).unwrap_or(0)
-        );
-        trace!(
-            "Number of listeners for notification channel: {}",
-            self.channel_out
-                .as_ref()
-                .map(|c| c.receiver_count())
-                .unwrap_or(0)
-        );
-        // If a track was started, but the audio device is no longer playing it
-        // force that track out of the playlist
-        if self.elapsed().as_millis() > 0 && !self.active() {
-            trace!("Current track finished playing. Evicting from playlist...");
-            self.playing.stop();
-        }
-        if self.connected() {
-            self.fill_station_list();
-            if !old_dirty && (old_dirty != self.dirty) {
-                trace!("fill_station_list dirtied");
-                old_dirty = self.dirty;
-            }
-            self.refill_playlist();
-            if !old_dirty && (old_dirty != self.dirty) {
-                trace!("refill_playlist dirtied");
-                old_dirty = self.dirty;
-            }
-            self.cache_track();
-            if !old_dirty && (old_dirty != self.dirty) {
-                trace!("cache_track dirtied");
-                old_dirty = self.dirty;
-            }
-            self.start();
-            self.process_messages();
-            if !old_dirty && (old_dirty != self.dirty) {
-                trace!("start dirtied");
-            }
-
-            self.playing_update_notify();
-        } else if self.config.borrow().login_credentials().get().is_some() {
-            self.disconnect();
-            self.connect();
-            if !old_dirty && (old_dirty != self.dirty) {
-                trace!("connect dirtied");
-            }
-        }
-        let old_dirty = self.dirty;
-        self.dirty = false;
-        old_dirty
-    }
-
-    fn quitting(&self) -> bool {
-        self.quitting
-    }
+    */
 
     fn quit(&mut self) {
         trace!("Start quitting the application.");
-        self.quitting = true;
+        self.state.quit();
         self.dirty |= true;
         trace!("send notification 'quit'");
         if let Some(Err(e)) = self
@@ -948,73 +1222,102 @@ impl StateMediator for Model {
             error!("notification queue error: {}", e);
         }
     }
-}
 
-impl StationMediator for Model {
     fn fill_station_list(&mut self) {
         if !self.station_list.is_empty() {
             return;
         }
         trace!("Filling station list");
         self.station_list = self
-            .session
-            .get_station_list()
-            .ok()
-            .map(|sl| {
-                sl.stations
-                    .into_iter()
-                    .map(|s| (s.station_id.clone(), s))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        for st in self.station_list.values() {
+            .state
+            .fetch_station_list()
+            .into_iter()
+            .map(|s| (s.station_id.clone(), s))
+            .collect();
+        for station in self.station_list.values() {
             trace!(
                 "send notification 'add station {}[{}]'",
-                st.station_name,
-                st.station_id
+                station.station_name,
+                station.station_id
             );
             let _ = self.channel_out.as_mut().map(|c| {
                 c.try_broadcast(messages::Notification::AddStation(
-                    st.station_name.clone(),
-                    st.station_id.clone(),
+                    station.station_name.clone(),
+                    station.station_id.clone(),
                 ))
             });
         }
         self.dirty |= true;
     }
 
+    /*
     fn station_list(&self) -> Vec<(String, String)> {
         self.station_list
             .values()
             .map(|s| (s.station_name.clone(), s.station_id.clone()))
             .collect()
     }
+    */
 
+    /*
     fn station_count(&self) -> usize {
         self.station_list.len()
     }
-}
+    */
 
-impl PlaybackMediator for Model {
+    /*
     fn stopped(&self) -> bool {
-        self.playing.stopped()
+        self.state
+            .get_playing()
+            .map(|p| p.stopped())
+            .unwrap_or(true)
     }
+    */
 
     fn stop(&mut self) {
-        if !self.stopped() {
-            self.playing.stop();
-            self.dirty |= true;
+        if self.config.borrow().cache_policy().evict_completed() {
+            trace!("Eviction policy requires evicting track");
+            if let Some(cached_path) = self
+                .state
+                .get_playing()
+                .and_then(|p| p.playing())
+                .and_then(|t| t.get_path())
+            {
+                if let Err(e) = std::fs::remove_file(&cached_path) {
+                    error!(
+                        "Failed to evict {} from track cache: {}",
+                        cached_path.display(),
+                        e
+                    );
+                } else {
+                    trace!("Evicted {} from track cache.", cached_path.display());
+                }
+            }
+        } else {
+            trace!("Not evicting completed track, per configured cache eviction policy");
         }
-        trace!("send notification 'stopped'");
-        let _ = self
-            .channel_out
-            .as_mut()
-            .map(|c| c.try_broadcast(messages::Notification::Stopped));
+
+        if self.state.get_playing().is_some() {
+            if let Err(e) = self.state.stop() {
+                error!("Error stopping active track: {}", e);
+            } else {
+                trace!("send notification 'stopped'");
+                let _ = self
+                    .channel_out
+                    .as_mut()
+                    .map(|c| c.try_broadcast(messages::Notification::Stopped));
+                self.dirty |= true;
+            }
+        } else {
+            trace!("No track is currently playing. Nothing to do.");
+        }
     }
 
     fn started(&self) -> bool {
-        self.playing.started()
+        self.state
+            .get_playing()
+            .map(|p| p.started())
+            .unwrap_or_default()
     }
 
     fn start(&mut self) {
@@ -1022,57 +1325,102 @@ impl PlaybackMediator for Model {
             //trace!("Track already started.");
         } else {
             trace!("No tracks started yet. Starting next track.");
-            self.playing.start();
-            self.dirty |= true;
+            let volume = self.config.borrow().volume();
+            if let Ok(Some(track)) = self.state.ready_next_track(volume) {
+                trace!("send notification 'starting'");
+                let _ = self
+                    .channel_out
+                    .as_mut()
+                    .map(|c| c.try_broadcast(messages::Notification::Starting(track)));
+                trace!("send notification 'volume'");
+                let _ = self
+                    .channel_out
+                    .as_mut()
+                    .map(|c| c.try_broadcast(messages::Notification::Volume(volume)));
+                self.dirty |= true;
+            }
         }
     }
 
+    /*
     fn elapsed(&self) -> Duration {
-        self.playing.elapsed()
+        self.state
+            .get_playing()
+            .map(|p| p.elapsed())
+            .unwrap_or_default()
     }
 
     fn duration(&self) -> Duration {
-        self.playing.duration()
+        self.state
+            .get_playing()
+            .map(|p| p.duration())
+            .unwrap_or_default()
     }
-}
+    */
 
-impl AudioMediator for Model {
     // TODO: this might require some finesse to get the right
     // behavior between either dropping the current-playing track
     // or restarting it from the beginning.
+    /*
     fn reset(&mut self) {
-        self.playing.reset();
+        self.state.get_playing_mut().map(|p| p.reset());
         self.dirty |= true;
     }
 
     fn active(&self) -> bool {
-        self.playing.active()
+        self.state
+            .get_playing()
+            .map(|p| p.active())
+            .unwrap_or_default()
     }
+    */
 
     fn paused(&self) -> bool {
-        self.playing.paused()
+        self.state
+            .get_playing()
+            .map(|p| p.paused())
+            .unwrap_or_default()
     }
 
     fn pause(&mut self) {
         if !self.paused() {
-            self.playing.pause();
-            self.dirty |= true;
+            if let Some(playing) = self.state.get_playing_mut() {
+                playing.pause();
+                self.dirty |= true;
+                // No notification because that happens via the progress update
+            }
         }
     }
 
     fn unpause(&mut self) {
         if self.paused() {
-            self.playing.unpause();
-            self.dirty |= true;
+            if let Some(playing) = self.state.get_playing_mut() {
+                playing.unpause();
+                self.dirty |= true;
+                // No notification because that happens via the progress update
+            }
+        }
+    }
+
+    fn toggle_pause(&mut self) {
+        if self.paused() {
+            self.unpause();
+        } else {
+            self.pause();
         }
     }
 
     fn volume(&self) -> f32 {
-        self.playing.volume()
+        self.state
+            .get_playing()
+            .map(|p| p.volume())
+            .unwrap_or_default()
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        self.playing.set_volume(new_volume);
+        if let Some(playing) = self.state.get_playing_mut() {
+            playing.set_volume(new_volume);
+        }
         self.config
             .borrow_mut()
             .update_from(&PartialConfig::default().volume(new_volume));
@@ -1084,19 +1432,29 @@ impl AudioMediator for Model {
             .map(|c| c.try_broadcast(messages::Notification::Volume(new_volume)));
     }
 
-    fn refresh_volume(&mut self) {
-        self.playing.refresh_volume();
-        self.dirty |= true;
+    fn increase_volume(&mut self) {
+        let new_volume = self.volume() + 0.1;
+        self.set_volume(new_volume.clamp(0.0, 1.0));
+    }
+
+    fn decrease_volume(&mut self) {
+        let new_volume = self.volume() - 0.1;
+        self.set_volume(new_volume.clamp(0.0, 1.0));
     }
 
     fn muted(&self) -> bool {
-        self.playing.muted()
+        self.state
+            .get_playing()
+            .map(|p| p.muted())
+            .unwrap_or_default()
     }
 
     fn mute(&mut self) {
         if !self.muted() {
-            self.playing.mute();
-            self.dirty |= true;
+            if let Some(playing) = self.state.get_playing_mut() {
+                playing.mute();
+                self.dirty |= true;
+            }
         }
         trace!("send notification 'mute'");
         let _ = self
@@ -1107,14 +1465,20 @@ impl AudioMediator for Model {
 
     fn unmute(&mut self) {
         if self.muted() {
-            self.playing.unmute();
-            self.dirty |= true;
+            if let Some(playing) = self.state.get_playing_mut() {
+                playing.unmute();
+                self.dirty |= true;
+            }
         }
         trace!("send notification 'unmute'");
         let _ = self
             .channel_out
             .as_mut()
             .map(|c| c.try_broadcast(messages::Notification::Unmuted));
+    }
+
+    pub(crate) fn quitting(&self) -> bool {
+        self.state.quitting()
     }
 }
 

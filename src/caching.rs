@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -11,23 +10,43 @@ use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
 
-#[derive(Debug, Clone)]
-struct FetchRequest {
-    track_token: String,
-    uri: String,
-    path: String,
+pub(crate) trait Cacheable {
+    type Error;
+    fn get_path(&self) -> Option<std::path::PathBuf>;
+    fn set_path<P: AsRef<std::path::Path>>(&mut self, path: P);
+    fn to_cache_request(&self) -> std::result::Result<FetchRequest, Self::Error>;
 }
 
-impl TryFrom<&PlaylistTrack> for FetchRequest {
+impl Cacheable for PlaylistTrack {
     type Error = anyhow::Error;
 
-    fn try_from(track: &PlaylistTrack) -> Result<Self, Self::Error> {
-        let path = cached_path_for_track(track, true)?
-            .to_string_lossy()
-            .to_string();
-        let uri = track.audio_url_map.high_quality.audio_url.clone();
-        Ok(Self {
-            track_token: track.track_token.clone(),
+    fn get_path(&self) -> Option<std::path::PathBuf> {
+        if let Some(serde_json::value::Value::String(path_str)) = self.optional.get("cached") {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                return Some(path);
+            } else {
+                trace!(
+                    "Marked as cached, but doesn't exist: {}",
+                    path.to_string_lossy()
+                );
+            }
+        }
+        None
+    }
+
+    fn set_path<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        self.optional.insert(
+            String::from("cached"),
+            serde_json::value::Value::String(path.as_ref().display().to_string()),
+        );
+    }
+
+    fn to_cache_request(&self) -> std::result::Result<FetchRequest, anyhow::Error> {
+        let path = cached_path_for_track(self, true)?.display().to_string();
+        let uri = self.audio_url_map.high_quality.audio_url.clone();
+        Ok(FetchRequest {
+            track_token: self.track_token.clone(),
             uri,
             path,
         })
@@ -35,7 +54,14 @@ impl TryFrom<&PlaylistTrack> for FetchRequest {
 }
 
 #[derive(Debug, Clone)]
-struct FetchResponse {
+pub(crate) struct FetchRequest {
+    track_token: String,
+    uri: String,
+    path: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FetchResponse {
     track_token: String,
     path: String,
     result: std::result::Result<(), String>,
@@ -86,7 +112,7 @@ impl TrackCacher {
         while !self.waiting.is_empty() && !self.send_to_fetcher.is_full() {
             trace!("Track fetcher is ready");
             if let Some(mut track) = self.waiting.pop_front() {
-                let request = FetchRequest::try_from(&track)?;
+                let request = track.to_cache_request()?;
                 trace!(
                     "Sending a track for fetching with audio url {:?}",
                     &request.uri
@@ -101,10 +127,7 @@ impl TrackCacher {
                 // into the ready queue
                 if PathBuf::from(&request.path).exists() {
                     trace!("Cache hit!");
-                    track.optional.insert(
-                        String::from("cached"),
-                        serde_json::value::Value::String(request.path),
-                    );
+                    track.set_path(request.path);
                     self.ready.push(track);
                     continue;
                 }
@@ -145,10 +168,7 @@ impl TrackCacher {
                 if let Err(e) = tag_m4a(&track, &path) {
                     error!("Error tagging track at {}: {:?}", path, &e);
                 }
-                track.optional.insert(
-                    String::from("cached"),
-                    serde_json::value::Value::String(path),
-                );
+                track.set_path(path);
                 self.ready.push(track);
             } else {
                 // This can happen if clear() was called on the track cacher after
@@ -226,8 +246,7 @@ fn app_cache_dir() -> Result<PathBuf> {
 }
 
 fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
-    if let Some(serde_json::value::Value::String(path_str)) = track.optional.get("cached") {
-        let path = PathBuf::from(path_str);
+    if let Some(path) = track.get_path() {
         if path.exists() {
             return Some(path);
         } else {
