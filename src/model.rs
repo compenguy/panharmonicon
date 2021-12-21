@@ -1170,9 +1170,16 @@ impl Model {
         self.config
             .borrow_mut()
             .update_from(&PartialConfig::default().station(Some(station_id.clone())));
-        if let Err(e) = self.state.tune(station_id) {
+        if let Err(e) = self.state.tune(station_id.clone()) {
             error!("Failed to tune station: {}", e);
         }
+
+        trace!("send notification 'tuned'");
+        let _ = self
+            .channel_out
+            .as_mut()
+            .map(|c| c.try_broadcast(messages::Notification::Tuned(station_id)));
+
         self.dirty |= true;
     }
 
