@@ -132,9 +132,8 @@ pub(crate) fn playing_view() -> LinearLayout {
     .with_name("playing");
 
     LinearLayout::vertical()
-        .child(HideableView::new(DummyView.full_height()).with_name("spacer_hideable"))
-        .child(HideableView::new(stations).with_name("stations_hideable"))
         .child(playing)
+        .child(HideableView::new(stations).with_name("stations_hideable"))
 }
 
 pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
