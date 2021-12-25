@@ -17,14 +17,13 @@ anyhow = "1"
 thiserror = "1"
 clap = { version = "3.0.0-beta.2", default-features = false, features = ["color", "std", "cargo"] }
 log = { version = "0.4", default-features = true, features = ["std"] }
-lazy_static = "1"
-flexi_logger = { version = "0.18", default-features = false, features = ["colors"] }
+flexi_logger = { version = "0.22", default-features = false, features = ["colors"] }
 chrono = "0.4"
-dirs = "3"
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = "1.0"
-keyring = "0.10"
+dirs = "4"
+serde = "1"
+serde_derive = "1"
+serde_json = "1"
+keyring = "1"
 pandora-api = { git = "https://github.com/compenguy/pandora-api.git", version = "0.4.0" }
 reqwest = { version = "0.11", default-features = true, features = ["blocking"] }
 rodio = { version = "0.14", default-features = false }
@@ -32,6 +31,7 @@ cpal = "0.13"
 redlux = "0.4"
 mp4ameta = "0.11"
 cursive = { version = "0.16", default-features = false, features = ["crossterm-backend", "toml"] }
+async-std = "1"
 async-broadcast = "0.3"
 mktemp = "0.4"
 

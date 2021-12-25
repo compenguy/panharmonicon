@@ -178,10 +178,10 @@ impl Credentials {
 
     fn get_from_keyring(username: &str) -> Result<Option<String>> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Keyring::new(&service, username);
+        let keyring = keyring::Entry::new(&service, username);
         match keyring.get_password() {
             Ok(p) => Ok(Some(p)),
-            Err(keyring::KeyringError::NoPasswordFound) => Ok(None),
+            Err(keyring::error::Error::NoEntry) => Ok(None),
             Err(e) => Err(Error::from(e)).with_context(|| {
                 format!("Error contacting session keyring for user {}", &username)
             }),
@@ -190,7 +190,7 @@ impl Credentials {
 
     fn set_on_keyring(username: &str, password: &str) -> Result<()> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Keyring::new(&service, username);
+        let keyring = keyring::Entry::new(&service, username);
         keyring
             .set_password(password)
             .map_err(Error::from)

@@ -1,19 +1,19 @@
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub(crate) enum Error {
     #[error("Unable to identify platform-appropriate application directory")]
     AppDirNotFound,
     #[error("Pandora login credentials incomplete")]
     PanharmoniconMissingAuthToken,
     #[error("Error accessing session keyring {0}")]
-    KeyringFailure(String),
+    KeyringFailure(#[from] keyring::error::Error),
     #[error("Error invalid operation {0} for state {1}")]
     InvalidOperationForState(String, String),
 }
 
-impl From<keyring::KeyringError> for Error {
-    fn from(err: keyring::KeyringError) -> Self {
-        Error::KeyringFailure(err.to_string())
+impl Error {
+    pub(crate) fn missing_auth_token(&self) -> bool {
+        matches!(self, Error::PanharmoniconMissingAuthToken)
     }
 }

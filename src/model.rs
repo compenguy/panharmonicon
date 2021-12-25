@@ -515,12 +515,10 @@ impl ModelState {
     }
 
     pub(crate) fn connected(&self) -> bool {
-        match self {
-            Self::Connected { .. } => true,
-            Self::Tuned { .. } => true,
-            Self::Playing { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::Connected { .. } | Self::Tuned { .. } | Self::Playing { .. }
+        )
     }
 
     pub(crate) fn disconnect(&mut self) {
@@ -535,18 +533,10 @@ impl ModelState {
 
     fn test_connection(&mut self) -> bool {
         match self {
-            Self::Connected { session } if session.connected() => {
-                true
-            }
-            Self::Tuned { session, .. } if session.connected() => {
-                true
-            }
-            Self::Playing { session, .. } if session.connected() => {
-                true
-            }
-            _ => {
-                false
-            }
+            Self::Connected { session } if session.connected() => true,
+            Self::Tuned { session, .. } if session.connected() => true,
+            Self::Playing { session, .. } if session.connected() => true,
+            _ => false,
         }
     }
 
@@ -711,7 +701,7 @@ impl ModelState {
             _ => {
                 *self = old;
                 Err(Error::InvalidOperationForState(String::from("stop"), self_name).into())
-            },
+            }
         }
     }
 
@@ -1111,7 +1101,7 @@ impl Model {
             let session = PandoraSession::new(self.config.clone());
             if let Err(e) = self.state.connect(session) {
                 if e.downcast_ref::<Error>()
-                    .map(|e| *e == Error::PanharmoniconMissingAuthToken)
+                    .map(|e| e.missing_auth_token())
                     .unwrap_or(false)
                 {
                     error!("Required authentication token is missing.");
