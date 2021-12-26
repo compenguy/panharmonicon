@@ -522,17 +522,4 @@ impl PandoraSession {
             .map(|_: SetQuickMixResponse| ())
             .map_err(anyhow::Error::from)
     }
-
-    pub async fn sleep_song(&mut self, track_token: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing sleep song request"
-        })?;
-
-        trace!("sleepSong()");
-        SleepSong::from(&track_token)
-            .response(&mut self.inner)
-            .await
-            .map(|_: SleepSongResponse| ())
-            .map_err(anyhow::Error::from)
-    }
 }

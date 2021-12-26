@@ -136,7 +136,7 @@ async fn main() -> Result<()> {
     while !model.quitting() {
         ui.update().await;
         if let Err(e) = model.update().await {
-            error!("Error updating application state: {}", e);
+            error!("Error updating application state: {:?}", e);
         }
         fetcher.update().await?;
 

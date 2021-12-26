@@ -781,21 +781,6 @@ impl ModelState {
         Err(Error::InvalidOperationForState(String::from("rate_track"), self.to_string()).into())
     }
 
-    pub(crate) async fn sleep_track(&mut self) -> Result<()> {
-        if let Self::Playing {
-            session, playing, ..
-        } = self
-        {
-            session
-                .sleep_song(&playing.active_track.track_token)
-                .await?;
-            trace!("Successfully slept track.");
-            return Ok(());
-        }
-
-        Err(Error::InvalidOperationForState(String::from("sleep_track"), self.to_string()).into())
-    }
-
     pub(crate) async fn fetch_station_list(&mut self) -> Vec<Station> {
         if let Some(session) = self.get_session_mut() {
             if let Ok(list) = session.get_station_list().await {
@@ -820,7 +805,7 @@ impl ModelState {
             return playlist;
         }
 
-        Err(Error::InvalidOperationForState(String::from("sleep_track"), self.to_string()).into())
+        Err(Error::InvalidOperationForState(String::from("fetch_playlist"), self.to_string()).into())
     }
 }
 
@@ -878,7 +863,6 @@ impl Model {
                 messages::Request::VolumeUp => self.increase_volume().await?,
                 messages::Request::VolumeDown => self.decrease_volume().await?,
                 messages::Request::Quit => self.quit().await?,
-                messages::Request::SleepTrack => self.sleep_track().await?,
                 messages::Request::RateUp => self.rate_track(Some(true)).await?,
                 messages::Request::RateDown => self.rate_track(Some(false)).await?,
                 messages::Request::UnRate => self.rate_track(None).await?,
@@ -1064,16 +1048,6 @@ impl Model {
             }
             self.dirty |= true;
         }
-        Ok(())
-    }
-
-    pub(crate) async fn sleep_track(&mut self) -> Result<()> {
-        self.state
-            .sleep_track()
-            .await
-            .with_context(|| "Failed to sleep track")?;
-        // TODO: this probably merits a notification
-        self.stop().await?;
         Ok(())
     }
 

@@ -19,7 +19,6 @@ mod labels {
     pub(crate) const LABEL_SKIP: &str = "⏩";
     pub(crate) const LABEL_THUMBS_UP: &str = "👍";
     pub(crate) const LABEL_THUMBS_DOWN: &str = "👎";
-    pub(crate) const LABEL_TIRED: &str = "💤";
 }
 #[cfg(not(feature = "emoji_labels"))]
 mod labels {
@@ -27,7 +26,6 @@ mod labels {
     pub(crate) const LABEL_SKIP: &str = "Skip";
     pub(crate) const LABEL_THUMBS_UP: &str = "|+|";
     pub(crate) const LABEL_THUMBS_DOWN: &str = "|-|";
-    pub(crate) const LABEL_TIRED: &str = ".zZ";
 }
 
 #[derive(Debug, Clone)]
@@ -79,7 +77,6 @@ impl Terminal {
         self.siv
             .add_global_callback(')', callbacks::increase_volume);
         self.siv.add_global_callback('n', callbacks::stop);
-        self.siv.add_global_callback('t', callbacks::sleep_track);
         self.siv.add_global_callback('+', callbacks::rate_track_up);
         self.siv
             .add_global_callback('-', callbacks::rate_track_down);
@@ -271,7 +268,7 @@ impl Terminal {
 
     pub(crate) async fn update(&mut self) -> bool {
         let mut dirty = false;
-        trace!("checking for player notifications...");
+        debug!("checking for player notifications...");
         while let Some(Ok(message)) = self.subscriber.next().await {
             match message {
                 messages::Notification::Connected => self.update_state_stopped(),

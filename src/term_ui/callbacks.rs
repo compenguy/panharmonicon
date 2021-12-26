@@ -51,12 +51,6 @@ pub(crate) fn stop(s: &mut Cursive) {
         let _ = ctx.publisher.try_broadcast(messages::Request::Stop);
     });
 }
-pub(crate) fn sleep_track(s: &mut Cursive) {
-    s.with_user_data(|ctx: &mut TerminalContext| {
-        trace!("send request 'sleep track'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::SleepTrack);
-    });
-}
 pub(crate) fn rate_track_up(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'rate up'");

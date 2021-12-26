@@ -100,7 +100,6 @@ pub(crate) fn playing_view() -> LinearLayout {
                     labels::LABEL_THUMBS_DOWN,
                     callbacks::rate_track_down,
                 ))
-                .child(Button::new(labels::LABEL_TIRED, callbacks::sleep_track)),
         );
     let playing = Panel::new(
         LinearLayout::horizontal()
