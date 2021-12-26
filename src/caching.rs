@@ -1,14 +1,13 @@
-use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use async_broadcast::{Receiver, Sender};
 use clap::crate_name;
 use log::{debug, error, trace, warn};
 use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
+use crate::messages;
 
 pub(crate) trait Cacheable {
     type Error;
@@ -43,12 +42,10 @@ impl Cacheable for PlaylistTrack {
     }
 
     fn to_cache_request(&self) -> std::result::Result<FetchRequest, anyhow::Error> {
-        let path = cached_path_for_track(self, true)?.display().to_string();
-        let uri = self.audio_url_map.high_quality.audio_url.clone();
         Ok(FetchRequest {
             track_token: self.track_token.clone(),
-            uri,
-            path,
+            uri: self.audio_url_map.high_quality.audio_url.clone(),
+            path: cached_path_for_track(self, true)?,
         })
     }
 }
@@ -57,168 +54,128 @@ impl Cacheable for PlaylistTrack {
 pub(crate) struct FetchRequest {
     track_token: String,
     uri: String,
-    path: String,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct FetchResponse {
-    track_token: String,
-    path: String,
-    result: std::result::Result<(), String>,
+    path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct TrackCacher {
-    waiting: VecDeque<PlaylistTrack>,
-    in_work: HashMap<String, PlaylistTrack>,
-    ready: Vec<PlaylistTrack>,
-    send_to_fetcher: Sender<FetchRequest>,
-    recv_from_fetcher: Receiver<FetchResponse>,
+    client: surf::Client,
+    waitqueue: VecDeque<PlaylistTrack>,
+    station_id: Option<String>,
+    subscriber: async_broadcast::Receiver<messages::Notification>,
+    publisher: async_broadcast::Sender<messages::Request>,
 }
 
 impl TrackCacher {
-    pub(crate) fn new() -> Self {
-        let (send_to_fetcher, fetcher_recv) = async_broadcast::broadcast(8);
-        // Processing messages about completed fetches are cheap, though, so keep a longer list
-        let (fetcher_send, recv_from_fetcher) = async_broadcast::broadcast(16);
-        std::thread::spawn(move || TrackCacher::run_thread(fetcher_recv, fetcher_send));
+    pub(crate) fn new(
+        subscriber: async_broadcast::Receiver<messages::Notification>,
+        publisher: async_broadcast::Sender<messages::Request>,
+    ) -> Self {
         TrackCacher {
-            waiting: VecDeque::new(),
-            in_work: HashMap::new(),
-            ready: Vec::new(),
-            send_to_fetcher,
-            recv_from_fetcher,
+            client: surf::Client::new(),
+            waitqueue: VecDeque::new(),
+            station_id: None,
+            subscriber,
+            publisher,
         }
     }
 
-    // Enqueue tracks for caching
-    pub(crate) fn enqueue(&mut self, mut playlist: Vec<PlaylistTrack>) {
-        trace!(
-            "Adding {} new tracks to caching fetch queue.",
-            playlist.len()
-        );
-        self.waiting.extend(playlist.drain(..));
-        trace!("Fetch queue length: {}", self.waiting.len());
-    }
-
-    // If there are no tracks currently being fetched, but there are tracks
-    // waiting to be fetched, send another track to the fetcher
-    fn fetch_waiting(&mut self) -> Result<()> {
-        debug!("self.waiting.len() = {}", self.waiting.len());
-        debug!(
-            "self.send_to_fetcher.is_full() = {}",
-            self.send_to_fetcher.is_full()
-        );
-        while !self.waiting.is_empty() && !self.send_to_fetcher.is_full() {
-            trace!("Track fetcher is ready");
-            if let Some(mut track) = self.waiting.pop_front() {
-                let request = track.to_cache_request()?;
-                trace!(
-                    "Sending a track for fetching with audio url {:?}",
-                    &request.uri
-                );
-                // If the track is already being fetched from an earlier request,
-                // we quietly drop this request
-                if self.in_work.contains_key(&request.track_token) {
-                    trace!("Cache collision!");
-                    continue;
+    pub(crate) async fn update(&mut self) -> Result<bool> {
+        let mut dirty = false;
+        while let Ok(message) = self.subscriber.try_recv() {
+            match message {
+                messages::Notification::Tuned(new_s) => {
+                    // if we're changing stations, clear the waitqueue
+                    if self
+                        .station_id
+                        .as_ref()
+                        .map(|old_s| old_s != &new_s)
+                        .unwrap_or(true)
+                    {
+                        self.waitqueue.clear();
+                    }
+                    self.station_id = Some(new_s);
                 }
-                // If the track already exists in the cache, we just move it straight
-                // into the ready queue
-                if PathBuf::from(&request.path).exists() {
-                    trace!("Cache hit!");
-                    track.set_path(request.path);
-                    self.ready.push(track);
-                    continue;
+                messages::Notification::Connected => {
+                    // No longer tuned to a station
+                    self.waitqueue.clear();
+                    self.station_id = None;
                 }
-                trace!("Cache miss!");
-                trace!("send request {:?}", request);
-                self.send_to_fetcher.try_broadcast(request)?;
-                self.in_work.insert(track.track_token.clone(), track);
-                trace!("Track is being fetched");
+                messages::Notification::PreCaching(t) => {
+                    if self
+                        .station_id
+                        .as_ref()
+                        .map(|s| s == &t.station_id)
+                        .unwrap_or(false)
+                    {
+                        debug!("Adding track to fetcher waitqueue");
+                        self.waitqueue.push_back(t);
+                        dirty = true;
+                    } else {
+                        warn!("Request to cache track that's not from the current station");
+                    }
+                }
+                _ => (),
             }
         }
-        Ok(())
-    }
 
-    fn make_ready(&mut self) {
-        while let Ok(response) = self.recv_from_fetcher.try_recv() {
-            trace!("received response {:?}", &response);
-            let (track_token, path) = match response {
-                FetchResponse {
-                    track_token,
-                    path,
-                    result: Ok(()),
-                } => (track_token, path),
-                FetchResponse {
-                    track_token,
-                    path: _,
-                    result: Err(e),
-                } => {
-                    error!(
-                        "Dropping track {}.  Failed attempting to cache it: {}",
-                        track_token, e
-                    );
-                    continue;
-                }
-            };
-            // caching completed, add to ready queue
-            if let Some(mut track) = self.in_work.remove(&track_token) {
-                trace!("Track caching completed.");
-                if let Err(e) = tag_m4a(&track, &path) {
-                    error!("Error tagging track at {}: {:?}", path, &e);
-                }
-                track.set_path(path);
-                self.ready.push(track);
+        if let Some(mut track) = self.waitqueue.pop_front() {
+            let request = track.to_cache_request()?;
+            trace!("Fetching a track with audio url {:?}", &request.uri);
+            if request.path.exists() {
+                trace!("Cache hit!");
             } else {
-                // This can happen if clear() was called on the track cacher after
-                // the track was sent for fetching, before it was fetched
-                warn!("Cached track not in the in_work map, not adding to ready queue.");
+                trace!("Cache miss!");
+                self.save_url_to_file(&request.uri, &request.path).await?;
+                trace!("Track caching completed.");
+                if let Err(e) = tag_m4a(&track, &request.path) {
+                    error!(
+                        "Error tagging track at {}: {:?}",
+                        &request.path.display(),
+                        &e
+                    );
+                }
             }
+            track.set_path(request.path);
+            self.publisher
+                .broadcast(messages::Request::AddTrack(Box::new(track)))
+                .await?;
+            dirty = true;
         }
+        Ok(dirty)
     }
 
-    pub(crate) fn get_ready(&mut self) -> Vec<PlaylistTrack> {
-        self.make_ready();
-        self.ready.drain(..).collect()
-    }
-
-    pub(crate) fn pending_count(&self) -> usize {
-        self.in_work.len() + self.ready.len()
-    }
-
-    pub(crate) fn update(&mut self) -> Result<usize> {
-        self.fetch_waiting()?;
-        self.make_ready();
+    async fn save_url_to_file<P: AsRef<Path>>(&self, url: &str, path: P) -> Result<()> {
         trace!(
-            "Fetcher waiting/in-work/ready queue lengths: {}/{}/{}",
-            self.waiting.len(),
-            self.in_work.len(),
-            self.ready.len()
+            "Retrieving track from {} to {}...",
+            url,
+            path.as_ref().to_string_lossy()
         );
-        Ok(self.pending_count())
-    }
+        let mut resp = self
+            .client
+            .get(url)
+            .await
+            .map_err(Error::from)
+            .with_context(|| format!("Error fetching url {}", url))?;
+        let mut file = async_std::fs::File::create(path.as_ref())
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed creating file on disk as {}",
+                    path.as_ref().to_string_lossy()
+                )
+            })?;
 
-    pub(crate) fn clear(&mut self) {
-        self.in_work.clear();
-        self.ready.clear();
-    }
-
-    fn run_thread(mut recv: Receiver<FetchRequest>, send: Sender<FetchResponse>) {
-        while let Ok(msg) = recv.try_recv() {
-            let result = save_url_to_file(&msg.uri, &msg.path).map_err(|e| e.to_string());
-            let _todo = send.try_broadcast(FetchResponse {
-                track_token: msg.track_token,
-                path: msg.path,
-                result,
-            });
-        }
-    }
-}
-
-impl Default for TrackCacher {
-    fn default() -> Self {
-        Self::new()
+        async_std::io::copy(&mut resp, &mut file)
+            .await
+            .with_context(|| {
+                format!(
+                    "Error writing fetched track to file {}",
+                    path.as_ref().display()
+                )
+            })?;
+        trace!("Track data streamed to file successfully.");
+        Ok(())
     }
 }
 
@@ -246,17 +203,9 @@ fn app_cache_dir() -> Result<PathBuf> {
 }
 
 fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
-    if let Some(path) = track.get_path() {
-        if path.exists() {
-            return Some(path);
-        } else {
-            trace!(
-                "Marked as precached, but doesn't exist: {}",
-                path.to_string_lossy()
-            );
-        }
-    }
-    None
+    track
+        .get_path()
+        .and_then(|p| if p.exists() { Some(p) } else { None })
 }
 
 fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<PathBuf> {
@@ -324,38 +273,5 @@ fn tag_m4a<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
             )
         })?;
     }
-    Ok(())
-}
-
-fn save_url_to_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
-    trace!(
-        "Retrieving track from {} to {}...",
-        url,
-        path.as_ref().to_string_lossy()
-    );
-    let mut resp = reqwest::blocking::get(url)
-        .with_context(|| format!("Failed while retrieving content from url {}", url))?
-        .error_for_status()
-        .with_context(|| format!("Error response while retrieving content from url {}", url))?;
-    trace!("Got response");
-
-    let file = std::fs::File::create(path.as_ref()).with_context(|| {
-        format!(
-            "Failed creating file on disk as {}",
-            path.as_ref().to_string_lossy()
-        )
-    })?;
-
-    trace!("Streaming response data to file....");
-
-    resp.copy_to(&mut std::io::BufWriter::new(file))
-        .with_context(|| {
-            format!(
-                "Failed writing content from url {} as file {}",
-                url,
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-    trace!("Track data streamed to file successfully.");
     Ok(())
 }

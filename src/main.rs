@@ -1,11 +1,12 @@
 //#![feature(with_options)]
+use async_std::stream::StreamExt;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
 use clap::{app_from_crate, crate_name, crate_version};
 use flexi_logger::{colored_default_format, detailed_format, Logger};
 use human_panic::setup_panic;
-use log::{debug, trace};
+use log::{debug, error, trace};
 
 mod errors;
 use crate::errors::Error;
@@ -19,7 +20,8 @@ mod model;
 mod pandora;
 mod term_ui;
 
-fn main() -> Result<()> {
+#[async_std::main]
+async fn main() -> Result<()> {
     setup_panic!(Metadata {
         name: env!("CARGO_PKG_NAME").into(),
         version: env!("CARGO_PKG_VERSION").into(),
@@ -36,7 +38,7 @@ fn main() -> Result<()> {
             clap::Arg::new("gen-config")
                 .short('c')
                 .long("gen-config")
-                .about(
+                .help(
                     format!(
                         "Generate a default config file at {}",
                         config_file.to_string_lossy()
@@ -49,15 +51,15 @@ fn main() -> Result<()> {
                 .short('g')
                 .long("debug")
                 .multiple_occurrences(true)
-                .hidden(true)
-                .about("Enable debug-level output"),
+                .hide(true)
+                .help("Enable debug-level output"),
         )
         .arg(
             clap::Arg::new("debug-log")
                 .short('l')
                 .long("debug-log")
-                .hidden(true)
-                .about("Whether to write a debug log file."),
+                .hide(true)
+                .help("Whether to write a debug log file."),
         )
         .get_matches();
 
@@ -122,21 +124,23 @@ fn main() -> Result<()> {
     let req_chan = model.init_request_channel();
     let notif_chan = model.init_notification_channel();
 
+    trace!("Initializing track fetcher");
+    let mut fetcher = caching::TrackCacher::new(notif_chan.clone(), req_chan.clone());
+
     trace!("Initializing terminal interface");
     let mut ui = term_ui::Terminal::new(conf_ref, notif_chan, req_chan);
 
     trace!("Starting app");
+    let mut throttle =
+        async_std::stream::repeat(()).throttle(std::time::Duration::from_millis(200));
     while !model.quitting() {
-        let mut dirty = false;
-        dirty |= ui.update();
-        dirty |= model.update();
-        if !dirty {
-            trace!("Nothing happening... sleeping...");
-            std::thread::sleep(std::time::Duration::from_millis(250));
-        } else {
-            trace!("Something happened.");
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        ui.update().await;
+        if let Err(e) = model.update().await {
+            error!("Error updating application state: {}", e);
         }
+        fetcher.update().await?;
+
+        throttle.next().await;
     }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);

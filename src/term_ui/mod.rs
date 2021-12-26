@@ -1,3 +1,5 @@
+use async_std::stream::StreamExt;
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
@@ -36,7 +38,7 @@ pub(crate) struct TerminalContext {
 
 pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
-    subscriber: async_broadcast::Receiver<messages::Notification>,
+    subscriber: async_std::stream::Timeout<async_broadcast::Receiver<messages::Notification>>,
     context: TerminalContext,
 }
 
@@ -52,7 +54,7 @@ impl Terminal {
         siv.set_fps(5);
         let mut term = Self {
             siv,
-            subscriber,
+            subscriber: subscriber.timeout(Duration::from_millis(250)),
             context,
         };
         term.initialize();
@@ -195,12 +197,7 @@ impl Terminal {
         trace!("TODO: UI for displaying next track ({})", track.song_name);
     }
 
-    fn update_playing(
-        &mut self,
-        elapsed: std::time::Duration,
-        duration: std::time::Duration,
-        paused: bool,
-    ) {
+    fn update_playing(&mut self, elapsed: Duration, duration: Duration, paused: bool) {
         trace!("Updating track duration...");
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
@@ -272,13 +269,11 @@ impl Terminal {
         });
     }
 
-    pub(crate) fn update(&mut self) -> bool {
-        let mut dirty: bool = false;
-
+    pub(crate) async fn update(&mut self) -> bool {
+        let mut dirty = false;
         trace!("checking for player notifications...");
-        while let Ok(notification) = self.subscriber.try_recv() {
-            trace!("receive notification {:?}", notification);
-            match notification {
+        while let Some(Ok(message)) = self.subscriber.next().await {
+            match message {
                 messages::Notification::Connected => self.update_state_stopped(),
                 messages::Notification::Disconnected => self.update_state_disconnected(),
                 messages::Notification::AddStation(name, id) => self.added_station(name, id),
@@ -295,14 +290,18 @@ impl Terminal {
                     self.update_playing(elapsed, duration, true)
                 }
                 messages::Notification::Stopped => self.update_state_stopped(),
+                messages::Notification::PreCaching(_) => (),
                 messages::Notification::Muted => (),
                 messages::Notification::Unmuted => (),
                 messages::Notification::Quit => (),
             }
             dirty = true;
         }
-
+        trace!("forcing ui update");
         dirty |= self.siv.step();
+        if dirty {
+            self.siv.refresh();
+        }
         dirty
     }
 }
