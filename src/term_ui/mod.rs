@@ -2,6 +2,7 @@ use async_std::stream::StreamExt;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
+use anyhow::Result;
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
 use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
@@ -266,7 +267,7 @@ impl Terminal {
         });
     }
 
-    pub(crate) async fn update(&mut self) -> bool {
+    pub(crate) async fn update(&mut self) -> Result<bool> {
         let mut dirty = false;
         debug!("checking for player notifications...");
         while let Some(Ok(message)) = self.subscriber.next().await {
@@ -299,6 +300,6 @@ impl Terminal {
         if dirty {
             self.siv.refresh();
         }
-        dirty
+        Ok(dirty)
     }
 }

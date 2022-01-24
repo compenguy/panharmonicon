@@ -15,10 +15,10 @@ emoji_labels = []
 human-panic = "1"
 anyhow = "1"
 thiserror = "1"
-clap = { version = "3.0.0-beta.2", default-features = false, features = ["color", "std", "cargo"] }
+clap = { version = "3", default-features = false, features = ["std", "cargo"] }
 log = { version = "0.4", default-features = true, features = ["std"] }
-flexi_logger = { version = "0.22", default-features = false, features = ["colors", "use_chrono_for_offset"] }
-chrono = "0.4"
+flexi_logger = { version = "0.22", default-features = false, features = ["use_chrono_for_offset"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 dirs = "4"
 serde = "1"
 serde_derive = "1"
@@ -30,8 +30,7 @@ rodio = { version = "0.14", default-features = false }
 cpal = "0.13"
 redlux = "0.4"
 mp4ameta = "0.11"
-cursive = { version = "0.16", default-features = false, features = ["crossterm-backend", "toml"] }
-futures-lite = "1"
+cursive = { version = "0.17", default-features = false, features = ["crossterm-backend", "toml"] }
 async-std = { version = "1", features = ["attributes", "unstable"] }
 async-broadcast = "0.3"
 

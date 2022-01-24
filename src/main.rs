@@ -1,10 +1,11 @@
 //#![feature(with_options)]
+use async_std::prelude::FutureExt;
 use async_std::stream::StreamExt;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
 use clap::{app_from_crate, crate_name, crate_version};
-use flexi_logger::{colored_default_format, detailed_format, Logger};
+use flexi_logger::{detailed_format, Logger};
 use human_panic::setup_panic;
 use log::{debug, error, trace};
 
@@ -33,7 +34,6 @@ async fn main() -> Result<()> {
         .join(crate_name!())
         .join("config.json");
     let matches = app_from_crate!("")
-        .color(clap::ColorChoice::Auto)
         .arg(
             clap::Arg::new("gen-config")
                 .short('c')
@@ -81,9 +81,7 @@ async fn main() -> Result<()> {
         crate_name!(),
         crate_log_level
     );
-    let mut log_builder = Logger::try_with_str(&spec)?
-        .format(detailed_format)
-        .format_for_stderr(colored_default_format);
+    let mut log_builder = Logger::try_with_str(&spec)?.format(detailed_format);
 
     if matches.is_present("debug-log") {
         let data_local_dir = dirs::data_local_dir()
@@ -134,12 +132,14 @@ async fn main() -> Result<()> {
     let mut throttle =
         async_std::stream::repeat(()).throttle(std::time::Duration::from_millis(200));
     while !model.quitting() {
-        ui.update().await;
-        if let Err(e) = model.update().await {
+        if let Err(e) = model
+            .update()
+            .try_join(ui.update())
+            .try_join(fetcher.update())
+            .await
+        {
             error!("Error updating application state: {:?}", e);
         }
-        fetcher.update().await?;
-
         throttle.next().await;
     }
     // Explicitly drop the UI to force it to write changed settings out
