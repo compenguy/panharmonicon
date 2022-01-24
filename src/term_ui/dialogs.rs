@@ -99,7 +99,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                 .child(Button::new(
                     labels::LABEL_THUMBS_DOWN,
                     callbacks::rate_track_down,
-                ))
+                )),
         );
     let playing = Panel::new(
         LinearLayout::horizontal()

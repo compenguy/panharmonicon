@@ -805,7 +805,10 @@ impl ModelState {
             return playlist;
         }
 
-        Err(Error::InvalidOperationForState(String::from("fetch_playlist"), self.to_string()).into())
+        Err(
+            Error::InvalidOperationForState(String::from("fetch_playlist"), self.to_string())
+                .into(),
+        )
     }
 }
 
