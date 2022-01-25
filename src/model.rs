@@ -873,6 +873,7 @@ impl Model {
             self.dirty |= true;
         }
         // Check the health of the outgoing message channel, as well
+        /*
         trace!(
             "Pending messages in notification channel: {}",
             self.channel_out.as_ref().map(|c| c.len()).unwrap_or(0)
@@ -884,6 +885,7 @@ impl Model {
                 .map(|c| c.receiver_count())
                 .unwrap_or(0)
         );
+        */
         Ok(())
     }
 
