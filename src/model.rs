@@ -922,6 +922,8 @@ impl Model {
             ModelState::Disconnected => {
                 if self.config.borrow().login_credentials().get().is_some() {
                     self.connect().await?;
+                } else {
+                    self.disconnect().await?;
                 }
             }
             ModelState::Connected { .. } => {
