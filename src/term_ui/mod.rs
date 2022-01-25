@@ -104,11 +104,38 @@ impl Terminal {
         trace!("Adding station {}[{}] to list...", name, id);
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
+                // If we were disconnected, the station list contains one entry: "No Stations"
+                if v.len() == 1
+                    && v.get_item(0).map(|(a, _)| a).unwrap_or_default() == "No Stations"
+                {
+                    v.clear();
+                }
+
+                // If the station list is empty, initialize it with an empty entry
+                // for no station selected
                 if v.is_empty() {
                     v.add_item("", String::new());
+                    v.set_selection(0);
                 }
-                v.add_item(name, id);
-                v.sort_by_label();
+
+                // New stations are inserted in their sorted position, but always
+                // after the first entry
+                let insert_pt = {
+                    let mut station_iter = v.iter().enumerate();
+                    // We want to preserve the first element as a "no station selected" item
+                    station_iter.next();
+                    station_iter
+                        .find(|(_, (lbl, _))| lbl > &name.as_str())
+                        .map(|f| f.0)
+                };
+
+                // Insert the new station into its correct location in the list
+                // If no insertion point found, append it to the list
+                if let Some(insert_pt) = insert_pt {
+                    v.insert_item(insert_pt, name, id);
+                } else {
+                    v.add_item(name, id);
+                }
             });
     }
 
