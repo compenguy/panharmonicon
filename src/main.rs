@@ -1,6 +1,5 @@
 //#![feature(with_options)]
 use async_std::prelude::FutureExt;
-use async_std::stream::StreamExt;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
@@ -129,8 +128,6 @@ async fn main() -> Result<()> {
     let mut ui = term_ui::Terminal::new(conf_ref, notif_chan, req_chan);
 
     trace!("Starting app");
-    let mut throttle =
-        async_std::stream::repeat(()).throttle(std::time::Duration::from_millis(200));
     while !model.quitting() {
         if let Err(e) = model
             .update()
@@ -140,7 +137,6 @@ async fn main() -> Result<()> {
         {
             error!("Error updating application state: {:?}", e);
         }
-        throttle.next().await;
     }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);
