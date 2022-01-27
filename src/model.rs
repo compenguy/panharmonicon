@@ -601,6 +601,7 @@ impl ModelState {
     pub(crate) fn tuned(&self) -> Option<String> {
         match self {
             Self::Tuned { station_id, .. } => Some(station_id.clone()),
+            Self::Playing { station_id, .. } => Some(station_id.clone()),
             _ => None,
         }
     }
