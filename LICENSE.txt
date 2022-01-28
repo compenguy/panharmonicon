@@ -8386,7 +8386,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o enumflags2_derive_0.6.4
           o ident_case_1.0.1
           o mp4ameta_proc_0.6.0
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
           o tinyvec_macros_0.1.0
           o xi-unicode_0.3.0
       Apache License
@@ -8626,7 +8626,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     * **** BSD 2-Clause "Simplified" License ****
       *** Used by: ***
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
       Copyright (c) <year> <owner> All rights reserved.
 
       Redistribution and use in source and binary forms, with or without modification,
@@ -8713,7 +8713,7 @@ This page lists the licenses of the projects used in panharmonicon.
       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     * **** BSD 3-Clause "New" or "Revised" License ****
       *** Used by: ***
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
       Copyright (c) <year> <owner>. All rights reserved.
 
       Redistribution and use in source and binary forms, with or without modification,
@@ -8742,7 +8742,7 @@ This page lists the licenses of the projects used in panharmonicon.
       POSSIBILITY OF SUCH DAMAGE.
     * **** Creative Commons Zero v1.0 Universal ****
       *** Used by: ***
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
       Creative Commons Legal Code
 
       CC0 1.0 Universal
@@ -9464,7 +9464,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o fdk-aac-sys_0.4.0
           o kernel32-sys_0.2.2
           o pandora-api_0.5.0
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
           o void_1.0.2
           o ws2_32-sys_0.2.1
       MIT License
@@ -9824,7 +9824,7 @@ This page lists the licenses of the projects used in panharmonicon.
       You may use this code under the terms of either license.
     * **** Mozilla Public License 2.0 ****
       *** Used by: ***
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
       Mozilla Public License Version 2.0
 
       1. Definitions
@@ -10138,7 +10138,7 @@ This page lists the licenses of the projects used in panharmonicon.
         0. You just DO WHAT THE FUCK YOU WANT TO.
     * **** zlib License ****
       *** Used by: ***
-          o panharmonicon_0.6.0
+          o panharmonicon_0.6.2
       zlib License
 
       This software is provided &#x27;as-is&#x27;, without any express or implied
