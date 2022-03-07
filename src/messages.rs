@@ -1,11 +1,11 @@
-use pandora_api::json::station::PlaylistTrack;
+use crate::track::Track;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Request {
     Connect,
     Tune(String),
     Untune,
-    AddTrack(Box<PlaylistTrack>),
+    AddTrack(Box<Track>),
     Quit,
     Stop,
     RateUp,
@@ -53,9 +53,9 @@ pub(crate) enum Notification {
     Disconnected,
     AddStation(String, String),
     Tuned(String),
-    PreCaching(PlaylistTrack),
-    Starting(PlaylistTrack),
-    Next(PlaylistTrack),
+    PreCaching(Track),
+    Starting(Track),
+    Next(Track),
     Rated(u32),
     Unrated,
     Volume(f32),

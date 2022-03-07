@@ -9,7 +9,7 @@ use log::{debug, trace};
 
 use crate::config::Config;
 use crate::messages;
-use pandora_api::json::station::PlaylistTrack;
+use crate::track::Track;
 
 mod callbacks;
 mod dialogs;
@@ -156,9 +156,9 @@ impl Terminal {
             });
     }
 
-    fn playing_track(&mut self, track: PlaylistTrack) {
+    fn playing_track(&mut self, track: Track) {
         trace!("Updating track info box...");
-        let PlaylistTrack {
+        let Track {
             song_name,
             artist_name,
             album_name,
@@ -218,7 +218,7 @@ impl Terminal {
         });
     }
 
-    fn next_track(&mut self, track: PlaylistTrack) {
+    fn next_track(&mut self, track: Track) {
         trace!("TODO: UI for displaying next track ({})", track.song_name);
     }
 
@@ -260,7 +260,14 @@ impl Terminal {
                 v.set_title("Disconnected");
             });
         if self.siv.find_name::<EditView>("username").is_none() {
-            if self.context.config.borrow().login_credentials().get().is_none() {
+            if self
+                .context
+                .config
+                .borrow()
+                .login_credentials()
+                .get()
+                .is_none()
+            {
                 trace!("Activating login dialog");
 
                 if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {

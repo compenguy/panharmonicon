@@ -19,6 +19,7 @@ mod messages;
 mod model;
 mod pandora;
 mod term_ui;
+mod track;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -128,6 +129,7 @@ async fn main() -> Result<()> {
     let mut ui = term_ui::Terminal::new(conf_ref, notif_chan, req_chan);
 
     trace!("Starting app");
+    let naptime = std::time::Duration::from_millis(100);
     while !model.quitting() {
         if let Err(e) = model
             .update()
@@ -137,6 +139,7 @@ async fn main() -> Result<()> {
         {
             error!("Error updating application state: {:?}", e);
         }
+        std::thread::sleep(naptime.clone());
     }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);

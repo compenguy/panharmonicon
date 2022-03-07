@@ -1,54 +1,14 @@
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
 use log::{debug, error, trace, warn};
-use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
 use crate::messages;
-
-pub(crate) trait Cacheable {
-    type Error;
-    fn get_path(&self) -> Option<std::path::PathBuf>;
-    fn set_path<P: AsRef<std::path::Path>>(&mut self, path: P);
-    fn to_cache_request(&self) -> std::result::Result<FetchRequest, Self::Error>;
-}
-
-impl Cacheable for PlaylistTrack {
-    type Error = anyhow::Error;
-
-    fn get_path(&self) -> Option<std::path::PathBuf> {
-        if let Some(serde_json::value::Value::String(path_str)) = self.optional.get("cached") {
-            let path = PathBuf::from(path_str);
-            if path.exists() {
-                return Some(path);
-            } else {
-                trace!(
-                    "Marked as cached, but doesn't exist: {}",
-                    path.to_string_lossy()
-                );
-            }
-        }
-        None
-    }
-
-    fn set_path<P: AsRef<std::path::Path>>(&mut self, path: P) {
-        self.optional.insert(
-            String::from("cached"),
-            serde_json::value::Value::String(path.as_ref().display().to_string()),
-        );
-    }
-
-    fn to_cache_request(&self) -> std::result::Result<FetchRequest, anyhow::Error> {
-        Ok(FetchRequest {
-            track_token: self.track_token.clone(),
-            uri: self.audio_url_map.high_quality.audio_url.clone(),
-            path: cached_path_for_track(self, true)?,
-        })
-    }
-}
+use crate::track::Track;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FetchRequest {
@@ -57,10 +17,22 @@ pub(crate) struct FetchRequest {
     path: PathBuf,
 }
 
+impl TryFrom<&Track> for FetchRequest {
+    type Error = anyhow::Error;
+
+    fn try_from(track: &Track) -> Result<Self, Self::Error> {
+        Ok(FetchRequest {
+            track_token: track.track_token.clone(),
+            uri: track.audio_stream.clone(),
+            path: cached_path_for_track(track, true)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct TrackCacher {
     client: surf::Client,
-    waitqueue: VecDeque<PlaylistTrack>,
+    waitqueue: VecDeque<Track>,
     station_id: Option<String>,
     subscriber: async_broadcast::Receiver<messages::Notification>,
     publisher: async_broadcast::Sender<messages::Request>,
@@ -120,7 +92,7 @@ impl TrackCacher {
         }
 
         if let Some(mut track) = self.waitqueue.pop_front() {
-            let request = track.to_cache_request()?;
+            let request = FetchRequest::try_from(&track)?;
             trace!("Fetching a track with audio url {:?}", &request.uri);
             if request.path.exists() {
                 trace!("Cache hit!");
@@ -136,7 +108,7 @@ impl TrackCacher {
                     );
                 }
             }
-            track.set_path(request.path);
+            track.cached = Some(request.path);
             self.publisher
                 .broadcast(messages::Request::AddTrack(Box::new(track)))
                 .await?;
@@ -202,13 +174,14 @@ fn app_cache_dir() -> Result<PathBuf> {
         .join(crate_name!()))
 }
 
-fn precached_path_for_track(track: &PlaylistTrack) -> Option<PathBuf> {
+fn precached_path_for_track(track: &Track) -> Option<PathBuf> {
     track
-        .get_path()
-        .and_then(|p| if p.exists() { Some(p) } else { None })
+        .cached
+        .as_ref()
+        .and_then(|p| if p.exists() { Some(p.clone()) } else { None })
 }
 
-fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<PathBuf> {
+fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
     if let Some(precached) = precached_path_for_track(track) {
         return Ok(precached);
     }
@@ -232,7 +205,7 @@ fn cached_path_for_track(track: &PlaylistTrack, create_path: bool) -> Result<Pat
     Ok(track_cache_path)
 }
 
-fn tag_m4a<P: AsRef<Path>>(track: &PlaylistTrack, path: P) -> Result<()> {
+fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {
     trace!("Reading tags from m4a");
     let mut tag = match mp4ameta::Tag::read_from_path(path.as_ref()) {
         Ok(tag) => tag,

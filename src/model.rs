@@ -1,4 +1,3 @@
-use crate::caching::Cacheable;
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::BufReader;
@@ -12,12 +11,13 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, info, trace, warn};
 use rodio::{source::Source, Sample};
 
-use pandora_api::json::{station::PlaylistTrack, user::Station};
+use pandora_api::json::user::Station;
 
 use crate::config::{Config, PartialConfig};
 use crate::errors::Error;
 use crate::messages;
 use crate::pandora::PandoraSession;
+use crate::track::Track;
 
 #[derive(Debug, Clone, Copy)]
 enum Volume {
@@ -271,7 +271,7 @@ impl Default for AudioDevice {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Playing {
-    active_track: PlaylistTrack,
+    active_track: Track,
     audio_device: AudioDevice,
     last_started: Option<Instant>,
     elapsed: Duration,
@@ -280,7 +280,7 @@ pub(crate) struct Playing {
 }
 
 impl Playing {
-    fn new(track: PlaylistTrack, volume: f32) -> Result<Self> {
+    fn new(track: Track, volume: f32) -> Result<Self> {
         let mut s = Self {
             active_track: track,
             audio_device: AudioDevice::new(volume),
@@ -295,18 +295,12 @@ impl Playing {
 
     fn start(&mut self) -> Result<()> {
         debug!("Starting track: {:?}", self.active_track.song_name);
-        if let Some(cached) = self.active_track.get_path() {
+        if let Some(cached) = self.active_track.cached.as_ref() {
             trace!("Starting decoding of track {}", cached.display());
             self.audio_device
                 .play_m4a_from_path(PathBuf::from(&cached))
                 .with_context(|| format!("Failed to start track at {}", cached.display()))?;
-            self.duration = self
-                .active_track
-                .optional
-                .get("trackLength")
-                .and_then(|v| v.as_u64())
-                .map(Duration::from_secs)
-                .unwrap_or_default();
+            self.duration = self.active_track.track_length;
 
             self.last_started = Some(Instant::now());
         } else {
@@ -341,7 +335,7 @@ impl Playing {
         !self.active()
     }
 
-    fn playing(&self) -> Option<&PlaylistTrack> {
+    fn playing(&self) -> Option<&Track> {
         if self.elapsed() > Duration::default() {
             Some(&self.active_track)
         } else {
@@ -432,12 +426,12 @@ pub(crate) enum ModelState {
     Tuned {
         session: PandoraSession,
         station_id: String,
-        playlist: VecDeque<PlaylistTrack>,
+        playlist: VecDeque<Track>,
     },
     Playing {
         session: PandoraSession,
         station_id: String,
-        playlist: VecDeque<PlaylistTrack>,
+        playlist: VecDeque<Track>,
         playing: Box<Playing>,
     },
     Quit,
@@ -606,7 +600,7 @@ impl ModelState {
         }
     }
 
-    pub(crate) fn ready_next_track(&mut self, volume: f32) -> Result<Option<PlaylistTrack>> {
+    pub(crate) fn ready_next_track(&mut self, volume: f32) -> Result<Option<Track>> {
         let self_name = self.to_string();
         let old = std::mem::replace(self, Self::Invalid);
         match old {
@@ -641,10 +635,11 @@ impl ModelState {
         }
     }
 
-    pub(crate) fn enqueue_track(&mut self, track: &PlaylistTrack) -> Result<()> {
+    pub(crate) fn enqueue_track(&mut self, track: &Track) -> Result<()> {
         let self_name = self.to_string();
         track
-            .get_path()
+            .cached
+            .as_ref()
             .ok_or_else(|| Error::TrackNotCached(track.song_name.clone()))?;
 
         match self {
@@ -791,17 +786,18 @@ impl ModelState {
         Vec::new()
     }
 
-    pub(crate) async fn fetch_playlist(&mut self) -> Result<Vec<PlaylistTrack>> {
+    pub(crate) async fn fetch_playlist(&mut self) -> Result<Vec<Track>> {
         if let ModelState::Tuned {
             session,
             station_id,
             ..
         } = self
         {
-            let playlist = session
-                .get_playlist(station_id)
-                .await
-                .map(|pl| pl.into_iter().filter_map(|pe| pe.get_track()).collect());
+            let playlist = session.get_playlist(station_id).await.map(|pl| {
+                pl.into_iter()
+                    .filter_map(|pe| pe.get_track().map(|pt| pt.into()))
+                    .collect()
+            });
             trace!("Successfully fetched new playlist.");
             return playlist;
         }
@@ -994,7 +990,7 @@ impl Model {
             .with_context(|| "Failed to get playlist length")
     }
 
-    pub(crate) async fn extend_playlist(&mut self, new_playlist: Vec<PlaylistTrack>) -> Result<()> {
+    pub(crate) async fn extend_playlist(&mut self, new_playlist: Vec<Track>) -> Result<()> {
         self.dirty |= !new_playlist.is_empty();
         for track in new_playlist {
             if let Some(channel_out) = self.channel_out.as_mut() {
@@ -1006,17 +1002,17 @@ impl Model {
         Ok(())
     }
 
-    fn add_track(&mut self, track: &PlaylistTrack) -> Result<()> {
+    fn add_track(&mut self, track: &Track) -> Result<()> {
         self.state.enqueue_track(track)
     }
 
     async fn refill_playlist(&mut self) -> Result<()> {
-        // If there's at least one pending track in the queue,
-        // then we don't refill.
         if self.tuned().is_some() {
             let playlist_len = self.playlist_len()?;
             trace!("Playlist length: {}", playlist_len);
-            if playlist_len > 0 {
+            // If there's at least three pending tracks in the queue,
+            // then we don't refill.
+            if playlist_len >= 3 {
                 trace!("Not refilling.");
                 return Ok(());
             }
@@ -1259,7 +1255,7 @@ impl Model {
                 .state
                 .get_playing()
                 .and_then(|p| p.playing())
-                .and_then(|t| t.get_path())
+                .and_then(|t| t.cached.as_ref())
             {
                 std::fs::remove_file(&cached_path).with_context(|| {
                     format!("Failed to evict {} from track cache", cached_path.display())

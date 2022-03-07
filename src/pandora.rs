@@ -14,6 +14,7 @@ use pandora_api::json::{PandoraApiRequest, ToEncryptionTokens};
 
 use crate::config::Config;
 use crate::errors::Error;
+use crate::track::Track;
 
 /// Partner encrypt/decryption data type.
 struct PartnerKeys {
@@ -200,7 +201,7 @@ impl PandoraSession {
     pub async fn delete_feedback_for_track(
         &mut self,
         station_id: &str,
-        track: &PlaylistTrack,
+        track: &Track,
     ) -> Result<()> {
         self.user_login().await.with_context(|| {
             "Failed to ensure valid user login before completing delete feedback request"
