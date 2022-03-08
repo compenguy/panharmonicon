@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 
 use crate::errors::Error;
 use crate::messages;
@@ -80,7 +80,7 @@ impl TrackCacher {
                         .map(|s| s == &t.station_id)
                         .unwrap_or(false)
                     {
-                        debug!("Adding track to fetcher waitqueue");
+                        trace!("Adding track to fetcher waitqueue");
                         self.waitqueue.push_back(t);
                         dirty = true;
                     } else {

@@ -305,7 +305,7 @@ impl Terminal {
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
         let mut dirty = false;
-        debug!("checking for player notifications...");
+        trace!("checking for player notifications...");
         while let Some(Ok(message)) = self.subscriber.next().await {
             match message {
                 messages::Notification::Connected => self.update_state_stopped(),

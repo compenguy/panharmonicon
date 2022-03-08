@@ -131,15 +131,16 @@ async fn main() -> Result<()> {
     trace!("Starting app");
     let naptime = std::time::Duration::from_millis(100);
     while !model.quitting() {
-        if let Err(e) = model
+        match model
             .update()
             .try_join(ui.update())
             .try_join(fetcher.update())
             .await
         {
-            error!("Error updating application state: {:?}", e);
+            Err(e) => error!("Error updating application state: {:?}", e),
+            Ok(((false, false), false)) => std::thread::sleep(naptime),
+            Ok(_) => (),
         }
-        std::thread::sleep(naptime.clone());
     }
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);
