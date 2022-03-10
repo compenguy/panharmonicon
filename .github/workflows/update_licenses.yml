@@ -12,7 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
     - name: Install license processing tools
       run: |
         cargo install cargo-about
@@ -22,9 +24,7 @@ jobs:
         cargo about generate about.hbs > LICENSE.html
         html2text -width 88 -style compact -nobs -utf8 -o LICENSE.txt LICENSE.html
     - name: Commit changes
-      uses: matheusalbino/git-commit@v1.0.1
+      uses: EndBug/add-and-commit@v8
       with:
-        # Github Token
-        github-token: ${{ secrets.GITHUB_TOKEN }}
         # Git message
         message: Automated update to license notices
