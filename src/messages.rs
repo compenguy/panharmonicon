@@ -47,6 +47,29 @@ impl PartialEq<Request> for Request {
 
 impl Eq for Request {}
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum StopReason {
+    Initializing,
+    Untuning,
+    TrackInterrupted,
+    TrackCompleted,
+    UserRequest,
+    SessionTimedOut,
+}
+
+impl std::fmt::Display for StopReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            StopReason::Initializing => write!(f, "Starting..."),
+            StopReason::Untuning => write!(f, "Closing Station"),
+            StopReason::TrackInterrupted => write!(f, "Track Interrupted"),
+            StopReason::TrackCompleted => write!(f, "Track Completed"),
+            StopReason::UserRequest => write!(f, "Stop"),
+            StopReason::SessionTimedOut => write!(f, "Session Timed Out"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum Notification {
     Connected,
@@ -63,7 +86,7 @@ pub(crate) enum Notification {
     Unmuted,
     Playing(std::time::Duration, std::time::Duration),
     Paused(std::time::Duration, std::time::Duration),
-    Stopped,
+    Stopped(StopReason),
     Quit,
 }
 
@@ -87,7 +110,7 @@ impl PartialEq<Notification> for Notification {
             (Notification::Unmuted, Notification::Unmuted) => true,
             (Notification::Playing(a, x), Notification::Playing(b, y)) => a == x && b == y,
             (Notification::Paused(a, x), Notification::Paused(b, y)) => a == x && b == y,
-            (Notification::Stopped, Notification::Stopped) => true,
+            (Notification::Stopped(_), Notification::Stopped(_)) => true,
             (Notification::Quit, Notification::Quit) => true,
             _ => false,
         }

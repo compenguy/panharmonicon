@@ -15,9 +15,9 @@ use pandora_api::json::user::Station;
 
 use crate::config::{Config, PartialConfig};
 use crate::errors::Error;
-use crate::messages;
 use crate::pandora::PandoraSession;
 use crate::track::Track;
+use crate::{messages, messages::StopReason};
 
 #[derive(Debug, Clone, Copy)]
 enum Volume {
@@ -422,6 +422,7 @@ pub(crate) enum ModelState {
     Disconnected,
     Connected {
         session: PandoraSession,
+        reason: StopReason,
     },
     Tuned {
         session: PandoraSession,
@@ -448,7 +449,7 @@ impl std::fmt::Display for ModelState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Disconnected => write!(f, "Disconnected"),
-            Self::Connected { .. } => write!(f, "Connected"),
+            Self::Connected { reason, .. } => write!(f, "Connected ({})", reason),
             Self::Tuned {
                 station_id,
                 playlist,
@@ -503,7 +504,10 @@ impl ModelState {
         session.partner_login().await?;
         session.user_login().await?;
         trace!("changing state from '{}' to 'Connected'", self);
-        *self = Self::Connected { session };
+        *self = Self::Connected {
+            session,
+            reason: StopReason::Initializing,
+        };
         Ok(())
     }
 
@@ -520,7 +524,7 @@ impl ModelState {
 
     fn test_connection(&mut self) -> bool {
         match self {
-            Self::Connected { session } if session.connected() => true,
+            Self::Connected { session, .. } if session.connected() => true,
             Self::Tuned { session, .. } if session.connected() => true,
             Self::Playing { session, .. } if session.connected() => true,
             _ => false,
@@ -531,7 +535,7 @@ impl ModelState {
         let self_name = self.to_string();
         let old = std::mem::replace(self, Self::Invalid);
         *self = match old {
-            Self::Connected { session } => {
+            Self::Connected { session, .. } => {
                 trace!("changing state from '{}' to 'Tuned'", self_name);
                 Self::Tuned {
                     session,
@@ -577,11 +581,17 @@ impl ModelState {
         *self = match old {
             Self::Tuned { session, .. } => {
                 trace!("changing state from '{}' to 'Connected'", self_name);
-                Self::Connected { session }
+                Self::Connected {
+                    session,
+                    reason: StopReason::Untuning,
+                }
             }
             Self::Playing { session, .. } => {
                 trace!("changing state from '{}' to 'Connected'", self_name);
-                Self::Connected { session }
+                Self::Connected {
+                    session,
+                    reason: StopReason::Untuning,
+                }
             }
             _ => {
                 return Err(
@@ -721,7 +731,9 @@ impl ModelState {
 
     pub(crate) fn get_session_mut(&mut self) -> Option<&mut PandoraSession> {
         match self {
-            Self::Connected { ref mut session } => Some(session),
+            Self::Connected {
+                ref mut session, ..
+            } => Some(session),
             Self::Tuned {
                 ref mut session, ..
             } => Some(session),
@@ -853,7 +865,7 @@ impl Model {
                 messages::Request::Tune(s) => self.tune(s).await?,
                 messages::Request::Untune => self.untune().await?,
                 messages::Request::AddTrack(t) => self.add_track(t.as_ref())?,
-                messages::Request::Stop => self.stop().await?,
+                messages::Request::Stop => self.stop(Some(StopReason::UserRequest)).await?,
                 messages::Request::Pause => self.pause(),
                 messages::Request::Unpause => self.unpause(),
                 messages::Request::TogglePause => self.toggle_pause(),
@@ -893,7 +905,7 @@ impl Model {
             // TODO: Only send this notification if we were playing
             if let Some(channel_out) = self.channel_out.as_mut() {
                 channel_out
-                    .broadcast(messages::Notification::Stopped)
+                    .broadcast(messages::Notification::Stopped(StopReason::SessionTimedOut))
                     .await?;
             }
             self.disconnect().await?;
@@ -979,7 +991,7 @@ impl Model {
             .unwrap_or_default()
         {
             trace!("Current track finished playing. Evicting from playlist...");
-            self.stop().await?;
+            self.stop(Some(StopReason::TrackCompleted)).await?;
         }
         Ok(())
     }
@@ -1180,7 +1192,7 @@ impl Model {
     }
 
     async fn untune(&mut self) -> Result<()> {
-        self.stop().await?;
+        self.stop(Some(StopReason::Untuning)).await?;
         if self.tuned().is_none() {
             return Ok(());
         }
@@ -1248,7 +1260,7 @@ impl Model {
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<()> {
+    async fn stop(&mut self, reason: Option<StopReason>) -> Result<()> {
         if self.config.borrow().cache_policy().evict_completed() {
             trace!("Eviction policy requires evicting track");
             if let Some(cached_path) = self
@@ -1273,7 +1285,9 @@ impl Model {
             trace!("send notification 'stopped'");
             if let Some(channel_out) = self.channel_out.as_mut() {
                 channel_out
-                    .broadcast(messages::Notification::Stopped)
+                    .broadcast(messages::Notification::Stopped(
+                        reason.unwrap_or(StopReason::TrackInterrupted),
+                    ))
                     .await?;
             }
             self.dirty |= true;

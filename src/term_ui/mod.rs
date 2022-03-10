@@ -8,8 +8,8 @@ use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
 use crate::config::Config;
-use crate::messages;
 use crate::track::Track;
+use crate::{messages, messages::StopReason};
 
 mod callbacks;
 mod dialogs;
@@ -277,11 +277,11 @@ impl Terminal {
         }
     }
 
-    fn update_state_stopped(&mut self) {
+    fn update_state_stopped(&mut self, reason: StopReason) {
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: stopped");
-                v.set_title("Stopped");
+                v.set_title(reason.to_string());
             });
         if self.siv.find_name::<EditView>("username").is_some() {
             debug!("Login prompt active, but we have a valid connection.");
@@ -308,7 +308,9 @@ impl Terminal {
         trace!("checking for player notifications...");
         while let Some(Ok(message)) = self.subscriber.next().await {
             match message {
-                messages::Notification::Connected => self.update_state_stopped(),
+                messages::Notification::Connected => {
+                    self.update_state_stopped(StopReason::Initializing)
+                }
                 messages::Notification::Disconnected => self.update_state_disconnected(),
                 messages::Notification::AddStation(name, id) => self.added_station(name, id),
                 messages::Notification::Tuned(name) => self.tuned_station(name),
@@ -323,7 +325,7 @@ impl Terminal {
                 messages::Notification::Paused(elapsed, duration) => {
                     self.update_playing(elapsed, duration, true)
                 }
-                messages::Notification::Stopped => self.update_state_stopped(),
+                messages::Notification::Stopped(r) => self.update_state_stopped(r),
                 messages::Notification::PreCaching(_) => (),
                 messages::Notification::Muted => (),
                 messages::Notification::Unmuted => (),
