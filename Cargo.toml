@@ -1,7 +1,7 @@
 [package]
 name = "panharmonicon"
 description = "A command line music player, unofficial client for Pandora"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["Will Page <compenguy@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND MPL-2.0 AND Zlib"
@@ -27,12 +27,12 @@ keyring = "1"
 pandora-api = "0.5"
 surf = { version = "2", default-features = false, features = ["hyper-client"] }
 rodio = { version = "0.14", default-features = false }
-cpal = "0.13"
+#cpal = "0.13"
 redlux = "0.4"
 mp4ameta = "0.11"
 cursive = { version = "0.17", default-features = false, features = ["crossterm-backend", "toml"] }
 async-std = { version = "1", features = ["attributes", "unstable"] }
-async-broadcast = "0.3"
+async-broadcast = "0.4"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

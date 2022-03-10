@@ -3,7 +3,6 @@ use async_std::prelude::FutureExt;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
-use clap::{app_from_crate, crate_name, crate_version};
 use flexi_logger::{detailed_format, Logger};
 use human_panic::setup_panic;
 use log::{debug, error, trace};
@@ -31,9 +30,9 @@ async fn main() -> Result<()> {
     });
     let config_file = dirs::config_dir()
         .ok_or(Error::AppDirNotFound)?
-        .join(crate_name!())
+        .join(clap::crate_name!())
         .join("config.json");
-    let matches = app_from_crate!("")
+    let matches = clap::command!("")
         .arg(
             clap::Arg::new("gen-config")
                 .short('c')
@@ -78,7 +77,7 @@ async fn main() -> Result<()> {
     let spec = format!(
         "{}, {} = {}",
         general_log_level,
-        crate_name!(),
+        clap::crate_name!(),
         crate_log_level
     );
     let mut log_builder = Logger::try_with_str(&spec)?.format(detailed_format);
@@ -86,7 +85,7 @@ async fn main() -> Result<()> {
     if matches.is_present("debug-log") {
         let data_local_dir = dirs::data_local_dir()
             .ok_or(Error::AppDirNotFound)?
-            .join(crate_name!());
+            .join(clap::crate_name!());
         let log_dir = data_local_dir
             .join("logs")
             .join(format!("{}", chrono::offset::Utc::now()));
@@ -110,7 +109,7 @@ async fn main() -> Result<()> {
         .start()
         .with_context(|| "Failed to start FlexiLogger logging backend")?;
 
-    debug!("{} version {}", crate_name!(), crate_version!());
+    debug!("{} version {}", clap::crate_name!(), clap::crate_version!());
 
     trace!("Loading user config");
     let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;

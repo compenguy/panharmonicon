@@ -7,9 +7,11 @@ use std::time::{Duration, Instant};
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
-use cpal::traits::{DeviceTrait, HostTrait};
+//use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, info, trace, warn};
-use rodio::{source::Source, Sample};
+use rodio::cpal;
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::{Sample, Source};
 
 use pandora_api::json::user::Station;
 
@@ -96,14 +98,6 @@ impl AudioDevice {
     where
         P: AsRef<Path>,
     {
-        let decoder: redlux::Decoder<BufReader<File>> = self.decoder_for_path(path)?;
-        self.play_from_source(decoder)
-    }
-
-    fn decoder_for_path<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-    ) -> Result<redlux::Decoder<BufReader<File>>> {
         trace!(
             "Creating decoder for track at {} for playback",
             path.as_ref().to_string_lossy()
@@ -120,7 +114,8 @@ impl AudioDevice {
                 path.as_ref().to_string_lossy()
             )
         })?;
-        self.m4a_decoder_for_reader(file, metadata.len())
+        let decoder = self.m4a_decoder_for_reader(file, metadata.len())?;
+        self.play_from_source(decoder)
     }
 
     fn m4a_decoder_for_reader<R: Read + Seek + Send + 'static>(
@@ -132,6 +127,20 @@ impl AudioDevice {
         redlux::Decoder::new_mpeg4(reader, size)
             .with_context(|| "Failed initializing media decoder")
     }
+
+    /*
+    fn play_from_source(
+        &mut self,
+        source: redlux::Decoder<BufReader<std::fs::File>>,
+    ) -> Result<()> {
+        self.reset();
+
+        let start_paused = false;
+        self.sink.append(source.pausable(start_paused));
+        self.sink.play();
+        Ok(())
+    }
+    */
 
     fn play_from_source<S>(&mut self, source: S) -> Result<()>
     where
