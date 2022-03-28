@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, windows-2019]
+        os: [ubuntu-18.04, windows-2019, macos-latest]
         include:
           - os: ubuntu-18.04
             dependencies: libasound2-dev libdbus-1-dev
@@ -26,6 +26,11 @@ jobs:
             program-ext: .exe
             debug-ext: .pdb
             release-name: panharmonicon-win
+          - os: macos-latest
+            dependencies: ''
+            program-ext: ''
+            debug-ext: .debug
+            release-name: panharmonicon-macos
 
     steps:
     - uses: actions/checkout@v3
