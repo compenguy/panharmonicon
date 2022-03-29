@@ -20,16 +20,19 @@ jobs:
             dependencies: libasound2-dev libdbus-1-dev
             program-ext: ''
             debug-ext: .debug
+            toolchain-prefix: ''
             release-name: panharmonicon-linux
           - os: windows-2019
             dependencies: ''
             program-ext: .exe
             debug-ext: .pdb
+            toolchain-prefix: ''
             release-name: panharmonicon-win
           - os: macos-latest
             dependencies: ''
             program-ext: ''
             debug-ext: .debug
+            toolchain-prefix: '$(brew --prefix llvm)/bin/llvm-'
             release-name: panharmonicon-macos
 
     steps:
@@ -44,11 +47,11 @@ jobs:
       run: cargo build --verbose --release --all-features
 
     # build post-processing steps
-    - name: Strip binary and make debugging symbols (linux)
-      if: contains(matrix.os, 'ubuntu')
+    - name: Strip binary and make debugging symbols (linux, macos)
+      if: contains(matrix.os, 'ubuntu') || contains(matrix.os, 'macos')
       run: |
-        objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon.debug
-        strip --strip-unneeded target/release/panharmonicon
+        ${{ matrix.toolchain-prefix }}objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon${{ matrix.debug-ext }}
+        ${{ matrix.toolchain-prefix }}strip --strip-debug target/release/panharmonicon
 
     # zip up all the releasable artifacts
     - name: Archive release artifacts
