@@ -12,7 +12,6 @@ use crate::track::Track;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FetchRequest {
-    track_token: String,
     uri: String,
     path: PathBuf,
 }
@@ -22,7 +21,6 @@ impl TryFrom<&Track> for FetchRequest {
 
     fn try_from(track: &Track) -> Result<Self, Self::Error> {
         Ok(FetchRequest {
-            track_token: track.track_token.clone(),
             uri: track.audio_stream.clone(),
             path: cached_path_for_track(track, true)?,
         })

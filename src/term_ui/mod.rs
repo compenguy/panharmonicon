@@ -259,20 +259,19 @@ impl Terminal {
                 trace!("Playing panel title: disconnected");
                 v.set_title("Disconnected");
             });
-        if self.siv.find_name::<EditView>("username").is_none() {
-            if self
+        if self.siv.find_name::<EditView>("username").is_none()
+            && self
                 .context
                 .config
                 .borrow()
                 .login_credentials()
                 .get()
                 .is_none()
-            {
-                trace!("Activating login dialog");
+        {
+            trace!("Activating login dialog");
 
-                if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {
-                    self.siv.add_layer(dialog);
-                }
+            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {
+                self.siv.add_layer(dialog);
             }
         }
     }

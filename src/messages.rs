@@ -4,6 +4,7 @@ use crate::track::Track;
 pub(crate) enum Request {
     Connect,
     Tune(String),
+    #[allow(dead_code)]
     Untune,
     AddTrack(Box<Track>),
     Quit,
@@ -14,7 +15,9 @@ pub(crate) enum Request {
     Pause,
     Unpause,
     TogglePause,
+    #[allow(dead_code)]
     Mute,
+    #[allow(dead_code)]
     Unmute,
     Volume(f32),
     VolumeDown,
@@ -78,6 +81,7 @@ pub(crate) enum Notification {
     Tuned(String),
     PreCaching(Track),
     Starting(Track),
+    #[allow(dead_code)]
     Next(Track),
     Rated(u32),
     Unrated,
