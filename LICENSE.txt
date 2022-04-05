@@ -2,7 +2,7 @@
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
     * Apache_License_2.0 (45)
-    * MIT_License (37)
+    * MIT_License (39)
     * BSD_3-Clause_"New"_or_"Revised"_License (3)
     * BSD_2-Clause_"Simplified"_License (2)
     * Creative_Commons_Zero_v1.0_Universal (1)
@@ -1221,7 +1221,7 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o clap_3.1.6
+          o clap_3.1.8
           o cpal_0.13.5
           o os_str_bytes_6.0.0
           o ryu_1.0.9
@@ -5219,7 +5219,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o ahash_0.7.6
           o anyhow_1.0.56
           o async-executor_1.4.1
-          o async-global-executor_2.0.3
+          o async-global-executor_2.0.4
           o async-io_1.6.0
           o async-lock_2.5.0
           o async-process_1.3.0
@@ -5242,8 +5242,8 @@ This page lists the licenses of the projects used in panharmonicon.
           o crossbeam-utils_0.8.8
           o derivative_2.2.0
           o easy-parallel_3.2.0
-          o enumset_1.0.8
-          o enumset_derive_0.5.5
+          o enumset_1.0.10
+          o enumset_derive_0.5.7
           o event-listener_2.5.2
           o fastrand_1.7.0
           o fnv_1.0.7
@@ -5256,11 +5256,11 @@ This page lists the licenses of the projects used in panharmonicon.
           o httparse_1.6.0
           o hyper-tls_0.4.3
           o idna_0.2.3
-          o indexmap_1.8.0
+          o indexmap_1.8.1
           o itoa_0.4.8
           o itoa_1.0.1
           o lazy_static_1.4.0
-          o lock_api_0.4.6
+          o lock_api_0.4.7
           o mime_0.3.16
           o miow_0.2.2
           o miow_0.3.7
@@ -5269,6 +5269,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o num_0.3.1
           o num_0.4.0
           o num-bigint_0.3.3
+          o num-bigint_0.4.3
           o num-complex_0.3.1
           o num-complex_0.4.0
           o num-integer_0.1.44
@@ -7742,7 +7743,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o rodio_0.14.0
+          o rodio_0.15.0
       Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -8841,6 +8842,34 @@ This page lists the licenses of the projects used in panharmonicon.
           this CC0 or use of the Work.
     * **** MIT License ****
       *** Used by: ***
+          o tracing-core_0.1.24
+      Copyright (c) 2010 The Rust Project Developers
+
+      Permission is hereby granted, free of charge, to any
+      person obtaining a copy of this software and associated
+      documentation files (the "Software"), to deal in the
+      Software without restriction, including without
+      limitation the rights to use, copy, modify, merge,
+      publish, distribute, sublicense, and/or sell copies of
+      the Software, and to permit persons to whom the Software
+      is furnished to do so, subject to the following
+      conditions:
+
+      The above copyright notice and this permission notice
+      shall be included in all copies or substantial portions
+      of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
           o openssl-sys_0.9.72
       Copyright (c) 2014 Alex Crichton
 
@@ -9115,7 +9144,7 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o slab_0.4.5
+          o slab_0.4.6
       Copyright (c) 2019 Carl Lerche
 
       Permission is hereby granted, free of charge, to any
@@ -9175,7 +9204,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o tokio-tls_0.3.1
           o tokio-util_0.3.1
           o tracing_0.1.32
-          o tracing-core_0.1.23
+          o tracing-core_0.1.24
           o tracing-futures_0.2.5
       Copyright (c) 2019 Tokio Contributors
 
@@ -9279,11 +9308,11 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o darling_0.10.2
-          o darling_0.13.1
+          o darling_0.13.2
           o darling_core_0.10.2
-          o darling_core_0.13.1
+          o darling_core_0.13.2
           o darling_macro_0.10.2
-          o darling_macro_0.13.1
+          o darling_macro_0.13.2
       MIT License
 
       Copyright (c) 2017 Ted Driggs
@@ -9379,7 +9408,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o mp4_0.8.3
+          o mp4_0.10.0
       MIT License
 
       Copyright (c) 2020 Alfred Gutierrez
@@ -9403,7 +9432,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o redlux_0.4.0
+          o redlux_0.5.0
       MIT License
 
       Copyright (c) 2021 Kasper Henningsen
@@ -9510,6 +9539,30 @@ This page lists the licenses of the projects used in panharmonicon.
       OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
       IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
       DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
+          o tracing-core_0.1.24
+      The MIT License (MIT)
+
+      Copyright (c) 2014 Mathijs van de Nes
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
           o aho-corasick_0.7.18
