@@ -5312,7 +5312,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o socket2_0.3.19
           o socket2_0.4.4
           o stable_deref_trait_1.2.0
-          o syn_1.0.90
+          o syn_1.0.91
           o tempfile_3.3.0
           o thiserror_1.0.30
           o thiserror-impl_1.0.30
@@ -9308,11 +9308,11 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o darling_0.10.2
-          o darling_0.13.2
+          o darling_0.13.3
           o darling_core_0.10.2
-          o darling_core_0.13.2
+          o darling_core_0.13.3
           o darling_macro_0.10.2
-          o darling_macro_0.13.2
+          o darling_macro_0.13.3
       MIT License
 
       Copyright (c) 2017 Ted Driggs
