@@ -29,7 +29,7 @@ surf = { version = "2", default-features = false, features = ["hyper-client"] }
 rodio = { version = "0.15", default-features = false }
 redlux = "0.5"
 mp4ameta = "0.11"
-cursive = { version = "0.17", default-features = false, features = ["crossterm-backend", "toml"] }
+cursive = { version = "0.18", default-features = false, features = ["crossterm-backend", "toml"] }
 async-std = { version = "1", features = ["attributes", "unstable"] }
 async-broadcast = "0.4"
 
