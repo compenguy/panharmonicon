@@ -4197,7 +4197,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o http_0.2.7
+          o http_0.2.8
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
