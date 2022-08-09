@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::crate_name;
 use log::{error, trace, warn};
+use tokio::io::AsyncWriteExt;
 
 use crate::errors::Error;
 use crate::messages;
@@ -29,7 +30,7 @@ impl TryFrom<&Track> for FetchRequest {
 
 #[derive(Debug, Clone)]
 pub(crate) struct TrackCacher {
-    client: surf::Client,
+    client: reqwest::Client,
     waitqueue: VecDeque<Track>,
     station_id: Option<String>,
     subscriber: async_broadcast::Receiver<messages::Notification>,
@@ -42,7 +43,7 @@ impl TrackCacher {
         publisher: async_broadcast::Sender<messages::Request>,
     ) -> Self {
         TrackCacher {
-            client: surf::Client::new(),
+            client: reqwest::Client::new(),
             waitqueue: VecDeque::new(),
             station_id: None,
             subscriber,
@@ -124,10 +125,11 @@ impl TrackCacher {
         let mut resp = self
             .client
             .get(url)
+            .send()
             .await
             .map_err(Error::from)
             .with_context(|| format!("Error fetching url {}", url))?;
-        let mut file = async_std::fs::File::create(path.as_ref())
+        let mut file = tokio::fs::File::create(path.as_ref())
             .await
             .with_context(|| {
                 format!(
@@ -136,7 +138,17 @@ impl TrackCacher {
                 )
             })?;
 
-        async_std::io::copy(&mut resp, &mut file)
+        while let Some(chunk) = resp.chunk().await? {
+            file.write(&chunk).await.with_context(|| {
+                format!(
+                    "Error writing fetched track to file {}",
+                    path.as_ref().display()
+                )
+            })?;
+        }
+
+        /*
+        tokio::io::copy(&mut resp.bytes_stream(), &mut file)
             .await
             .with_context(|| {
                 format!(
@@ -144,6 +156,7 @@ impl TrackCacher {
                     path.as_ref().display()
                 )
             })?;
+            */
         trace!("Track data streamed to file successfully.");
         Ok(())
     }

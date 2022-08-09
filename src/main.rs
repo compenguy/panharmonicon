@@ -1,5 +1,3 @@
-//#![feature(with_options)]
-use async_std::prelude::FutureExt;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
@@ -20,7 +18,7 @@ mod pandora;
 mod term_ui;
 mod track;
 
-#[async_std::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     setup_panic!(Metadata {
         name: env!("CARGO_PKG_NAME").into(),
@@ -28,6 +26,7 @@ async fn main() -> Result<()> {
         authors: "Will Page <compenguy@gmail.com>".into(),
         homepage: "".into(),
     });
+
     let config_file = dirs::config_dir()
         .ok_or(Error::AppDirNotFound)?
         .join(clap::crate_name!())
@@ -130,19 +129,18 @@ async fn main() -> Result<()> {
     trace!("Starting app");
     let naptime = std::time::Duration::from_millis(100);
     while !model.quitting() {
-        match model
-            .update()
-            .try_join(ui.update())
-            .try_join(fetcher.update())
-            .await
-        {
+        trace!("Advancing application state...");
+        let step_result = tokio::try_join!(model.update(), ui.update(), fetcher.update());
+        match step_result {
             Err(e) => error!("Error updating application state: {:?}", e),
-            Ok(((false, false), false)) => std::thread::sleep(naptime),
-            Ok(_) => (),
+            Ok((false, false, false)) => std::thread::sleep(naptime),
+            Ok((_, _, _)) => (),
         }
     }
+    debug!("Application quit request acknowledged.");
     // Explicitly drop the UI to force it to write changed settings out
     drop(ui);
+    debug!("Application interface terminated.");
 
     Ok(())
 }

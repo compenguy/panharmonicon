@@ -1,4 +1,3 @@
-use async_std::stream::StreamExt;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
@@ -37,7 +36,7 @@ pub(crate) struct TerminalContext {
 
 pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
-    subscriber: async_std::stream::Timeout<async_broadcast::Receiver<messages::Notification>>,
+    subscriber: async_broadcast::Receiver<messages::Notification>,
     context: TerminalContext,
 }
 
@@ -51,9 +50,10 @@ impl Terminal {
         let context = TerminalContext { config, publisher };
         siv.set_user_data(context.clone());
         siv.set_fps(5);
+        siv.set_window_title("panharmonicon");
         let mut term = Self {
             siv,
-            subscriber: subscriber.timeout(Duration::from_millis(250)),
+            subscriber,
             context,
         };
         term.initialize();
@@ -305,7 +305,12 @@ impl Terminal {
     pub(crate) async fn update(&mut self) -> Result<bool> {
         let mut dirty = false;
         trace!("checking for player notifications...");
-        while let Some(Ok(message)) = self.subscriber.next().await {
+        while let Ok(Ok(message)) = tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            self.subscriber.recv(),
+        )
+        .await
+        {
             match message {
                 messages::Notification::Connected => {
                     self.update_state_stopped(StopReason::Initializing)

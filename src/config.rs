@@ -402,6 +402,8 @@ impl Config {
                         path.to_string_lossy()
                     )
                 })?;
+            } else {
+                trace!("Config file is up-to-date");
             }
             self.dirty = false;
         }

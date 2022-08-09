@@ -1456,5 +1456,6 @@ impl Drop for Model {
         if let Err(e) = self.config.borrow_mut().flush() {
             error!("Failed commiting configuration changes to file: {:?}", e);
         }
+        trace!("Application data model has been dropped");
     }
 }
