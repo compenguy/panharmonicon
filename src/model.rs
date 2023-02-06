@@ -458,14 +458,14 @@ impl std::fmt::Display for ModelState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Disconnected => write!(f, "Disconnected"),
-            Self::Connected { reason, .. } => write!(f, "Connected ({})", reason),
+            Self::Connected { reason, .. } => write!(f, "Connected ({reason})"),
             Self::Tuned {
                 station_id,
                 playlist,
                 ..
             } => {
                 write!(f, "Tuned {{ ")?;
-                write!(f, "station id: {}, ", station_id)?;
+                write!(f, "station id: {station_id}, ")?;
                 write!(f, "playlist: [")?;
                 let pl = playlist.iter().fold(String::new(), |mut a, b| {
                     a.reserve(b.song_name.len() + 1);
@@ -483,7 +483,7 @@ impl std::fmt::Display for ModelState {
                 ..
             } => {
                 write!(f, "Playing {{ ")?;
-                write!(f, "station id: {}, ", station_id)?;
+                write!(f, "station id: {station_id}, ")?;
                 write!(
                     f,
                     "track: {}, ",
@@ -1278,7 +1278,7 @@ impl Model {
                 .and_then(|p| p.playing())
                 .and_then(|t| t.cached.as_ref())
             {
-                std::fs::remove_file(&cached_path).with_context(|| {
+                std::fs::remove_file(cached_path).with_context(|| {
                     format!("Failed to evict {} from track cache", cached_path.display())
                 })?;
                 trace!("Evicted {} from track cache.", cached_path.display());

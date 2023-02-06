@@ -128,7 +128,7 @@ impl TrackCacher {
             .send()
             .await
             .map_err(Error::from)
-            .with_context(|| format!("Error fetching url {}", url))?;
+            .with_context(|| format!("Error fetching url {url}"))?;
         let mut file = tokio::fs::File::create(path.as_ref())
             .await
             .with_context(|| {
@@ -201,7 +201,7 @@ fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
     let album = sanitize_filename(&track.album_name);
     let song = sanitize_filename(&track.song_name);
 
-    let mut track_cache_path = app_cache_dir()?.join(&artist).join(&album);
+    let mut track_cache_path = app_cache_dir()?.join(&artist).join(album);
 
     if create_path {
         std::fs::create_dir_all(&track_cache_path).with_context(|| {

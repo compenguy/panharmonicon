@@ -235,17 +235,11 @@ impl Terminal {
                 let duration_seconds = total_duration % 60;
                 let text = if total_duration > 0 {
                     format!(
-                        "{:<6} [{:>2}:{:02}/{:>2}:{:02}]",
-                        playpause,
-                        elapsed_minutes,
-                        elapsed_seconds,
-                        duration_minutes,
-                        duration_seconds
+                        "{playpause:<6} [{elapsed_minutes:>2}:{elapsed_seconds:02}/{duration_minutes:>2}:{duration_seconds:02}]"
                     )
                 } else {
                     format!(
-                        "{:<6} [{:>2}:{:02}]",
-                        playpause, elapsed_minutes, elapsed_seconds
+                        "{playpause:<6} [{elapsed_minutes:>2}:{elapsed_seconds:02}]"
                     )
                 };
                 trace!("Playing panel title: {}", text);

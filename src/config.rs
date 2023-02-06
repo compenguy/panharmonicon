@@ -208,10 +208,10 @@ impl std::fmt::Debug for Credentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Credentials::")?;
         match self {
-            Self::Keyring(u) => write!(f, "Keyring({}, ******)", u),
-            Self::ConfigFile(u, _) => write!(f, "ConfigFile({}, ******)", u),
-            Self::Session(Some(u), Some(_)) => write!(f, "ConfigFile({}, ******)", u),
-            Self::Session(Some(u), None) => write!(f, "ConfigFile({}, [missing])", u),
+            Self::Keyring(u) => write!(f, "Keyring({u}, ******)"),
+            Self::ConfigFile(u, _) => write!(f, "ConfigFile({u}, ******)"),
+            Self::Session(Some(u), Some(_)) => write!(f, "ConfigFile({u}, ******)"),
+            Self::Session(Some(u), None) => write!(f, "ConfigFile({u}, [missing])"),
             Self::Session(None, Some(_)) => write!(f, "ConfigFile([missing], ******)"),
             Self::Session(None, None) => write!(f, "ConfigFile([missing], [missing])"),
         }
@@ -396,7 +396,7 @@ impl Config {
                 trace!(
                     "Current settings differ from those on disk, writing updated settings to disk"
                 );
-                self.write(&path).with_context(|| {
+                self.write(path).with_context(|| {
                     format!(
                         "Failed while flushing application configuration changes to disk as {}",
                         path.to_string_lossy()
