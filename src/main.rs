@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
 
     log_builder
         .start()
-        .with_context(|| "Failed to start FlexiLogger logging backend")?;
+        .context("Failed to start FlexiLogger logging backend")?;
 
     debug!("{} version {}", clap::crate_name!(), clap::crate_version!());
 

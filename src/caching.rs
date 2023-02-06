@@ -211,7 +211,7 @@ fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
             )
         })?;
     }
-    let filename = format!("{} - {}.{}", artist, song, "m4a");
+    let filename = format!("{artist} - {song}.{}", "m4a");
     track_cache_path.push(filename);
     Ok(track_cache_path)
 }

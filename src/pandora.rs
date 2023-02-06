@@ -135,7 +135,7 @@ impl PandoraSession {
     pub async fn user_login(&mut self) -> Result<()> {
         self.partner_login()
             .await
-            .with_context(|| "Failed to ensure valid partner login before authenticating user")?;
+            .context("Failed to ensure valid partner login before authenticating user")?;
         let session_tokens = self.inner.session_tokens();
         if session_tokens
             .user_id
@@ -161,9 +161,9 @@ impl PandoraSession {
     }
 
     pub async fn search(&mut self, text: &str) -> Result<SearchResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing search request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing search request")?;
         trace!("search()");
         Search::from(&text)
             .response(&mut self.inner)
@@ -174,7 +174,7 @@ impl PandoraSession {
     pub async fn get_track(&mut self, music_id: &str) -> Result<GetTrackResponse> {
         self.user_login()
             .await
-            .with_context(|| "Failed to ensure valid user login before completing track request")?;
+            .context("Failed to ensure valid user login before completing track request")?;
         trace!("getTrack()");
         GetTrack::from(&music_id)
             .response(&mut self.inner)
@@ -188,9 +188,9 @@ impl PandoraSession {
         track_token: &str,
         is_positive: bool,
     ) -> Result<AddFeedbackResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing add feedback request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing add feedback request")?;
         trace!("addFeedback()");
         AddFeedback::new(station_token, track_token, is_positive)
             .response(&mut self.inner)
@@ -203,9 +203,9 @@ impl PandoraSession {
         station_id: &str,
         track: &Track,
     ) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing delete feedback request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing delete feedback request",
+        )?;
         trace!("deleteFeedback() [delete_feedback_for_track]");
         trace!("Looking up musicToken for current track");
         let music_token = self.get_track(&track.music_id).await?.music_token;
@@ -231,9 +231,9 @@ impl PandoraSession {
     }
 
     pub async fn delete_feedback(&mut self, feedback_id: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing delete feedback request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing delete feedback request",
+        )?;
         trace!("deleteFeedback()");
         DeleteFeedback::from(&feedback_id)
             .response(&mut self.inner)
@@ -247,9 +247,9 @@ impl PandoraSession {
         station_token: &str,
         music_token: &str,
     ) -> Result<AddMusicResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing add music request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing add music request")?;
         trace!("addMusic()");
         AddMusic::new(station_token, music_token)
             .response(&mut self.inner)
@@ -258,9 +258,9 @@ impl PandoraSession {
     }
 
     pub async fn delete_music(&mut self, seed_id: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing delete music request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing delete music request")?;
         trace!("deleteMusic()");
         DeleteMusic::from(&seed_id)
             .response(&mut self.inner)
@@ -274,9 +274,9 @@ impl PandoraSession {
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing create station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing create station request",
+        )?;
         trace!("createStation()");
         CreateStation::new_from_track_song(track_token)
             .response(&mut self.inner)
@@ -288,9 +288,9 @@ impl PandoraSession {
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing create station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing create station request",
+        )?;
         trace!("createStation()");
         CreateStation::new_from_track_artist(track_token)
             .response(&mut self.inner)
@@ -302,9 +302,9 @@ impl PandoraSession {
         &mut self,
         music_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing create station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing create station request",
+        )?;
         trace!("createStation()");
         CreateStation::new_from_music_token(music_token)
             .response(&mut self.inner)
@@ -313,9 +313,9 @@ impl PandoraSession {
     }
 
     pub async fn delete_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing delete station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing delete station request",
+        )?;
         trace!("deleteStation()");
         DeleteStation::from(&station_token)
             .response(&mut self.inner)
@@ -325,9 +325,9 @@ impl PandoraSession {
     }
 
     pub async fn get_genre_stations(&mut self) -> Result<Vec<GenreCategory>> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get genre station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing get genre station request",
+        )?;
         trace!("getGenreStations()");
         GetGenreStations::new()
             .response(&mut self.inner)
@@ -337,9 +337,7 @@ impl PandoraSession {
     }
 
     pub async fn get_genre_stations_checksum(&mut self) -> Result<String> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get genre station checksum request"
-        })?;
+        self.user_login().await.context("Failed to ensure valid user login before completing get genre station checksum request")?;
         trace!("getGenreStationsChecksum()");
         GetGenreStationsChecksum::new()
             .response(&mut self.inner)
@@ -349,9 +347,9 @@ impl PandoraSession {
     }
 
     pub async fn get_playlist(&mut self, station_token: &str) -> Result<Vec<PlaylistEntry>> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get playlist request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing get playlist request")?;
 
         trace!("getPlaylist()");
         GetPlaylist::from(&station_token)
@@ -367,9 +365,9 @@ impl PandoraSession {
         station_token: &str,
         extended_attributes: bool,
     ) -> Result<GetStationResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get station request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing get station request")?;
 
         trace!("getStation()");
         GetStation::from(&station_token)
@@ -380,9 +378,9 @@ impl PandoraSession {
     }
 
     pub async fn rename_station(&mut self, station_token: &str, station_name: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing rename station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing rename station request",
+        )?;
 
         trace!("renameStation()");
         RenameStation::new(station_token, station_name)
@@ -398,9 +396,9 @@ impl PandoraSession {
         station_token: &str,
         emails: Vec<String>,
     ) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing share station request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing share station request")?;
 
         trace!("shareStation()");
         let mut ss = ShareStation::new(station_id, station_token);
@@ -412,9 +410,9 @@ impl PandoraSession {
     }
 
     pub async fn transform_shared_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing transform shared station request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing transform shared station request",
+        )?;
 
         trace!("transformSharedStation()");
         TransformSharedStation::from(&station_token)
@@ -425,9 +423,9 @@ impl PandoraSession {
     }
 
     pub async fn explain_track(&mut self, track_token: &str) -> Result<ExplainTrackResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing explain track request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing explain track request")?;
 
         trace!("explainTrack()");
         ExplainTrack::from(&track_token)
@@ -437,9 +435,9 @@ impl PandoraSession {
     }
 
     pub async fn validate_username(&mut self, username: &str) -> Result<ValidateUsernameResponse> {
-        self.partner_login().await.with_context(|| {
-            "Failed to ensure valid partner login before completing validate username request"
-        })?;
+        self.partner_login().await.context(
+            "Failed to ensure valid partner login before completing validate username request",
+        )?;
 
         trace!("validateUsername()");
         ValidateUsername::from(&username)
@@ -449,9 +447,9 @@ impl PandoraSession {
     }
 
     pub async fn password_recovery(&mut self, username: &str) -> Result<()> {
-        self.partner_login().await.with_context(|| {
-            "Failed to ensure valid partner login before completing password recovery request"
-        })?;
+        self.partner_login().await.context(
+            "Failed to ensure valid partner login before completing password recovery request",
+        )?;
 
         trace!("emailPassword()");
         EmailPassword::from(&username)
@@ -462,9 +460,9 @@ impl PandoraSession {
     }
 
     pub async fn get_bookmarks(&mut self) -> Result<GetBookmarksResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get bookmarks request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing get bookmarks request")?;
 
         trace!("getBookmarks()");
         GetBookmarks::new()
@@ -474,9 +472,9 @@ impl PandoraSession {
     }
 
     pub async fn get_station_list_checksum(&mut self) -> Result<String> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get station list checksum request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing get station list checksum request",
+        )?;
 
         trace!("getStationListChecksum()");
         GetStationListChecksum::new()
@@ -487,9 +485,9 @@ impl PandoraSession {
     }
 
     pub async fn get_station_list(&mut self) -> Result<GetStationListResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get station list request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing get station list request",
+        )?;
 
         trace!("getStationList()");
         GetStationList::new()
@@ -499,9 +497,9 @@ impl PandoraSession {
     }
 
     pub async fn get_usage_info(&mut self) -> Result<GetUsageInfoResponse> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing get usage info request"
-        })?;
+        self.user_login().await.context(
+            "Failed to ensure valid user login before completing get usage info request",
+        )?;
 
         trace!("getUsageInfo()");
         GetUsageInfo::new()
@@ -511,9 +509,9 @@ impl PandoraSession {
     }
 
     pub async fn set_quick_mix(&mut self, quick_mix_station_ids: Vec<String>) -> Result<()> {
-        self.user_login().await.with_context(|| {
-            "Failed to ensure valid user login before completing set quick mix request"
-        })?;
+        self.user_login()
+            .await
+            .context("Failed to ensure valid user login before completing set quick mix request")?;
 
         trace!("setQuickMix()");
         let mut sqm = SetQuickMix::new();

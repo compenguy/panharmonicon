@@ -67,10 +67,7 @@ impl Credentials {
     pub(crate) fn password(&self) -> Result<Option<String>> {
         match self {
             Credentials::Keyring(u) => Credentials::get_from_keyring(u).with_context(|| {
-                format!(
-                    "Failed retrieving secrets for user {} from session keyring",
-                    &u,
-                )
+                format!("Failed retrieving secrets for user {u} from session keyring",)
             }),
             Credentials::ConfigFile(_, p) if p.is_empty() => Ok(None),
             Credentials::ConfigFile(_, p) => Ok(Some(p.clone())),
@@ -109,7 +106,7 @@ impl Credentials {
         match &mut dup {
             Credentials::Keyring(u) => {
                 Credentials::set_on_keyring(u, password).with_context(|| {
-                    format!("Failed updating secret for user {} on session keyring", &u)
+                    format!("Failed updating secret for user {u} on session keyring")
                 })?
             }
             Credentials::ConfigFile(_, ref mut p) => {
@@ -182,9 +179,8 @@ impl Credentials {
         match keyring.get_password() {
             Ok(p) => Ok(Some(p)),
             Err(keyring::error::Error::NoEntry) => Ok(None),
-            Err(e) => Err(Error::from(e)).with_context(|| {
-                format!("Error contacting session keyring for user {}", &username)
-            }),
+            Err(e) => Err(Error::from(e))
+                .with_context(|| format!("Error contacting session keyring for user {username}")),
         }
     }
 
@@ -195,10 +191,7 @@ impl Credentials {
             .set_password(password)
             .map_err(Error::from)
             .with_context(|| {
-                format!(
-                    "Failed updating secret for user {} on session keyring",
-                    &username
-                )
+                format!("Failed updating secret for user {username} on session keyring")
             })
     }
 }

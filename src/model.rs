@@ -124,8 +124,7 @@ impl AudioDevice {
         size: u64,
     ) -> Result<redlux::Decoder<BufReader<R>>> {
         let reader = BufReader::new(reader);
-        redlux::Decoder::new_mpeg4(reader, size)
-            .with_context(|| "Failed initializing media decoder")
+        redlux::Decoder::new_mpeg4(reader, size).context("Failed initializing media decoder")
     }
 
     /*
@@ -1008,7 +1007,7 @@ impl Model {
     pub(crate) fn playlist_len(&self) -> Result<usize> {
         self.state
             .playlist_len()
-            .with_context(|| "Failed to get playlist length")
+            .context("Failed to get playlist length")
     }
 
     pub(crate) async fn extend_playlist(&mut self, new_playlist: Vec<Track>) -> Result<()> {
@@ -1042,7 +1041,7 @@ impl Model {
                 .state
                 .fetch_playlist()
                 .await
-                .with_context(|| "Failed while fetching new playlist")?;
+                .context("Failed while fetching new playlist")?;
             self.extend_playlist(new_playlist).await?;
         } else {
             debug!("Not refilling playlist while not tuned");
@@ -1055,7 +1054,7 @@ impl Model {
             self.state
                 .rate_track(&station_id, rating)
                 .await
-                .with_context(|| "Failed to rate track")?;
+                .context("Failed to rate track")?;
             if let Some(rating) = rating.map(|r| if r { 1 } else { 0 }) {
                 trace!("send notification 'rated'");
                 if let Some(channel_out) = self.channel_out.as_mut() {
@@ -1187,7 +1186,7 @@ impl Model {
 
         self.state
             .tune(station_id.clone())
-            .with_context(|| "Failed to tune station")?;
+            .context("Failed to tune station")?;
 
         trace!("send notification 'tuned'");
         if let Some(channel_out) = self.channel_out.as_mut() {
@@ -1206,9 +1205,7 @@ impl Model {
             return Ok(());
         }
 
-        self.state
-            .untune()
-            .with_context(|| "Failed to untune station")?;
+        self.state.untune().context("Failed to untune station")?;
         self.config
             .borrow_mut()
             .update_from(&PartialConfig::default().station(None));
@@ -1288,9 +1285,7 @@ impl Model {
         }
 
         if self.state.get_playing().is_some() {
-            self.state
-                .stop()
-                .with_context(|| "Failed to stop active track")?;
+            self.state.stop().context("Failed to stop active track")?;
             trace!("send notification 'stopped'");
             if let Some(channel_out) = self.channel_out.as_mut() {
                 channel_out
