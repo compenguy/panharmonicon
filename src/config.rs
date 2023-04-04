@@ -175,7 +175,7 @@ impl Credentials {
 
     fn get_from_keyring(username: &str) -> Result<Option<String>> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Entry::new(&service, username);
+        let keyring = keyring::Entry::new(&service, username)?;
         match keyring.get_password() {
             Ok(p) => Ok(Some(p)),
             Err(keyring::error::Error::NoEntry) => Ok(None),
@@ -186,7 +186,7 @@ impl Credentials {
 
     fn set_on_keyring(username: &str, password: &str) -> Result<()> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Entry::new(&service, username);
+        let keyring = keyring::Entry::new(&service, username)?;
         keyring
             .set_password(password)
             .map_err(Error::from)

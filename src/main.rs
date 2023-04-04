@@ -2,7 +2,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
 use flexi_logger::{detailed_format, Logger};
-use human_panic::setup_panic;
 use log::{debug, error, trace};
 
 mod errors;
@@ -20,13 +19,6 @@ mod track;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    setup_panic!(Metadata {
-        name: env!("CARGO_PKG_NAME").into(),
-        version: env!("CARGO_PKG_VERSION").into(),
-        authors: "Will Page <compenguy@gmail.com>".into(),
-        homepage: "".into(),
-    });
-
     let config_file = dirs::config_dir()
         .ok_or(Error::AppDirNotFound)?
         .join(clap::crate_name!())
@@ -36,19 +28,16 @@ async fn main() -> Result<()> {
             clap::Arg::new("gen-config")
                 .short('c')
                 .long("gen-config")
-                .help(
-                    format!(
-                        "Generate a default config file at {}",
-                        config_file.to_string_lossy()
-                    )
-                    .as_str(),
-                ),
+                .help(format!(
+                    "Generate a default config file at {}",
+                    config_file.to_string_lossy()
+                )),
         )
         .arg(
             clap::Arg::new("debug")
                 .short('g')
                 .long("debug")
-                .multiple_occurrences(true)
+                .action(clap::ArgAction::Count)
                 .hide(true)
                 .help("Enable debug-level output"),
         )
@@ -61,7 +50,7 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    let crate_log_level = match matches.occurrences_of("debug") {
+    let crate_log_level = match matches.get_count("debug") {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
         2 => log::LevelFilter::Warn,
@@ -81,7 +70,7 @@ async fn main() -> Result<()> {
     );
     let mut log_builder = Logger::try_with_str(&spec)?.format(detailed_format);
 
-    if matches.is_present("debug-log") {
+    if matches.contains_id("debug-log") {
         let data_local_dir = dirs::data_local_dir()
             .ok_or(Error::AppDirNotFound)?
             .join(clap::crate_name!());
@@ -111,7 +100,7 @@ async fn main() -> Result<()> {
     debug!("{} version {}", clap::crate_name!(), clap::crate_version!());
 
     trace!("Loading user config");
-    let conf = Config::get_config(config_file, matches.is_present("gen-config"))?;
+    let conf = Config::get_config(config_file, matches.contains_id("gen-config"))?;
     debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));
 
