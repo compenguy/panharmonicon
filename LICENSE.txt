@@ -1,8 +1,8 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * Apache_License_2.0 (41)
-    * MIT_License (35)
+    * Apache_License_2.0 (42)
+    * MIT_License (36)
     * BSD_3-Clause_"New"_or_"Revised"_License (3)
     * BSD_2-Clause_"Simplified"_License (2)
     * Creative_Commons_Zero_v1.0_Universal (1)
@@ -7349,7 +7349,6 @@ This page lists the licenses of the projects used in panharmonicon.
           o ident_case_1.0.1
           o linux-keyutils_0.2.3
           o mp4ameta_proc_0.6.0
-          o openssl_0.10.49
           o panharmonicon_0.6.6
           o windows_x86_64_msvc_0.37.0
           o xi-unicode_0.3.0
@@ -7525,6 +7524,24 @@ This page lists the licenses of the projects used in panharmonicon.
       You may obtain a copy of the License at
 
       http://www.apache.org/licenses/LICENSE-2.0
+
+      Unless required by applicable law or agreed to in writing, software
+      distributed under the License is distributed on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+      See the License for the specific language governing permissions and
+      limitations under the License.
+    * **** Apache License 2.0 ****
+      *** Used by: ***
+          o openssl_0.10.49
+      Copyright 2011-2017 Google Inc.
+                2013 Jack Lloyd
+                2013-2014 Steven Fackler
+
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+      You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
 
       Unless required by applicable law or agreed to in writing, software
       distributed under the License is distributed on an "AS IS" BASIS,
@@ -8512,6 +8529,56 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
+          o tokio-macros_2.0.0
+      Copyright (c) 2023 Tokio Contributors
+
+      Permission is hereby granted, free of charge, to any
+      person obtaining a copy of this software and associated
+      documentation files (the "Software"), to deal in the
+      Software without restriction, including without
+      limitation the rights to use, copy, modify, merge,
+      publish, distribute, sublicense, and/or sell copies of
+      the Software, and to permit persons to whom the Software
+      is furnished to do so, subject to the following
+      conditions:
+
+      The above copyright notice and this permission notice
+      shall be included in all copies or substantial portions
+      of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+
+      The MIT License (MIT)
+
+      Copyright (c) 2019 Yoshua Wuyts
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
           o pandora-api-derive_0.1.0
       Copyright 2020 Will Page <compenguy@gmail.com>. All rights reserved.
 
@@ -8640,7 +8707,6 @@ This page lists the licenses of the projects used in panharmonicon.
           o fdk-aac-sys_0.4.0
           o pandora-api_0.6.0
           o panharmonicon_0.6.6
-          o tokio-macros_2.0.0
       MIT License
 
       Copyright (c) <year> <copyright holders>
@@ -8964,7 +9030,6 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o aho-corasick_0.7.20
           o byteorder_1.4.3
           o memchr_2.5.0
       This project is dual-licensed under the Unlicense and MIT licenses.
