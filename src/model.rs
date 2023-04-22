@@ -910,13 +910,16 @@ impl Model {
         self.process_messages().await?;
 
         if self.state.connected() && !self.state.test_connection() {
-            // TODO: Only send this notification if we were playing
-            if let Some(channel_out) = self.channel_out.as_mut() {
-                channel_out
-                    .broadcast(messages::Notification::Stopped(StopReason::SessionTimedOut))
-                    .await?;
-            }
             self.disconnect().await?;
+            // If we have an active track started, we should send a notification that we stopped
+            // because the session timed out
+            if self.started() {
+                if let Some(channel_out) = self.channel_out.as_mut() {
+                    channel_out
+                        .broadcast(messages::Notification::Stopped(StopReason::SessionTimedOut))
+                        .await?;
+                }
+            }
             self.dirty = false;
             return Ok(true);
         }
