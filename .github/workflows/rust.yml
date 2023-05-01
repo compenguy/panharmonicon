@@ -16,9 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+    - uses: dtolnay/rust-toolchain@stable
     - name: Install missing linux dependencies
       if: contains(matrix.os, 'ubuntu')
       run: sudo apt-get install libasound2-dev libdbus-1-dev
