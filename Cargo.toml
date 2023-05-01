@@ -40,3 +40,4 @@ chrono = "0.4"
 opt-level = "z"
 lto = "fat"
 codegen-units = 1
+strip = "debuginfo"

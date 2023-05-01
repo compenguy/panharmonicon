@@ -19,39 +19,35 @@ jobs:
           - os: ubuntu-20.04
             dependencies: libasound2-dev libdbus-1-dev
             program-ext: ''
-            debug-ext: .debug
             toolchain-prefix: ''
             release-name: panharmonicon-linux
           - os: windows-2019
             dependencies: ''
             program-ext: .exe
-            debug-ext: .pdb
             toolchain-prefix: ''
             release-name: panharmonicon-win
           - os: macos-latest
             dependencies: ''
             program-ext: ''
-            debug-ext: .debug
             toolchain-prefix: '$(brew --prefix llvm)/bin/llvm-'
             release-name: panharmonicon-macos
 
     steps:
     - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
     - uses: actions-rs/cargo@v1
+
     - name: Install missing dependencies (linux)
       if: contains(matrix.os, 'ubuntu')
       run: sudo apt-get install ${{ matrix.dependencies }}
 
+
     # add the --all-features flag to build versions with emoji_labels feature enabled
     - name: Build release
       run: cargo build --verbose --release --all-features
-
-    # build post-processing steps
-    - name: Strip binary and make debugging symbols (linux, macos)
-      if: contains(matrix.os, 'ubuntu') || contains(matrix.os, 'macos')
-      run: |
-        ${{ matrix.toolchain-prefix }}objcopy --only-keep-debug target/release/panharmonicon target/release/panharmonicon${{ matrix.debug-ext }}
-        ${{ matrix.toolchain-prefix }}strip --strip-debug target/release/panharmonicon
 
     # zip up all the releasable artifacts
     - name: Archive release artifacts
@@ -62,16 +58,6 @@ jobs:
       run: |
         mkdir -p artifacts
         7z a artifacts/${ARCHIVE_NAME}.zip README.md LICENSE.txt ./target/release/panharmonicon${PROGRAM_EXT}
-
-    # people don't generally want the debug symbols, so we'll put those in a separate archive
-    - name: Archive debug artifacts
-      shell: bash
-      env:
-        DEBUG_EXT: ${{ matrix.debug-ext }}
-        ARCHIVE_NAME: ${{ matrix.release-name }}-debug
-      run: |
-        mkdir -p artifacts
-        7z a artifacts/${ARCHIVE_NAME}.zip ./target/release/panharmonicon${DEBUG_EXT}
 
     # publish the archives made in the previous steps
     # but ONLY if this was triggered by a 'published' event
@@ -84,15 +70,4 @@ jobs:
         upload_url: ${{ github.event.release.upload_url }}
         asset_path: ./artifacts/${{ matrix.release-name }}.zip
         asset_name: ${{ matrix.release-name }}.zip
-        asset_content_type: application/zip
-
-    - name: Publish debug artifacts
-      if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./artifacts/${{ matrix.release-name }}-debug.zip
-        asset_name: ${{ matrix.release-name }}-debug.zip
         asset_content_type: application/zip
