@@ -9030,6 +9030,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
+          o aho-corasick_0.7.20
           o byteorder_1.4.3
           o memchr_2.5.0
       This project is dual-licensed under the Unlicense and MIT licenses.
