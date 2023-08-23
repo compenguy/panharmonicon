@@ -1301,6 +1301,7 @@ impl Model {
         } else {
             trace!("No track is currently playing. Nothing to do.");
         }
+        self.refill_playlist().await?;
         Ok(())
     }
 
