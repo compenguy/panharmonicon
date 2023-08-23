@@ -10,7 +10,7 @@ use pandora_api::json::station::*;
 use pandora_api::json::track::*;
 pub use pandora_api::json::user::Station;
 use pandora_api::json::user::*;
-use pandora_api::json::{PandoraApiRequest, ToEncryptionTokens};
+use pandora_api::json::{PandoraJsonApiRequest, ToEncryptionTokens};
 
 use crate::config::Config;
 use crate::errors::Error;
