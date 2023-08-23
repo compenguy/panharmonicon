@@ -82,7 +82,7 @@ pub(crate) enum Notification {
     PreCaching(Track),
     Starting(Track),
     #[allow(dead_code)]
-    Next(Track),
+    Next(Option<Track>),
     Rated(u32),
     Unrated,
     Volume(f32),
@@ -104,7 +104,8 @@ impl PartialEq<Notification> for Notification {
             (Notification::Starting(t), Notification::Starting(u)) => {
                 t.track_token == u.track_token
             }
-            (Notification::Next(t), Notification::Next(u)) => t.track_token == u.track_token,
+            (Notification::Next(Some(t)), Notification::Next(Some(u))) => t.track_token == u.track_token,
+            (Notification::Next(None), Notification::Next(None)) => true,
             (Notification::Rated(a), Notification::Rated(b)) => a == b,
             (Notification::Unrated, Notification::Unrated) => true,
             (Notification::Volume(a), Notification::Volume(b)) => {

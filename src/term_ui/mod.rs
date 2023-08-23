@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
+use cursive::{theme::ColorStyle, utils::markup::StyledString};
 use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
@@ -218,9 +219,21 @@ impl Terminal {
         });
     }
 
-    fn next_track(&mut self, track: Track) {
-        trace!("TODO: UI for displaying next track ({})", track.song_name);
+    fn next_track(&mut self, track: Option<Track>) {
+        trace!("Updating next track...");
+        let text = if let Some(Track { song_name, artist_name, .. }) = track {
+            format!("{song_name} by {artist_name}")
+        } else {
+            "...".to_string()
+        };
+
+        self.siv
+            .call_on_name("next_up", |v: &mut TextView| {
+                debug!("Next up: {text}");
+                v.set_content(StyledString::styled(text, ColorStyle::tertiary()));
+            });
     }
+
 
     fn update_playing(&mut self, elapsed: Duration, duration: Duration, paused: bool) {
         trace!("Updating track duration...");

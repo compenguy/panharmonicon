@@ -4,6 +4,7 @@ use cursive::views::{
     Button, Dialog, DummyView, EditView, HideableView, LinearLayout, PaddedView, Panel, SelectView,
     SliderView, TextView,
 };
+use cursive::{theme::ColorStyle, utils::markup::StyledString};
 use cursive::Cursive;
 // Traits pulled in to add methods to types
 use cursive::align::HAlign;
@@ -40,7 +41,7 @@ impl Default for Store {
 
 pub(crate) fn playing_view() -> LinearLayout {
     let stations = LinearLayout::horizontal()
-        .child(TextView::new("Station:"))
+        .child(TextView::new(StyledString::styled("Station ", ColorStyle::primary())))
         .child(
             SelectView::<String>::new()
                 .popup()
@@ -59,10 +60,22 @@ pub(crate) fn playing_view() -> LinearLayout {
                 .fixed_height(1),
         );
 
+    let next_up = LinearLayout::horizontal()
+        .child(TextView::new(StyledString::styled("Next up", ColorStyle::primary())).fixed_width(9))
+        .child(TextView::new(StyledString::styled("...", ColorStyle::tertiary()))
+                .with_name("next_up")
+                .fixed_height(1),
+        );
+
+    let station_row = LinearLayout::horizontal()
+        .child(stations)
+        .child(DummyView.full_width())
+        .child(next_up);
+
     let controls_bar = LinearLayout::vertical()
         .child(
             LinearLayout::horizontal()
-                .child(TextView::new("Volume").fixed_width(7))
+                .child(TextView::new(StyledString::styled("Volume", ColorStyle::secondary())).fixed_width(7))
                 .child(
                     SliderView::horizontal(11)
                         .on_change(|s, v| {
@@ -107,17 +120,17 @@ pub(crate) fn playing_view() -> LinearLayout {
                 LinearLayout::vertical()
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new("Title").fixed_width(7))
+                            .child(TextView::new(StyledString::styled("Title", ColorStyle::secondary())).fixed_width(7))
                             .child(TextView::empty().with_name("title")),
                     )
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new("Artist").fixed_width(7))
+                            .child(TextView::new(StyledString::styled("Artist", ColorStyle::secondary())).fixed_width(7))
                             .child(TextView::empty().with_name("artist")),
                     )
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new("Album").fixed_width(7))
+                            .child(TextView::new(StyledString::styled("Album", ColorStyle::secondary())).fixed_width(7))
                             .child(TextView::empty().with_name("album")),
                     )
                     .max_height(3)
@@ -132,7 +145,7 @@ pub(crate) fn playing_view() -> LinearLayout {
 
     LinearLayout::vertical()
         .child(playing)
-        .child(HideableView::new(stations).with_name("stations_hideable"))
+        .child(HideableView::new(station_row).with_name("stations_hideable"))
 }
 
 pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {

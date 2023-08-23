@@ -752,6 +752,18 @@ impl ModelState {
         }
     }
 
+    pub(crate) fn get_next(&self) -> Option<&Track> {
+        match self {
+            Self::Tuned { playlist, .. } => {
+                playlist.get(0)
+            },
+            Self::Playing{ playlist, .. } => {
+                playlist.get(0)
+            },
+            _ => None
+        }
+    }
+
     pub(crate) fn get_playing(&self) -> Option<&Playing> {
         if let Self::Playing { playing, .. } = self {
             Some(playing)
@@ -978,14 +990,21 @@ impl Model {
             self.state.get_playing_mut().and_then(|p| p.poll_progress())
         {
             self.dirty = true;
-            let notification = if self.paused() {
+            let progress_notification = if self.paused() {
                 messages::Notification::Paused(elapsed, duration)
             } else {
                 messages::Notification::Playing(elapsed, duration)
             };
             trace!("send notification 'Playing/Paused'");
             if let Some(channel_out) = self.channel_out.as_mut() {
-                channel_out.broadcast(notification).await?;
+                channel_out.broadcast(progress_notification).await?;
+            }
+
+            let next_track = self.state.get_next().cloned();
+            trace!("send notification 'Next({:?})'", next_track);
+            let next_notification = messages::Notification::Next(next_track);
+            if let Some(channel_out) = self.channel_out.as_mut() {
+                channel_out.broadcast(next_notification).await?;
             }
         }
 
