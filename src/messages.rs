@@ -104,7 +104,9 @@ impl PartialEq<Notification> for Notification {
             (Notification::Starting(t), Notification::Starting(u)) => {
                 t.track_token == u.track_token
             }
-            (Notification::Next(Some(t)), Notification::Next(Some(u))) => t.track_token == u.track_token,
+            (Notification::Next(Some(t)), Notification::Next(Some(u))) => {
+                t.track_token == u.track_token
+            }
             (Notification::Next(None), Notification::Next(None)) => true,
             (Notification::Rated(a), Notification::Rated(b)) => a == b,
             (Notification::Unrated, Notification::Unrated) => true,

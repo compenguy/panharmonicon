@@ -754,13 +754,9 @@ impl ModelState {
 
     pub(crate) fn get_next(&self) -> Option<&Track> {
         match self {
-            Self::Tuned { playlist, .. } => {
-                playlist.get(0)
-            },
-            Self::Playing{ playlist, .. } => {
-                playlist.get(0)
-            },
-            _ => None
+            Self::Tuned { playlist, .. } => playlist.get(0),
+            Self::Playing { playlist, .. } => playlist.get(0),
+            _ => None,
         }
     }
 
