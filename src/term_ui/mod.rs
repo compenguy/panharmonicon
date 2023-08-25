@@ -221,19 +221,26 @@ impl Terminal {
 
     fn next_track(&mut self, track: Option<Track>) {
         trace!("Updating next track...");
-        let text = if let Some(Track { song_name, artist_name, .. }) = track {
-            format!("{song_name} by {artist_name}")
+        let styled_text = if let Some(Track {
+            song_name,
+            artist_name,
+            ..
+        }) = &track
+        {
+            let mut styled = StyledString::new();
+            styled.append_plain(song_name);
+            styled.append_styled(" by ", ColorStyle::secondary());
+            styled.append_plain(artist_name);
+            styled
         } else {
-            "...".to_string()
+            StyledString::plain("...")
         };
 
-        self.siv
-            .call_on_name("next_up", |v: &mut TextView| {
-                debug!("Next up: {text}");
-                v.set_content(StyledString::styled(text, ColorStyle::tertiary()));
-            });
+        self.siv.call_on_name("next_up", |v: &mut TextView| {
+            debug!("Next up: {:?}", track);
+            v.set_content(styled_text);
+        });
     }
-
 
     fn update_playing(&mut self, elapsed: Duration, duration: Duration, paused: bool) {
         trace!("Updating track duration...");

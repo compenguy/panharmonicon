@@ -4,8 +4,8 @@ use cursive::views::{
     Button, Dialog, DummyView, EditView, HideableView, LinearLayout, PaddedView, Panel, SelectView,
     SliderView, TextView,
 };
-use cursive::{theme::ColorStyle, utils::markup::StyledString};
 use cursive::Cursive;
+use cursive::{theme::ColorStyle, utils::markup::StyledString};
 // Traits pulled in to add methods to types
 use cursive::align::HAlign;
 use cursive::view::{Nameable, Resizable};
@@ -41,7 +41,10 @@ impl Default for Store {
 
 pub(crate) fn playing_view() -> LinearLayout {
     let stations = LinearLayout::horizontal()
-        .child(TextView::new(StyledString::styled("Station ", ColorStyle::primary())))
+        .child(TextView::new(StyledString::styled(
+            "Station ",
+            ColorStyle::title_secondary(),
+        )))
         .child(
             SelectView::<String>::new()
                 .popup()
@@ -61,8 +64,15 @@ pub(crate) fn playing_view() -> LinearLayout {
         );
 
     let next_up = LinearLayout::horizontal()
-        .child(TextView::new(StyledString::styled("Next up", ColorStyle::primary())).fixed_width(9))
-        .child(TextView::new(StyledString::styled("...", ColorStyle::tertiary()))
+        .child(
+            TextView::new(StyledString::styled(
+                "Next up",
+                ColorStyle::title_secondary(),
+            ))
+            .fixed_width(9),
+        )
+        .child(
+            TextView::new(StyledString::plain("..."))
                 .with_name("next_up")
                 .fixed_height(1),
         );
@@ -75,7 +85,13 @@ pub(crate) fn playing_view() -> LinearLayout {
     let controls_bar = LinearLayout::vertical()
         .child(
             LinearLayout::horizontal()
-                .child(TextView::new(StyledString::styled("Volume", ColorStyle::secondary())).fixed_width(7))
+                .child(
+                    TextView::new(StyledString::styled(
+                        "Volume",
+                        ColorStyle::title_secondary(),
+                    ))
+                    .fixed_width(7),
+                )
                 .child(
                     SliderView::horizontal(11)
                         .on_change(|s, v| {
@@ -120,17 +136,35 @@ pub(crate) fn playing_view() -> LinearLayout {
                 LinearLayout::vertical()
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new(StyledString::styled("Title", ColorStyle::secondary())).fixed_width(7))
+                            .child(
+                                TextView::new(StyledString::styled(
+                                    "Title",
+                                    ColorStyle::title_secondary(),
+                                ))
+                                .fixed_width(7),
+                            )
                             .child(TextView::empty().with_name("title")),
                     )
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new(StyledString::styled("Artist", ColorStyle::secondary())).fixed_width(7))
+                            .child(
+                                TextView::new(StyledString::styled(
+                                    "Artist",
+                                    ColorStyle::title_secondary(),
+                                ))
+                                .fixed_width(7),
+                            )
                             .child(TextView::empty().with_name("artist")),
                     )
                     .child(
                         LinearLayout::horizontal()
-                            .child(TextView::new(StyledString::styled("Album", ColorStyle::secondary())).fixed_width(7))
+                            .child(
+                                TextView::new(StyledString::styled(
+                                    "Album",
+                                    ColorStyle::title_secondary(),
+                                ))
+                                .fixed_width(7),
+                            )
                             .child(TextView::empty().with_name("album")),
                     )
                     .max_height(3)
