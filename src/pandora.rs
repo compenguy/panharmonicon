@@ -165,21 +165,34 @@ impl PandoraSession {
             .await
             .context("Failed to ensure valid user login before completing search request")?;
         trace!("search()");
-        Search::from(&text)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = Search::from(&text);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_track(&mut self, music_id: &str) -> Result<GetTrackResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing track request")?;
         trace!("getTrack()");
-        GetTrack::from(&music_id)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = GetTrack::from(&music_id);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn add_feedback(
@@ -188,14 +201,19 @@ impl PandoraSession {
         track_token: &str,
         is_positive: bool,
     ) -> Result<AddFeedbackResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing add feedback request")?;
         trace!("addFeedback()");
-        AddFeedback::new(station_token, track_token, is_positive)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = AddFeedback::new(station_token, track_token, is_positive);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn delete_feedback_for_track(
@@ -203,9 +221,6 @@ impl PandoraSession {
         station_id: &str,
         track: &Track,
     ) -> Result<()> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing delete feedback request",
-        )?;
         trace!("deleteFeedback() [delete_feedback_for_track]");
         trace!("Looking up musicToken for current track");
         let music_token = self.get_track(&track.music_id).await?.music_token;
@@ -231,15 +246,20 @@ impl PandoraSession {
     }
 
     pub async fn delete_feedback(&mut self, feedback_id: &str) -> Result<()> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing delete feedback request",
-        )?;
         trace!("deleteFeedback()");
-        DeleteFeedback::from(&feedback_id)
-            .response(&mut self.inner)
-            .await
-            .map(|_| ())
-            .map_err(anyhow::Error::from)
+        let request = DeleteFeedback::from(&feedback_id);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn add_music(
@@ -247,117 +267,162 @@ impl PandoraSession {
         station_token: &str,
         music_token: &str,
     ) -> Result<AddMusicResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing add music request")?;
         trace!("addMusic()");
-        AddMusic::new(station_token, music_token)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = AddMusic::new(station_token, music_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn delete_music(&mut self, seed_id: &str) -> Result<()> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing delete music request")?;
         trace!("deleteMusic()");
-        DeleteMusic::from(&seed_id)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
-            .map(|_: DeleteMusicResponse| ())
-            .map_err(anyhow::Error::from)
+        let request = DeleteMusic::from(&seed_id);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
+        .map(|_: DeleteMusicResponse| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn create_station_from_track_song(
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing create station request",
-        )?;
         trace!("createStation()");
-        CreateStation::new_from_track_song(track_token)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = CreateStation::new_from_track_song(track_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn create_station_from_track_artist(
         &mut self,
         track_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing create station request",
-        )?;
         trace!("createStation()");
-        CreateStation::new_from_track_artist(track_token)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = CreateStation::new_from_track_artist(track_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn create_station_from_music_token(
         &mut self,
         music_token: &str,
     ) -> Result<CreateStationResponse> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing create station request",
-        )?;
         trace!("createStation()");
-        CreateStation::new_from_music_token(music_token)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = CreateStation::new_from_music_token(music_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn delete_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing delete station request",
-        )?;
         trace!("deleteStation()");
-        DeleteStation::from(&station_token)
-            .response(&mut self.inner)
-            .await
-            .map(|_: DeleteStationResponse| ())
-            .map_err(anyhow::Error::from)
+        let request = DeleteStation::from(&station_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_: DeleteStationResponse| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_genre_stations(&mut self) -> Result<Vec<GenreCategory>> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing get genre station request",
-        )?;
         trace!("getGenreStations()");
-        GetGenreStations::new()
-            .response(&mut self.inner)
-            .await
-            .map(|gr: GetGenreStationsResponse| gr.categories)
-            .map_err(anyhow::Error::from)
+        let request = GetGenreStations::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|gr: GetGenreStationsResponse| gr.categories)
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_genre_stations_checksum(&mut self) -> Result<String> {
-        self.user_login().await.context("Failed to ensure valid user login before completing get genre station checksum request")?;
         trace!("getGenreStationsChecksum()");
-        GetGenreStationsChecksum::new()
-            .response(&mut self.inner)
-            .await
-            .map(|cr: GetGenreStationsChecksumResponse| cr.checksum)
-            .map_err(anyhow::Error::from)
+        let request = GetGenreStationsChecksum::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|cr: GetGenreStationsChecksumResponse| cr.checksum)
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_playlist(&mut self, station_token: &str) -> Result<Vec<PlaylistEntry>> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing get playlist request")?;
-
         trace!("getPlaylist()");
-        GetPlaylist::from(&station_token)
-            .include_track_length(true)
-            .response(&mut self.inner)
-            .await
-            .map(|pr: GetPlaylistResponse| pr.items)
-            .map_err(anyhow::Error::from)
+        let request = GetPlaylist::from(&station_token).include_track_length(true);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|pr: GetPlaylistResponse| pr.items)
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_station(
@@ -365,29 +430,37 @@ impl PandoraSession {
         station_token: &str,
         extended_attributes: bool,
     ) -> Result<GetStationResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing get station request")?;
-
         trace!("getStation()");
-        GetStation::from(&station_token)
-            .include_extended_attributes(extended_attributes)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request =
+            GetStation::from(&station_token).include_extended_attributes(extended_attributes);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn rename_station(&mut self, station_token: &str, station_name: &str) -> Result<()> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing rename station request",
-        )?;
-
         trace!("renameStation()");
-        RenameStation::new(station_token, station_name)
-            .response(&mut self.inner)
-            .await
-            .map(|_: RenameStationResponse| ())
-            .map_err(anyhow::Error::from)
+        let request = RenameStation::new(station_token, station_name);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_: RenameStationResponse| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn share_station(
@@ -396,42 +469,54 @@ impl PandoraSession {
         station_token: &str,
         emails: Vec<String>,
     ) -> Result<()> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing share station request")?;
-
         trace!("shareStation()");
-        let mut ss = ShareStation::new(station_id, station_token);
-        ss.emails = emails;
-        ss.response(&mut self.inner)
-            .await
-            .map(|_: ShareStationResponse| ())
-            .map_err(anyhow::Error::from)
+        let mut request = ShareStation::new(station_id, station_token);
+        request.emails = emails;
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_: ShareStationResponse| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn transform_shared_station(&mut self, station_token: &str) -> Result<()> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing transform shared station request",
-        )?;
-
         trace!("transformSharedStation()");
-        TransformSharedStation::from(&station_token)
-            .response(&mut self.inner)
-            .await
-            .map(|_: TransformSharedStationResponse| ())
-            .map_err(anyhow::Error::from)
+        let request = TransformSharedStation::from(&station_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_: TransformSharedStationResponse| ())
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn explain_track(&mut self, track_token: &str) -> Result<ExplainTrackResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing explain track request")?;
-
         trace!("explainTrack()");
-        ExplainTrack::from(&track_token)
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = ExplainTrack::from(&track_token);
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn validate_username(&mut self, username: &str) -> Result<ValidateUsernameResponse> {
@@ -460,65 +545,85 @@ impl PandoraSession {
     }
 
     pub async fn get_bookmarks(&mut self) -> Result<GetBookmarksResponse> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing get bookmarks request")?;
-
         trace!("getBookmarks()");
-        GetBookmarks::new()
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = GetBookmarks::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_station_list_checksum(&mut self) -> Result<String> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing get station list checksum request",
-        )?;
-
         trace!("getStationListChecksum()");
-        GetStationListChecksum::new()
-            .response(&mut self.inner)
-            .await
-            .map(|sc: GetStationListChecksumResponse| sc.checksum)
-            .map_err(anyhow::Error::from)
+        let request = GetStationListChecksum::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|sc: GetStationListChecksumResponse| sc.checksum)
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_station_list(&mut self) -> Result<GetStationListResponse> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing get station list request",
-        )?;
-
         trace!("getStationList()");
-        GetStationList::new()
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = GetStationList::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn get_usage_info(&mut self) -> Result<GetUsageInfoResponse> {
-        self.user_login().await.context(
-            "Failed to ensure valid user login before completing get usage info request",
-        )?;
-
         trace!("getUsageInfo()");
-        GetUsageInfo::new()
-            .response(&mut self.inner)
-            .await
-            .map_err(anyhow::Error::from)
+        let request = GetUsageInfo::new();
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map_err(anyhow::Error::from)
     }
 
     pub async fn set_quick_mix(&mut self, quick_mix_station_ids: Vec<String>) -> Result<()> {
-        self.user_login()
-            .await
-            .context("Failed to ensure valid user login before completing set quick mix request")?;
-
         trace!("setQuickMix()");
-        let mut sqm = SetQuickMix::new();
-        sqm.quick_mix_station_ids = quick_mix_station_ids;
-        sqm.response(&mut self.inner)
-            .await
-            .map(|_: SetQuickMixResponse| ())
-            .map_err(anyhow::Error::from)
+        let mut request = SetQuickMix::new();
+        request.quick_mix_station_ids = quick_mix_station_ids;
+        // Catch request errors, reconnect, and retry
+        match request.response(&mut self.inner).await {
+            Err(_) => {
+                self.user_login().await.context(
+                    "Failed to ensure valid user login before retrying add feedback request",
+                )?;
+                request.response(&mut self.inner).await
+            }
+            res => res,
+        }
+        .map(|_: SetQuickMixResponse| ())
+        .map_err(anyhow::Error::from)
     }
 }
