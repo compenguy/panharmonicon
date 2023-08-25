@@ -24,12 +24,12 @@ borders = "simple" # Alternatives are "none" and "simple"
 	# An array with a single value has the same effect as a simple value.
 	primary   = ["555", "light white"]
 	secondary = ["333", "white"]
-	tertiary  = ["113", "blue"]
+	tertiary  = ["111", "light black"]
 
 	# Hex values can use lower or uppercase.
 	# (base color MUST be lowercase)
-	title_primary   = ["225", "light blue"]
-	title_secondary = ["113", "blue"]
+	title_primary   = ["335", "light blue"]
+	title_secondary = ["223", "blue"]
 
 	# Lower precision values can use only 3 digits.
 	highlight          = ["010", "green"]
