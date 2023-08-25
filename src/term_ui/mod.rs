@@ -39,6 +39,8 @@ pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
     subscriber: async_broadcast::Receiver<messages::Notification>,
     context: TerminalContext,
+    last_redraw: std::time::Instant,
+    dirty: bool,
 }
 
 impl Terminal {
@@ -56,6 +58,8 @@ impl Terminal {
             siv,
             subscriber,
             context,
+            last_redraw: std::time::Instant::now(),
+            dirty: true,
         };
         term.initialize();
         term
@@ -65,7 +69,7 @@ impl Terminal {
         self.init_key_mappings();
         self.init_theme();
         self.init_playback();
-        self.siv.refresh();
+        self.redraw();
     }
 
     fn init_key_mappings(&mut self) {
@@ -317,10 +321,10 @@ impl Terminal {
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
-        let mut dirty = false;
         trace!("checking for player notifications...");
+        // Process messages until we go 100ms without any new messages
         while let Ok(Ok(message)) = tokio::time::timeout(
-            std::time::Duration::from_millis(250),
+            std::time::Duration::from_millis(50),
             self.subscriber.recv(),
         )
         .await
@@ -349,13 +353,20 @@ impl Terminal {
                 messages::Notification::Unmuted => (),
                 messages::Notification::Quit => (),
             }
-            dirty = true;
+            self.dirty = true;
         }
-        trace!("forcing ui update");
-        dirty |= self.siv.step();
-        if dirty {
+        self.dirty |= self.siv.step();
+        self.redraw();
+        Ok(self.dirty)
+    }
+
+    fn redraw(&mut self) {
+        // rate-limit redraws to no more than 5 per second, and only if dirty
+        if self.dirty && self.last_redraw.elapsed() > std::time::Duration::from_millis(200) {
+            trace!("forcing ui update");
             self.siv.refresh();
+            self.last_redraw = std::time::Instant::now();
+            self.dirty = false;
         }
-        Ok(dirty)
     }
 }
