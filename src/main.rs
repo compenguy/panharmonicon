@@ -106,7 +106,10 @@ async fn main() -> Result<()> {
     debug!("{} version {}", clap::crate_name!(), clap::crate_version!());
 
     trace!("Loading user config");
-    let gen_config = matches.get_one::<bool>("gen-config").copied().unwrap_or(false);
+    let gen_config = matches
+        .get_one::<bool>("gen-config")
+        .copied()
+        .unwrap_or(false);
     let conf = Config::get_config(config_file, gen_config)?;
     debug!("Configuration settings: {:?}", &conf);
     let conf_ref = Rc::new(RefCell::new(conf));

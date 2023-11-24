@@ -323,11 +323,8 @@ impl Terminal {
     pub(crate) async fn update(&mut self) -> Result<bool> {
         trace!("checking for player notifications...");
         // Process messages until we go 50ms without any new messages
-        while let Ok(Ok(message)) = tokio::time::timeout(
-            std::time::Duration::from_millis(50),
-            self.subscriber.recv(),
-        )
-        .await
+        while let Ok(Ok(message)) =
+            tokio::time::timeout(std::time::Duration::from_millis(50), self.subscriber.recv()).await
         {
             match message {
                 messages::Notification::Connected => {
