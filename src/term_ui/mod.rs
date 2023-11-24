@@ -322,7 +322,7 @@ impl Terminal {
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
         trace!("checking for player notifications...");
-        // Process messages until we go 100ms without any new messages
+        // Process messages until we go 50ms without any new messages
         while let Ok(Ok(message)) = tokio::time::timeout(
             std::time::Duration::from_millis(50),
             self.subscriber.recv(),
@@ -361,8 +361,8 @@ impl Terminal {
     }
 
     fn redraw(&mut self) {
-        // rate-limit redraws to no more than 5 per second, and only if dirty
-        if self.dirty && self.last_redraw.elapsed() > std::time::Duration::from_millis(200) {
+        // rate-limit redraws to no more than 6-7 per second, and only if dirty
+        if self.dirty && self.last_redraw.elapsed() > std::time::Duration::from_millis(150) {
             trace!("forcing ui update");
             self.siv.refresh();
             self.last_redraw = std::time::Instant::now();
