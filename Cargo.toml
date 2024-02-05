@@ -27,8 +27,8 @@ pandora-api = "0.6"
 tokio = { version = "1", default-features = false, features = ["fs", "io-util", "time", "rt", "macros"] }
 reqwest = { version = "0.11", features = ["stream"] }
 async-broadcast = "0.6"
-rodio = { version = "0.16", default-features = false }
-redlux = "0.7"
+rodio = { version = "0.17", default-features = false }
+redlux = { version = "0.7", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.11"
 cursive = { version = "0.20", default-features = false, features = ["crossterm-backend", "toml"] }
 

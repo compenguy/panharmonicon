@@ -9,8 +9,8 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::{Context, Result};
 //use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, info, trace, warn};
-use rodio::cpal;
 use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::{cpal, cpal::FromSample};
 use rodio::{Sample, Source};
 
 use pandora_api::json::user::Station;
@@ -144,8 +144,8 @@ impl AudioDevice {
     fn play_from_source<S>(&mut self, source: S) -> Result<()>
     where
         S: Source + Send + 'static,
-        S::Item: Sample,
-        S::Item: Send,
+        f32: FromSample<S::Item>,
+        S::Item: Sample + Send,
     {
         self.reset();
 
