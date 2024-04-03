@@ -83,8 +83,8 @@ impl TrackCacher {
                         .map(|s| s == &t.station_id)
                         .unwrap_or(false)
                     {
-                        trace!("Adding track to fetcher waitqueue");
                         self.waitqueue.push_back(t);
+                        trace!("Adding track to fetcher waitqueue ({} waiting)", self.waitqueue.len());
                         dirty = true;
                     } else {
                         warn!("Request to cache track that's not from the current station");
@@ -95,6 +95,7 @@ impl TrackCacher {
         }
 
         if let Some(mut track) = self.waitqueue.pop_front() {
+            trace!("Removing track from fetcher waitqueue ({} waiting)", self.waitqueue.len());
             let request = FetchRequest::try_from(&track)?;
             trace!("Fetching a track with audio url {:?}", &request.uri);
             if request.path.exists() {
