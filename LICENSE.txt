@@ -1,8 +1,8 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * Apache_License_2.0 (217)
-    * MIT_License (59)
+    * Apache_License_2.0 (223)
+    * MIT_License (66)
     * BSD_3-Clause_"New"_or_"Revised"_License (3)
     * Mozilla_Public_License_2.0 (2)
     * BSD_2-Clause_"Simplified"_License (1)
@@ -13,8 +13,10 @@ This page lists the licenses of the projects used in panharmonicon.
 ***** All license text: *****
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o alsa_0.7.1
-          o pin-project-lite_0.2.13
+          o alsa_0.9.0
+          o pin-project-internal_1.1.5
+          o pin-project-lite_0.2.14
+          o pin-project_1.1.5
           o sync_wrapper_0.1.2
                                        Apache License
                                  Version 2.0, January 2004
@@ -194,7 +196,7 @@ This page lists the licenses of the projects used in panharmonicon.
          END OF TERMS AND CONDITIONS
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o num_threads_0.1.6
+          o num_threads_0.1.7
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1624,18 +1626,18 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o windows_0.46.0
           o windows-core_0.52.0
+          o windows-core_0.54.0
+          o windows-result_0.1.0
           o windows-sys_0.48.0
           o windows-sys_0.52.0
-          o windows-targets_0.42.2
           o windows-targets_0.48.5
-          o windows-targets_0.52.0
+          o windows-targets_0.52.4
+          o windows_0.54.0
           o windows_x86_64_gnu_0.48.5
-          o windows_x86_64_gnu_0.52.0
-          o windows_x86_64_msvc_0.42.2
+          o windows_x86_64_gnu_0.52.4
           o windows_x86_64_msvc_0.48.5
-          o windows_x86_64_msvc_0.52.0
+          o windows_x86_64_msvc_0.52.4
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -2247,9 +2249,9 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o clap_builder_4.4.18
-          o clap_lex_0.6.0
-          o cpal_0.15.2
+          o clap_builder_4.5.2
+          o clap_lex_0.7.0
+          o cpal_0.15.3
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -2861,10 +2863,10 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o anstyle_1.0.5
-          o clap_4.4.18
-          o foreign-types_0.3.2
+          o anstyle_1.0.6
+          o clap_4.5.4
           o foreign-types-shared_0.1.1
+          o foreign-types_0.3.2
           o hex_0.4.3
           o native-tls_0.2.11
           o openssl-macros_0.1.1
@@ -3074,7 +3076,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o async-broadcast_0.5.1
-          o async-broadcast_0.6.0
+          o async-broadcast_0.7.0
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -3267,8 +3269,8 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o dirs_5.0.1
           o dirs-sys_0.4.1
+          o dirs_5.0.1
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -3445,22 +3447,22 @@ This page lists the licenses of the projects used in panharmonicon.
          of your accepting any such warranty or additional liability.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o anyhow_1.0.79
-          o async-trait_0.1.77
-          o itoa_1.0.10
+          o anyhow_1.0.81
+          o async-trait_0.1.79
+          o itoa_1.0.11
           o libc_0.2.153
           o mach2_0.4.2
-          o proc-macro2_1.0.78
+          o proc-macro2_1.0.79
           o quote_1.0.35
-          o ryu_1.0.16
-          o serde_1.0.196
-          o serde_derive_1.0.196
-          o serde_json_1.0.113
+          o ryu_1.0.17
+          o serde_1.0.197
+          o serde_derive_1.0.197
+          o serde_json_1.0.115
           o serde_repr_0.1.18
           o serde_urlencoded_0.7.1
-          o syn_2.0.48
-          o thiserror_1.0.56
-          o thiserror-impl_1.0.56
+          o syn_2.0.58
+          o thiserror-impl_1.0.58
+          o thiserror_1.0.58
           o unicode-ident_1.0.12
           o zerocopy_0.7.32
                                     Apache License
@@ -4056,7 +4058,8 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o reqwest_0.11.24
+          o reqwest_0.11.27
+          o reqwest_0.12.2
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4260,7 +4263,8 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o http_0.2.11
+          o http_0.2.12
+          o http_1.1.0
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -5280,7 +5284,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o flexi_logger_0.27.4
+          o flexi_logger_0.28.0
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -5484,12 +5488,12 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o ahash_0.8.7
-          o async-channel_2.1.1
-          o async-executor_1.8.0
+          o ahash_0.8.11
+          o async-channel_2.2.0
+          o async-executor_1.9.1
           o async-fs_1.6.0
           o async-io_1.13.0
-          o async-io_2.3.1
+          o async-io_2.3.2
           o async-lock_2.8.0
           o async-lock_3.3.0
           o async-process_1.8.1
@@ -5498,51 +5502,53 @@ This page lists the licenses of the projects used in panharmonicon.
           o atomic-waker_1.1.2
           o base64_0.21.7
           o bitflags_1.3.2
-          o bitflags_2.4.2
+          o bitflags_2.5.0
           o blocking_1.5.1
           o cfg-if_1.0.0
           o concurrent-queue_2.4.0
-          o core-foundation_0.9.4
           o core-foundation-sys_0.8.6
+          o core-foundation_0.9.4
           o coreaudio-rs_0.11.3
-          o crossbeam-channel_0.5.11
+          o crossbeam-channel_0.5.12
           o crossbeam-utils_0.8.19
           o derivative_2.2.0
           o enumset_1.1.3
           o enumset_derive_0.8.1
           o equivalent_1.0.1
+          o event-listener-strategy_0.4.0
+          o event-listener-strategy_0.5.1
           o event-listener_2.5.3
           o event-listener_3.1.0
           o event-listener_4.0.3
-          o event-listener-strategy_0.1.0
-          o event-listener-strategy_0.4.0
+          o event-listener_5.2.0
           o fastrand_1.9.0
-          o fastrand_2.0.1
+          o fastrand_2.0.2
           o fnv_1.0.7
           o form_urlencoded_1.2.1
           o futures-lite_1.13.0
-          o futures-lite_2.2.0
+          o futures-lite_2.3.0
           o glob_0.3.1
           o hashbrown_0.14.3
           o heck_0.4.1
           o httparse_1.8.0
           o hyper-tls_0.5.0
+          o hyper-tls_0.6.0
           o idna_0.5.0
-          o indexmap_2.2.2
+          o indexmap_2.2.6
           o io-lifetimes_1.0.11
           o lazy_static_1.4.0
           o linux-raw-sys_0.3.8
           o linux-raw-sys_0.4.13
           o lock_api_0.4.11
-          o log_0.4.20
+          o log_0.4.21
           o mime_0.3.17
-          o num_0.4.1
           o num-bigint_0.4.4
-          o num-complex_0.4.4
-          o num-integer_0.1.45
-          o num-iter_0.1.43
+          o num-complex_0.4.5
+          o num-integer_0.1.46
+          o num-iter_0.1.44
           o num-rational_0.4.1
-          o num-traits_0.2.17
+          o num-traits_0.2.18
+          o num_0.4.1
           o once_cell_1.19.0
           o openssl-probe_0.1.5
           o ordered-stream_0.2.0
@@ -5551,30 +5557,30 @@ This page lists the licenses of the projects used in panharmonicon.
           o parking_lot_core_0.9.9
           o percent-encoding_2.3.1
           o piper_0.2.1
-          o polling_3.3.2
-          o regex_1.10.3
-          o regex-automata_0.4.5
-          o regex-syntax_0.8.2
+          o polling_3.6.0
+          o regex-automata_0.4.6
+          o regex-syntax_0.8.3
+          o regex_1.10.4
           o rustix_0.37.27
-          o rustix_0.38.31
+          o rustix_0.38.32
           o rustls-pemfile_1.0.4
           o scopeguard_1.2.0
           o secret-service_3.0.1
-          o security-framework_2.9.2
-          o security-framework-sys_2.9.1
-          o signal-hook_0.3.17
+          o security-framework-sys_2.10.0
+          o security-framework_2.10.0
           o signal-hook-mio_0.2.3
           o signal-hook-registry_1.4.1
-          o smallvec_1.13.1
+          o signal-hook_0.3.17
+          o smallvec_1.13.2
           o socket2_0.4.10
-          o socket2_0.5.5
+          o socket2_0.5.6
           o stable_deref_trait_1.2.0
           o syn_1.0.109
-          o tempfile_3.9.0
+          o tempfile_3.10.1
           o toml_0.5.11
           o unicode-bidi_0.3.15
-          o unicode-normalization_0.1.22
-          o unicode-segmentation_1.10.1
+          o unicode-normalization_0.1.23
+          o unicode-segmentation_1.11.0
           o unicode-width_0.1.11
           o url_2.5.0
           o waker-fn_1.1.1
@@ -5998,7 +6004,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o digest_0.10.7
           o hmac_0.12.1
           o inout_0.1.3
-          o opaque-debug_0.3.0
+          o opaque-debug_0.3.1
           o sha1_0.10.6
           o sha2_0.10.8
                                     Apache License
@@ -7186,7 +7192,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o async-recursion_1.0.5
+          o async-recursion_1.1.0
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -7604,7 +7610,7 @@ This page lists the licenses of the projects used in panharmonicon.
       // except according to those terms.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o enumflags2_0.7.8
+          o enumflags2_0.7.9
       Apache License
 
       Version 2.0, January 2004
@@ -7775,7 +7781,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o enumflags2_derive_0.7.8
+          o enumflags2_derive_0.7.9
       Apache License
 
       Version 2.0, January 2004
@@ -8354,16 +8360,15 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
+          o panharmonicon_0.6.7
           o dasp_sample_0.11.0
-          o enum-map_2.7.3
           o enum-map-derive_0.17.0
+          o enum-map_2.7.3
           o ident_case_1.0.1
           o linux-keyutils_0.2.4
           o mp4ameta_proc_0.6.0
-          o openssl_0.10.63
-          o panharmonicon_0.6.7
-          o system-configuration_0.5.1
           o system-configuration-sys_0.5.0
+          o system-configuration_0.5.1
           o xi-unicode_0.3.0
       Apache License
       Version 2.0, January 2004
@@ -8545,8 +8550,26 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o unicode-normalization_0.1.22
-          o unicode-segmentation_1.10.1
+          o openssl_0.10.64
+      Copyright 2011-2017 Google Inc.
+                2013 Jack Lloyd
+                2013-2014 Steven Fackler
+
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+      You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+      Unless required by applicable law or agreed to in writing, software
+      distributed under the License is distributed on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+      See the License for the specific language governing permissions and
+      limitations under the License.
+    * **** Apache License 2.0 ****
+      *** Used by: ***
+          o unicode-normalization_0.1.23
+          o unicode-segmentation_1.11.0
           o unicode-width_0.1.11
       Licensed under the Apache License, Version 2.0
       <LICENSE-APACHE or
@@ -8561,7 +8584,7 @@ This page lists the licenses of the projects used in panharmonicon.
       MIT OR Apache-2.0
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o chrono_0.4.33
+          o chrono_0.4.37
       Rust-chrono is dual-licensed under The MIT License [1] and
       Apache 2.0 License [2]. Copyright (c) 2014--2017, Kang Seonghoon and
       contributors.
@@ -9066,7 +9089,7 @@ This page lists the licenses of the projects used in panharmonicon.
           SOFTWARE
     * **** MIT License ****
       *** Used by: ***
-          o openssl-sys_0.9.99
+          o openssl-sys_0.9.102
       Copyright (c) 2014 Alex Crichton
 
       Permission is hereby granted, free of charge, to any
@@ -9094,7 +9117,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o mio_0.8.10
+          o mio_0.8.11
       Copyright (c) 2014 Carl Lerche and other MIO contributors
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9117,6 +9140,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o hyper_0.14.28
+          o hyper_1.2.0
       Copyright (c) 2014-2021 Sean McArthur
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9231,7 +9255,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o memoffset_0.7.1
-          o memoffset_0.9.0
+          o memoffset_0.9.1
       Copyright (c) 2017 Gilad Naaman
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9253,7 +9277,8 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o h2_0.3.24
+          o h2_0.3.25
+          o h2_0.4.3
       Copyright (c) 2017 h2 authors
 
       Permission is hereby granted, free of charge, to any
@@ -9281,7 +9306,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o bytes_1.5.0
+          o bytes_1.6.0
       Copyright (c) 2018 Carl Lerche
 
       Permission is hereby granted, free of charge, to any
@@ -9411,9 +9436,9 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o tokio-native-tls_0.3.1
-          o tracing_0.1.40
           o tracing-attributes_0.1.27
           o tracing-core_0.1.32
+          o tracing_0.1.40
       Copyright (c) 2019 Tokio Contributors
 
       Permission is hereby granted, free of charge, to any
@@ -9441,7 +9466,9 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
+          o tower-layer_0.3.2
           o tower-service_0.3.2
+          o tower_0.4.13
       Copyright (c) 2019 Tower Contributors
 
       Permission is hereby granted, free of charge, to any
@@ -9469,8 +9496,30 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o tokio_1.36.0
+          o hyper-util_0.1.3
+      Copyright (c) 2023 Sean McArthur
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in
+      all copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+      THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
           o tokio-util_0.7.10
+          o tokio_1.37.0
       Copyright (c) 2023 Tokio Contributors
 
       Permission is hereby granted, free of charge, to any
@@ -9592,9 +9641,9 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o darling_0.20.5
-          o darling_core_0.20.5
-          o darling_macro_0.20.5
+          o darling_0.20.8
+          o darling_core_0.20.8
+          o darling_macro_0.20.8
       MIT License
 
       Copyright (c) 2017 Ted Driggs
@@ -9690,10 +9739,12 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
+          o panharmonicon_0.6.7
           o cursive_0.20.0
           o fdk-aac-sys_0.5.0
+          o http-body-util_0.1.1
+          o http-body_1.0.0
           o pandora-api_0.6.1
-          o panharmonicon_0.6.7
       MIT License
 
       Copyright (c) <year> <copyright holders>
@@ -9742,11 +9793,12 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o xdg-home_1.1.0
-          o zbus_3.15.0
-          o zbus_macros_3.15.0
-          o zbus_names_2.6.0
-          o zvariant_3.15.0
-          o zvariant_derive_3.15.0
+          o xdg-home_1.1.0
+          o zbus_3.15.2
+          o zbus_macros_3.15.2
+          o zbus_names_2.6.1
+          o zvariant_3.15.2
+          o zvariant_derive_3.15.2
           o zvariant_utils_1.0.1
       Permission is hereby granted, free of charge, to any
       person obtaining a copy of this software and associated
@@ -9773,7 +9825,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o winnow_0.5.37
+          o winnow_0.5.40
       Permission is hereby granted, free of charge, to any person obtaining
       a copy of this software and associated documentation files (the
       "Software"), to deal in the Software without restriction, including
@@ -9818,9 +9870,9 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o aho-corasick_1.1.2
+          o aho-corasick_1.1.3
           o byteorder_1.5.0
-          o memchr_2.7.1
+          o memchr_2.7.2
       The MIT License (MIT)
 
       Copyright (c) 2015 Andrew Gallant
@@ -9844,7 +9896,6 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o nix_0.24.3
           o nix_0.26.4
       The MIT License (MIT)
 
@@ -10019,16 +10070,16 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o aho-corasick_1.1.2
+          o aho-corasick_1.1.3
           o byteorder_1.5.0
-          o memchr_2.7.1
+          o memchr_2.7.2
       This project is dual-licensed under the Unlicense and MIT licenses.
 
       You may use this code under the terms of either license.
     * **** Mozilla Public License 2.0 ****
       *** Used by: ***
-          o option-ext_0.2.0
           o panharmonicon_0.6.7
+          o option-ext_0.2.0
       Mozilla Public License Version 2.0
       &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;
 
