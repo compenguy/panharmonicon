@@ -51,6 +51,10 @@ impl TrackCacher {
         }
     }
 
+    pub(crate) fn ready(&self) -> bool {
+        !self.subscriber.is_empty()
+    }
+
     pub(crate) async fn update(&mut self) -> Result<bool> {
         let mut dirty = false;
         while let Ok(message) = self.subscriber.try_recv() {

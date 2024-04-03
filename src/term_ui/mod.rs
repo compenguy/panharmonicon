@@ -320,6 +320,14 @@ impl Terminal {
         });
     }
 
+    fn redraw_expired(&self) -> bool {
+        self.last_redraw.elapsed() > std::time::Duration::from_millis(150)
+    }
+
+    pub(crate) fn ready(&self) -> bool {
+        !self.subscriber.is_empty() || self.redraw_expired()
+    }
+
     pub(crate) async fn update(&mut self) -> Result<bool> {
         trace!("checking for player notifications...");
         // Process messages until we go 50ms without any new messages
@@ -359,7 +367,7 @@ impl Terminal {
 
     fn redraw(&mut self) {
         // rate-limit redraws to no more than 6-7 per second, and only if dirty
-        if self.dirty && self.last_redraw.elapsed() > std::time::Duration::from_millis(150) {
+        if self.dirty && self.redraw_expired() {
             trace!("forcing ui update");
             self.siv.refresh();
             self.last_redraw = std::time::Instant::now();

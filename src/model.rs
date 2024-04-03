@@ -914,10 +914,20 @@ impl Model {
         Ok(())
     }
 
+    pub(crate) fn ready(&mut self) -> bool {
+        !self
+            .channel_in
+            .as_ref()
+            .map(|ch| ch.is_empty())
+            .unwrap_or(true)
+            || !self.connected()
+            || !self.test_connection()
+    }
+
     pub(crate) async fn update(&mut self) -> Result<bool> {
         self.process_messages().await?;
 
-        if self.state.connected() && !self.state.test_connection() {
+        if self.connected() && !self.test_connection() {
             self.disconnect().await?;
             // If we have an active track started, we should send a notification that we stopped
             // because the session timed out
@@ -1119,6 +1129,10 @@ impl Model {
 
     fn connected(&self) -> bool {
         self.state.connected()
+    }
+
+    fn test_connection(&mut self) -> bool {
+        self.state.test_connection()
     }
 
     async fn connect(&mut self) -> Result<()> {
