@@ -16,7 +16,7 @@ anyhow = "1"
 thiserror = "1"
 clap = { version = "4", default-features = false, features = ["std", "cargo", "help"] }
 log = { version = "0.4", default-features = true, features = ["std"] }
-flexi_logger = { version = "0.27", default-features = false }
+flexi_logger = { version = "0.28", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 dirs = "5"
 serde = "1"
@@ -25,8 +25,8 @@ serde_json = "1"
 keyring = "2"
 pandora-api = "0.6"
 tokio = { version = "1", default-features = false, features = ["fs", "io-util", "time", "rt", "macros"] }
-reqwest = { version = "0.11", features = ["stream"] }
-async-broadcast = "0.6"
+reqwest = { version = "0.12", features = ["stream"] }
+async-broadcast = "0.7"
 rodio = { version = "0.17", default-features = false }
 redlux = { version = "0.7", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.11"
