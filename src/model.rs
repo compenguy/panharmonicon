@@ -880,7 +880,7 @@ impl Model {
                 messages::Request::Connect => self.connect().await?,
                 messages::Request::Tune(s) => self.tune(s).await?,
                 messages::Request::Untune => self.untune().await?,
-                messages::Request::AddTrack(t) => self.add_track(t.as_ref())?,
+                messages::Request::AddTrack(t) => self.add_track(t.as_ref()).await?,
                 messages::Request::Stop => self.stop(Some(StopReason::UserRequest)).await?,
                 messages::Request::Pause => self.pause(),
                 messages::Request::Unpause => self.unpause(),
@@ -1006,12 +1006,14 @@ impl Model {
                 channel_out.broadcast(progress_notification).await?;
             }
 
+            /*
             let next_track = self.state.get_next().cloned();
             trace!("send notification 'Next({:?})'", next_track);
             let next_notification = messages::Notification::Next(next_track);
             if let Some(channel_out) = self.channel_out.as_mut() {
                 channel_out.broadcast(next_notification).await?;
             }
+            */
         }
 
         Ok(())
@@ -1050,17 +1052,35 @@ impl Model {
         Ok(())
     }
 
-    fn add_track(&mut self, track: &Track) -> Result<()> {
-        self.state.enqueue_track(track)
+    async fn add_track(&mut self, track: &Track) -> Result<()> {
+        let list_was_empty = self.playlist_len()? == 0;
+        self.state.enqueue_track(track)?;
+
+        // We didn't have a next-up track, but now we do, so send a notification
+        if list_was_empty {
+            self.notify_next().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn notify_next(&mut self) -> Result<()> {
+        let next_track = self.state.get_next().cloned();
+        trace!("send notification 'Next({:?})'", next_track);
+        let next_notification = messages::Notification::Next(next_track);
+        if let Some(channel_out) = self.channel_out.as_mut() {
+            channel_out.broadcast(next_notification).await?;
+        }
+        Ok(())
     }
 
     async fn refill_playlist(&mut self) -> Result<()> {
         if self.tuned().is_some() {
             let playlist_len = self.playlist_len()?;
             trace!("Playlist length: {}", playlist_len);
-            // If there's at least three pending tracks in the queue,
+            // If there's at least four pending tracks in the queue,
             // then we don't refill.
-            if playlist_len >= 3 {
+            if playlist_len >= 4 {
                 trace!("Not refilling.");
                 return Ok(());
             }
@@ -1360,6 +1380,7 @@ impl Model {
                         .broadcast(messages::Notification::Volume(volume))
                         .await?;
                 }
+                self.notify_next().await?;
                 self.dirty |= true;
             }
         }
