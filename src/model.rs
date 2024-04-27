@@ -23,7 +23,7 @@ use crate::{messages, messages::StopReason};
 
 #[derive(Debug, Clone, Copy)]
 enum Volume {
-    Muted(f32),
+    Muted,
     Unmuted(f32),
 }
 
@@ -42,14 +42,13 @@ impl Volume {
 
     fn muted(self) -> bool {
         match self {
-            Self::Muted(_) => true,
+            Self::Muted => true,
             Self::Unmuted(_) => false,
         }
     }
 
     fn mute(&mut self) {
-        let volume = self.volume();
-        *self = Self::Muted(volume);
+        *self = Self::Muted;
     }
 
     fn unmute(&mut self) {
@@ -754,8 +753,8 @@ impl ModelState {
 
     pub(crate) fn get_next(&self) -> Option<&Track> {
         match self {
-            Self::Tuned { playlist, .. } => playlist.get(0),
-            Self::Playing { playlist, .. } => playlist.get(0),
+            Self::Tuned { playlist, .. } => playlist.front(),
+            Self::Playing { playlist, .. } => playlist.front(),
             _ => None,
         }
     }

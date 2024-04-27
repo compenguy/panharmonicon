@@ -8,7 +8,6 @@ use pandora_api::json::auth::{PartnerLogin, UserLogin};
 use pandora_api::json::music::*;
 use pandora_api::json::station::*;
 use pandora_api::json::track::*;
-pub use pandora_api::json::user::Station;
 use pandora_api::json::user::*;
 use pandora_api::json::{PandoraJsonApiRequest, ToEncryptionTokens};
 
