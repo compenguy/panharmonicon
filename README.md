@@ -45,6 +45,10 @@ and remove track ratings all using your keyboard or mouse.
   | - | Thumbs-down track |
   | = | Clear track rating |
 
+# Build Requirements
+
+On linux, build requires the libssl-dev (openssl headers) and libasound2-dev (alsa headers) packages to be installed.
+
 # TODO
 * Add station editor (add/remove station seeds, directly edit track ratings, create/delete stations)
 * Add help/about window
