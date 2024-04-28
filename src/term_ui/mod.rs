@@ -324,16 +324,9 @@ impl Terminal {
         self.last_redraw.elapsed() > std::time::Duration::from_millis(150)
     }
 
-    pub(crate) fn ready(&self) -> bool {
-        !self.subscriber.is_empty() || self.redraw_expired()
-    }
-
     pub(crate) async fn update(&mut self) -> Result<bool> {
         trace!("checking for player notifications...");
-        // Process messages until we go 50ms without any new messages
-        while let Ok(Ok(message)) =
-            tokio::time::timeout(std::time::Duration::from_millis(50), self.subscriber.recv()).await
-        {
+        while let Ok(message) = self.subscriber.try_recv() {
             match message {
                 messages::Notification::Connected => {
                     self.update_state_stopped(StopReason::Initializing)
@@ -360,8 +353,11 @@ impl Terminal {
             }
             self.dirty = true;
         }
+        log::trace!("subscriber len: {}", self.subscriber.len());
         self.dirty |= self.siv.step();
+        log::trace!("dirty: {}", &self.dirty);
         self.redraw();
+        log::trace!("dirty: {}", &self.dirty);
         Ok(self.dirty)
     }
 

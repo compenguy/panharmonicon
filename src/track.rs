@@ -71,3 +71,18 @@ impl From<&PlaylistTrack> for Track {
         }
     }
 }
+
+impl Track {
+    pub(crate) fn exists(&self) -> bool {
+        if let Some(cached) = &self.cached {
+            log::trace!("Track cache location specified: {}", cached.display());
+            log::trace!("Track cache file exists: {}", cached.exists());
+        } else {
+            log::warn!("No track cache location specified!");
+        }
+        self.cached
+            .as_ref()
+            .map(|pb| pb.exists())
+            .unwrap_or_default()
+    }
+}

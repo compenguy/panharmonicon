@@ -2,6 +2,7 @@ use crate::track::Track;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Request {
+    FetchPending(usize),
     Connect,
     Tune(String),
     #[allow(dead_code)]

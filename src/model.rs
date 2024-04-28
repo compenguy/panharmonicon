@@ -439,6 +439,7 @@ pub(crate) enum ModelState {
     Playing {
         session: PandoraSession,
         station_id: String,
+        playlist_waiting: usize,
         playlist: VecDeque<Track>,
         playing: Box<Playing>,
     },
@@ -476,6 +477,7 @@ impl std::fmt::Display for ModelState {
             }
             Self::Playing {
                 station_id,
+                playlist_waiting,
                 playlist,
                 playing,
                 ..
@@ -497,7 +499,8 @@ impl std::fmt::Display for ModelState {
                     a.push_str(", ");
                     a
                 });
-                write!(f, "{}]", pl.trim_end_matches(", "))?;
+                write!(f, "{}], ", pl.trim_end_matches(", "))?;
+                write!(f, "waiting: {}", playlist_waiting)?;
                 write!(f, "}}")
             }
             Self::Quit => write!(f, "Quit"),
@@ -632,6 +635,7 @@ impl ModelState {
                     *self = Self::Playing {
                         session,
                         station_id,
+                        playlist_waiting: 0,
                         playlist,
                         playing: Box::new(Playing::new(track.clone(), volume)?),
                     };
@@ -690,12 +694,45 @@ impl ModelState {
         }
     }
 
+    pub(crate) fn playlist_waiting(&mut self, count: usize) -> Result<()> {
+        match self {
+            Self::Playing {
+                playlist_waiting, ..
+            } => {
+                *playlist_waiting = count;
+                log::trace!("Waiting for {} tracks to be fetched", playlist_waiting);
+                Ok(())
+            }
+            _ => Err(Error::InvalidOperationForState(
+                String::from("playlist_waiting"),
+                self.to_string(),
+            )
+            .into()),
+        }
+    }
+
     pub(crate) fn playlist_len(&self) -> Result<usize> {
         match self {
             Self::Tuned { playlist, .. } => Ok(playlist.len()),
             Self::Playing { playlist, .. } => Ok(playlist.len()),
             _ => Err(Error::InvalidOperationForState(
                 String::from("playlist_len"),
+                self.to_string(),
+            )
+            .into()),
+        }
+    }
+
+    pub(crate) fn pending_len(&self) -> Result<usize> {
+        match self {
+            Self::Tuned { playlist, .. } => Ok(playlist.len()),
+            Self::Playing {
+                playlist_waiting,
+                playlist,
+                ..
+            } => Ok(playlist.len() + playlist_waiting),
+            _ => Err(Error::InvalidOperationForState(
+                String::from("pending_len"),
                 self.to_string(),
             )
             .into()),
@@ -876,6 +913,7 @@ impl Model {
         while let Some(Ok(do_msg)) = self.channel_in.as_mut().map(|c| c.try_recv()) {
             trace!("received request {:?}", do_msg);
             match do_msg {
+                messages::Request::FetchPending(count) => self.playlist_waiting(count)?,
                 messages::Request::Connect => self.connect().await?,
                 messages::Request::Tune(s) => self.tune(s).await?,
                 messages::Request::Untune => self.untune().await?,
@@ -911,16 +949,6 @@ impl Model {
         );
         */
         Ok(())
-    }
-
-    pub(crate) fn ready(&mut self) -> bool {
-        !self
-            .channel_in
-            .as_ref()
-            .map(|ch| ch.is_empty())
-            .unwrap_or(true)
-            || !self.connected()
-            || !self.test_connection()
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
@@ -1051,6 +1079,11 @@ impl Model {
         Ok(())
     }
 
+    fn playlist_waiting(&mut self, count: usize) -> Result<()> {
+        log::trace!("Waiting for {} tracks to be fetched", count);
+        self.state.playlist_waiting(count)
+    }
+
     async fn add_track(&mut self, track: &Track) -> Result<()> {
         let list_was_empty = self.playlist_len()? == 0;
         self.state.enqueue_track(track)?;
@@ -1075,11 +1108,11 @@ impl Model {
 
     async fn refill_playlist(&mut self) -> Result<()> {
         if self.tuned().is_some() {
-            let playlist_len = self.playlist_len()?;
-            trace!("Playlist length: {}", playlist_len);
+            let pending_len = self.state.pending_len()?;
+            trace!("Pending tracks count: {}", pending_len);
             // If there's at least four pending tracks in the queue,
             // then we don't refill.
-            if playlist_len >= 4 {
+            if pending_len >= 4 {
                 trace!("Not refilling.");
                 return Ok(());
             }

@@ -128,36 +128,13 @@ async fn main() -> Result<()> {
     trace!("Starting app");
     let naptime = std::time::Duration::from_millis(100);
 
-    // Prime the state pump
-    model.update().await?;
-    ui.update().await?;
-    fetcher.update().await?;
-
     while !model.quitting() {
         trace!("Advancing application state...");
-        let step_result = tokio::select! {
-            step_result = model.update(), if model.ready() => {
-                log::trace!("model step");
-                step_result
-            },
-            step_result = ui.update(), if ui.ready() => {
-                log::trace!("ui step");
-                step_result
-            },
-            step_result = fetcher.update(), if fetcher.ready() => {
-                log::trace!("fetcher step");
-                step_result
-            },
-            else => {
-                log::trace!("last-resort model step");
-                // Nothing reported ready, so we'll sleep a bit, and then drive the model
-                std::thread::sleep(naptime);
-                model.update().await?;
-                Ok(false)
-            }
-        };
-        if let Err(e) = step_result {
-            error!("Error updating application state: {:?}", e);
+        let step_result = tokio::try_join!(model.update(), ui.update(), fetcher.update());
+        match step_result {
+            Err(e) => error!("Error updating application state: {:?}", e),
+            Ok((false, false, false)) => std::thread::sleep(naptime),
+            Ok((_, _, _)) => (),
         }
     }
     debug!("Application quit request acknowledged.");

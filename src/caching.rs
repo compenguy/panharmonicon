@@ -1,37 +1,120 @@
-use std::collections::VecDeque;
-use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
-use log::{error, trace, warn};
+use log::{debug, error, trace, warn};
 use tokio::io::AsyncWriteExt;
+use tokio::task::JoinHandle;
 
 use crate::errors::Error;
 use crate::messages;
 use crate::track::Track;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct FetchRequest {
-    uri: String,
-    path: PathBuf,
+    track: Track,
+    completed: bool,
+    failed: bool,
+    task_handle: Option<JoinHandle<Result<()>>>,
 }
 
-impl TryFrom<&Track> for FetchRequest {
-    type Error = anyhow::Error;
-
-    fn try_from(track: &Track) -> Result<Self, Self::Error> {
-        Ok(FetchRequest {
-            uri: track.audio_stream.clone(),
-            path: cached_path_for_track(track, true)?,
-        })
+impl From<Track> for FetchRequest {
+    fn from(track: Track) -> Self {
+        let completed = track.exists();
+        FetchRequest {
+            track,
+            completed,
+            failed: false,
+            task_handle: None,
+        }
     }
 }
 
-#[derive(Debug, Clone)]
+impl FetchRequest {
+    async fn update_state(&mut self) {
+        // If transfer thread completed and we haven't checked the result yet:
+        if self
+            .task_handle
+            .as_ref()
+            .map(|th| th.is_finished())
+            .unwrap_or(false)
+        {
+            if let Some(ref mut th) = &mut self.task_handle {
+                if let Err(e) = th.await {
+                    self.failed = true;
+                    self.completed = false;
+                    error!("Error during in-flight request for track {e:#}");
+                } else {
+                    self.completed = self.track.exists();
+                    self.failed = !self.completed;
+                    debug!("In-flight request for track completed: {}", &self.completed);
+                }
+            } else if !self.failed && !self.completed {
+                warn!("Unexpected condition: no track request in-flight, and it was neither failed nor completed");
+                self.failed = true;
+            }
+            self.task_handle = None;
+        }
+    }
+
+    async fn cancel(&mut self) {
+        self.update_state().await;
+
+        if let Some(th) = &self.task_handle {
+            debug!(
+                "Aborting in-flight request for track being saved to {:?}",
+                &self.track.cached
+            );
+            th.abort();
+            self.failed = true;
+            self.completed = false;
+            if let Some(path) = &self.track.cached {
+                if let Err(e) = tokio::fs::remove_file(path).await {
+                    warn!("Failed to delete cancelled cache request: {e:#}");
+                }
+            }
+        }
+        self.task_handle = None;
+    }
+
+    fn finished(&self) -> bool {
+        self.task_handle.is_none() && self.completed
+    }
+
+    fn failed(&self) -> bool {
+        self.task_handle.is_none() && self.failed
+    }
+
+    async fn start(&mut self, client: reqwest::Client) {
+        if self.task_handle.is_some() {
+            warn!("Programming error: restarting an already started fetch task");
+            return;
+        }
+        if self.completed {
+            trace!("Cache hit!");
+            return;
+        }
+        trace!("Cache miss!");
+        if let Some(path) = self.track.cached.clone() {
+            let track = self.track.clone();
+            let path = path.clone();
+            let req_builder = client.get(&track.audio_stream);
+            let th = tokio::spawn(async move {
+                trace!("Retrieving track {}...", path.display());
+                save_request_to_file(req_builder, &path).await?;
+                tag_m4a(&track, &path)
+            });
+            self.task_handle = Some(th);
+        } else {
+            warn!("Not fetching requested track: no cache location supplied for track");
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct TrackCacher {
     client: reqwest::Client,
-    waitqueue: VecDeque<Track>,
+    requests: Vec<FetchRequest>,
     station_id: Option<String>,
     subscriber: async_broadcast::Receiver<messages::Notification>,
     publisher: async_broadcast::Sender<messages::Request>,
@@ -44,18 +127,52 @@ impl TrackCacher {
     ) -> Self {
         TrackCacher {
             client: reqwest::Client::new(),
-            waitqueue: VecDeque::new(),
+            requests: Vec::with_capacity(8),
             station_id: None,
             subscriber,
             publisher,
         }
     }
 
-    pub(crate) fn ready(&self) -> bool {
-        !self.subscriber.is_empty()
+    async fn fetch_track(&mut self, mut t: Track) -> Result<()> {
+        t.cached = Some(cached_path_for_track(&t, true)?);
+        trace!("Fetching track {:?}", &t.cached);
+        let mut fetch_request = FetchRequest::from(t);
+        fetch_request.start(self.client.clone()).await;
+        self.requests.push(fetch_request);
+        Ok(())
     }
 
-    pub(crate) async fn update(&mut self) -> Result<bool> {
+    async fn cancel_requests(&mut self) {
+        for mut request in self.requests.drain(..) {
+            request.cancel().await;
+        }
+    }
+
+    async fn update_requests(&mut self) -> Result<bool> {
+        let mut dirty = false;
+        // Notify of all successfully fetched tracks
+        for request in self.requests.iter_mut() {
+            request.update_state().await;
+            if request.finished() {
+                self.publisher
+                    .broadcast(messages::Request::AddTrack(Box::new(request.track.clone())))
+                    .await?;
+                dirty = true;
+            }
+        }
+
+        // Remove all completed requests (successfully or not)
+        self.requests.retain(|r| !r.finished() && !r.failed());
+
+        self.publisher
+            .broadcast(messages::Request::FetchPending(self.requests.len()))
+            .await?;
+
+        Ok(dirty)
+    }
+
+    async fn process_messages(&mut self) -> Result<bool> {
         let mut dirty = false;
         while let Ok(message) = self.subscriber.try_recv() {
             match message {
@@ -67,14 +184,16 @@ impl TrackCacher {
                         .map(|old_s| old_s != &new_s)
                         .unwrap_or(true)
                     {
-                        self.waitqueue.clear();
+                        self.cancel_requests().await;
                     }
                     self.station_id = Some(new_s);
+                    dirty = true;
                 }
                 messages::Notification::Connected => {
                     // No longer tuned to a station
-                    self.waitqueue.clear();
+                    self.cancel_requests().await;
                     self.station_id = None;
+                    dirty = true;
                 }
                 messages::Notification::PreCaching(t) => {
                     if self
@@ -83,11 +202,7 @@ impl TrackCacher {
                         .map(|s| s == &t.station_id)
                         .unwrap_or(false)
                     {
-                        self.waitqueue.push_back(t);
-                        trace!(
-                            "Adding track to fetcher waitqueue ({} waiting)",
-                            self.waitqueue.len()
-                        );
+                        self.fetch_track(t).await?;
                         dirty = true;
                     } else {
                         warn!("Request to cache track that's not from the current station");
@@ -96,80 +211,14 @@ impl TrackCacher {
                 _ => (),
             }
         }
-
-        if let Some(mut track) = self.waitqueue.pop_front() {
-            trace!(
-                "Removing track from fetcher waitqueue ({} waiting)",
-                self.waitqueue.len()
-            );
-            let request = FetchRequest::try_from(&track)?;
-            trace!("Fetching a track with audio url {:?}", &request.uri);
-            if request.path.exists() {
-                trace!("Cache hit!");
-            } else {
-                trace!("Cache miss!");
-                self.save_url_to_file(&request.uri, &request.path).await?;
-                trace!("Track caching completed.");
-                if let Err(e) = tag_m4a(&track, &request.path) {
-                    error!(
-                        "Error tagging track at {}: {:?}",
-                        &request.path.display(),
-                        &e
-                    );
-                }
-            }
-            track.cached = Some(request.path);
-            self.publisher
-                .broadcast(messages::Request::AddTrack(Box::new(track)))
-                .await?;
-            dirty = true;
-        }
         Ok(dirty)
     }
 
-    async fn save_url_to_file<P: AsRef<Path>>(&self, url: &str, path: P) -> Result<()> {
-        trace!(
-            "Retrieving track from {} to {}...",
-            url,
-            path.as_ref().to_string_lossy()
-        );
-        let mut resp = self
-            .client
-            .get(url)
-            .send()
-            .await
-            .map_err(Error::from)
-            .with_context(|| format!("Error fetching url {url}"))?;
-        let mut file = tokio::fs::File::create(path.as_ref())
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed creating file on disk as {}",
-                    path.as_ref().to_string_lossy()
-                )
-            })?;
-
-        while let Some(chunk) = resp.chunk().await? {
-            file.write(&chunk).await.with_context(|| {
-                format!(
-                    "Error writing fetched track to file {}",
-                    path.as_ref().display()
-                )
-            })?;
-        }
-
-        /*
-        tokio::io::copy(&mut resp.bytes_stream(), &mut file)
-            .await
-            .with_context(|| {
-                format!(
-                    "Error writing fetched track to file {}",
-                    path.as_ref().display()
-                )
-            })?;
-            */
-        trace!("Track data streamed to file successfully.");
-        Ok(())
+    pub(crate) async fn update(&mut self) -> Result<bool> {
+        let mut dirty = self.process_messages().await?;
+        dirty |= self.update_requests().await?;
+        trace!("Sending FetchPending({})...", self.requests.len());
+        Ok(dirty)
     }
 }
 
@@ -201,6 +250,52 @@ fn precached_path_for_track(track: &Track) -> Option<PathBuf> {
         .cached
         .as_ref()
         .and_then(|p| if p.exists() { Some(p.clone()) } else { None })
+}
+
+async fn save_request_to_file<P: AsRef<Path>>(
+    req_builder: reqwest::RequestBuilder,
+    path: P,
+) -> Result<()> {
+    let mut resp = req_builder
+        .send()
+        .await
+        .map_err(Error::from)
+        .with_context(|| {
+            format!(
+                "Error completing fetch request to file {}",
+                path.as_ref().display()
+            )
+        })?;
+    let mut file = tokio::fs::File::create(path.as_ref())
+        .await
+        .with_context(|| {
+            format!(
+                "Failed creating file on disk as {}",
+                path.as_ref().to_string_lossy()
+            )
+        })?;
+
+    while let Some(chunk) = resp.chunk().await? {
+        file.write(&chunk).await.with_context(|| {
+            format!(
+                "Error writing fetched track to file {}",
+                path.as_ref().display()
+            )
+        })?;
+    }
+
+    /*
+    tokio::io::copy(&mut resp.bytes_stream(), &mut file)
+        .await
+        .with_context(|| {
+            format!(
+                "Error writing fetched track to file {}",
+                path.as_ref().display()
+            )
+        })?;
+        */
+    trace!("Track data streamed to file successfully.");
+    Ok(())
 }
 
 fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
