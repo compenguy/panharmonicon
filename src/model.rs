@@ -695,20 +695,11 @@ impl ModelState {
     }
 
     pub(crate) fn playlist_waiting(&mut self, count: usize) -> Result<()> {
-        match self {
-            Self::Playing {
-                playlist_waiting, ..
-            } => {
-                *playlist_waiting = count;
-                log::trace!("Waiting for {} tracks to be fetched", playlist_waiting);
-                Ok(())
-            }
-            _ => Err(Error::InvalidOperationForState(
-                String::from("playlist_waiting"),
-                self.to_string(),
-            )
-            .into()),
+        if let Self::Playing { playlist_waiting, .. } = self {
+            *playlist_waiting = count;
+            log::trace!("Waiting for {} tracks to be fetched", playlist_waiting);
         }
+        Ok(())
     }
 
     pub(crate) fn playlist_len(&self) -> Result<usize> {
