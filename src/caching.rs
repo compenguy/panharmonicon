@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::crate_name;
@@ -92,17 +93,20 @@ impl FetchRequest {
             return;
         }
         if self.completed {
-            trace!("Cache hit!");
+            debug!("Cache hit!");
             return;
         }
-        trace!("Cache miss!");
+        debug!("Cache miss!");
         if let Some(path) = self.track.cached.clone() {
             let track = self.track.clone();
             let path = path.clone();
             let req_builder = client.get(&track.audio_stream);
             let th = tokio::spawn(async move {
-                trace!("Retrieving track {}...", path.display());
+                debug!("Retrieving track {}...", path.display());
+                debug!("retrieval start time: {:?}", Instant::now());
                 save_request_to_file(req_builder, &path).await?;
+                debug!("retrieval finish time: {:?}", Instant::now());
+                trace!("applying tags to track...");
                 tag_m4a(&track, &path)
             });
             self.task_handle = Some(th);
@@ -141,7 +145,7 @@ impl TrackCacher {
 
     async fn fetch_track(&mut self, mut t: Track) -> Result<()> {
         t.cached = Some(cached_path_for_track(&t, true)?);
-        trace!("Fetching track {:?}", &t.cached);
+        debug!("Fetching track {:?}", &t.cached);
         let mut fetch_request = FetchRequest::from(t);
         fetch_request.start(self.client.clone()).await;
         self.requests.push(fetch_request);
@@ -159,6 +163,7 @@ impl TrackCacher {
     async fn update_requests(&mut self) -> Result<()> {
         // Make sure each request's state is current
         for request in self.requests.iter_mut() {
+            debug!("Checking state of in-flight request {request:?}...");
             request.update_state().await;
         }
 
@@ -207,6 +212,7 @@ impl TrackCacher {
                         .map(|old_s| old_s != &new_s)
                         .unwrap_or(true)
                     {
+                        trace!("Tuned new station - cancelling in-flight track requests");
                         self.cancel_requests().await;
                     }
                     self.station_id = Some(new_s);
@@ -214,6 +220,7 @@ impl TrackCacher {
                 }
                 State::Connected => {
                     // No longer tuned to a station
+                    trace!("Reconnected to pandora - cancelling in-flight track requests");
                     self.cancel_requests().await;
                     self.station_id = None;
                     self.dirty = true;
@@ -225,10 +232,11 @@ impl TrackCacher {
                         .map(|s| s == &t.station_id)
                         .unwrap_or(false)
                     {
+                        trace!("Request to cache a track - adding to in-flight track list");
                         self.fetch_track(t).await?;
                         self.dirty = true;
                     } else {
-                        warn!("Request to cache track that's not from the current station");
+                        warn!("Request to cache track that's not from the current station (track station: {}, current station: {:?})", &t.station_id, &self.station_id);
                     }
                 }
                 _ => (),
@@ -318,7 +326,7 @@ async fn save_request_to_file<P: AsRef<Path>>(
             )
         })?;
         */
-    trace!("Track data streamed to file successfully.");
+    debug!("Track data streamed to file successfully.");
     Ok(())
 }
 
@@ -347,7 +355,7 @@ fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
 }
 
 fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {
-    trace!("Reading tags from m4a");
+    debug!("Reading tags from m4a");
     let mut tag = match mp4ameta::Tag::read_from_path(path.as_ref()) {
         Ok(tag) => tag,
         Err(mp4ameta::Error {
@@ -362,7 +370,7 @@ fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {
         })?,
     };
 
-    trace!("Updating tags with pandora metadata");
+    debug!("Updating tags with pandora metadata");
     let mut dirty = false;
 
     if tag.artist().is_none() {
@@ -378,7 +386,7 @@ fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {
         dirty = true;
     }
 
-    trace!("Writing tags back to file");
+    debug!("Writing tags back to file");
     if dirty {
         tag.write_to_path(path.as_ref()).with_context(|| {
             format!(

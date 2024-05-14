@@ -201,6 +201,7 @@ impl Terminal {
             debug!("Playing album {}", album_name);
             v.set_content(album_name);
         });
+        self.update_playing(Duration::default(), false);
     }
 
     fn rated_track(&mut self, rating: u32) {
@@ -340,7 +341,7 @@ impl Terminal {
     }
 
     fn redraw_expired(&self) -> bool {
-        self.last_redraw.elapsed() > std::time::Duration::from_millis(150)
+        self.last_redraw.elapsed() > std::time::Duration::from_millis(100)
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
@@ -370,11 +371,8 @@ impl Terminal {
             }
             self.dirty = true;
         }
-        log::trace!("state_receiver len: {}", self.state_receiver.len());
         self.dirty |= self.siv.step();
-        log::trace!("dirty: {}", &self.dirty);
         self.redraw();
-        log::trace!("dirty: {}", &self.dirty);
         Ok(self.dirty)
     }
 

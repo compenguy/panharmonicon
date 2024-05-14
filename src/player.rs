@@ -273,8 +273,8 @@ pub(crate) struct Player {
     active_track: Option<Track>,
     audio_device: AudioDevice,
     last_started: Option<Instant>,
-    elapsed: Duration,
     duration: Duration,
+    elapsed: Duration,
     elapsed_polled: Option<Duration>,
     request_sender: RequestSender,
     state_receiver: StateReceiver,
@@ -287,8 +287,8 @@ impl Player {
             active_track: None,
             audio_device: AudioDevice::new(0.0),
             last_started: None,
-            elapsed: Duration::default(),
             duration: Duration::default(),
+            elapsed: Duration::default(),
             elapsed_polled: None,
             request_sender,
             state_receiver,
@@ -307,7 +307,8 @@ impl Player {
                 warn!("The requested track is already playing");
                 return Ok(());
             } else {
-                info!("New track requested while track already playing. Stopping current track...");
+                info!("New track requested ({}) while track already playing ({}). Stopping current track...", track.song_name, active_track.song_name);
+                info!("Stopping current track...");
                 self.stop();
             }
         }
@@ -315,6 +316,7 @@ impl Player {
         debug!("Starting track: {:?}", track.song_name);
         if let Some(cached) = track.cached.as_ref() {
             trace!("Starting decoding of track {}", cached.display());
+            // TODO: catch errors here, and delete tracks that error on starting
             self.audio_device
                 .play_m4a_from_path(PathBuf::from(&cached))
                 .with_context(|| format!("Failed to start track at {}", cached.display()))?;
@@ -338,13 +340,12 @@ impl Player {
     }
 
     fn stop(&mut self) {
-        if self.elapsed().as_millis() > 0 {
-            self.reset();
-            self.last_started = None;
-            self.elapsed = Duration::default();
-            self.duration = Duration::default();
-            self.dirty |= true;
-        }
+        debug!("Resetting player state for stopped track");
+        self.reset();
+        self.last_started = None;
+        self.elapsed = Duration::default();
+        self.duration = Duration::default();
+        self.dirty |= true;
     }
 
     fn stopped(&self) -> bool {
@@ -376,8 +377,10 @@ impl Player {
         if self.active_track.is_some() && !self.active() {
             // We were playing a track, but we've stopped
             if self.elapsed() >= self.duration {
+                debug!("Currently playing track completed");
                 self.publish_request(Request::Stop(StopReason::TrackCompleted))?;
             } else {
+                warn!("Currently playing track ended unexpectedly");
                 self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
             }
             self.stop();
@@ -387,11 +390,17 @@ impl Player {
 
     pub(crate) async fn poll_progress(&mut self) -> Result<()> {
         let elapsed = self.elapsed();
+        trace!(
+            "progress: {} last update: {}",
+            elapsed.as_secs(),
+            self.elapsed_polled.unwrap_or_default().as_secs()
+        );
         if self
             .elapsed_polled
             .map(|last| last.as_secs() != elapsed.as_secs())
-            .unwrap_or(false)
+            .unwrap_or(true)
         {
+            trace!("track time: {}s", elapsed.as_secs());
             self.elapsed_polled = Some(elapsed);
             self.dirty |= true;
             self.publish_request(Request::UpdateTrackProgress(elapsed))?;

@@ -4,7 +4,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
 //use cpal::traits::{DeviceTrait, HostTrait};
-use async_broadcast;
 use either::Either;
 use log::{debug, error, info, trace, warn};
 use std::sync::mpsc;
@@ -57,7 +56,7 @@ pub(crate) struct Model {
 impl Model {
     pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
         let (request_sender, request_receiver) = mpsc::channel();
-        let (state_sender, state_receiver) = async_broadcast::broadcast(24);
+        let (state_sender, state_receiver) = async_broadcast::broadcast(64);
         let volume = config.borrow().volume();
         Self {
             player_volume: volume,
@@ -93,7 +92,9 @@ impl Model {
 
     // Internal method for sending state updates to the subsystems
     async fn publish_state(&mut self, state: State) -> Result<()> {
+        debug!("State update: {state:?}");
         self.state_sender.broadcast(state).await?;
+        //log::debug!("state update channel pending message count: {}", self.state_sender.len());
         Ok(())
     }
 
@@ -199,15 +200,14 @@ impl Model {
                 self.untune().await?;
                 self.pandora_station = Some((station_id.to_string(), name.to_string()));
                 self.dirty |= true;
-                self.stop(StopReason::Untuning).await?;
+                trace!("send notification 'tuned'");
+                self.publish_state(State::Tuned(station_id.to_string()))
+                    .await?;
                 trace!("Updating station in config");
                 self.config
                     .borrow_mut()
                     .update_from(&PartialConfig::default().station(Some(station_id.to_string())));
-
-                trace!("send notification 'tuned'");
-                self.publish_state(State::Tuned(station_id.to_string()))
-                    .await?;
+                self.stop(StopReason::Untuning).await?;
             } else {
                 return Err(Error::InvalidStation(station_id.to_string()).into());
             }
@@ -220,15 +220,15 @@ impl Model {
     pub(crate) async fn untune(&mut self) -> Result<()> {
         self.pandora_station = None;
         self.dirty |= true;
-
         self.config
             .borrow_mut()
             .update_from(&PartialConfig::default().station(None));
 
         self.clear_playlist();
-        self.stop(StopReason::Untuning).await?;
+        if self.get_playing().is_some() {
+            self.stop(StopReason::Untuning).await?;
+        }
 
-        trace!("send notification 'Connected'");
         self.publish_state(State::Connected).await?;
         Ok(())
     }
@@ -253,7 +253,7 @@ impl Model {
     }
 
     pub(crate) fn ready_next_track(&mut self) -> Result<Option<Track>> {
-        if !self.tuned().is_some() {
+        if self.tuned().is_none() {
             return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
                 "ready_next_track",
                 "Untuned"
@@ -268,7 +268,7 @@ impl Model {
     }
 
     pub(crate) fn enqueue_track(&mut self, track: &Track) -> Result<()> {
-        if !self.tuned().is_some() {
+        if self.tuned().is_none() {
             return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
                 "enqueue_track",
                 "Untuned"
@@ -395,7 +395,7 @@ impl Model {
 
     pub(crate) async fn refill_playlist(&mut self) -> Result<()> {
         if self.playlist_len() + self.pending_len() > 4 {
-            debug!("Enough tracks in playlist or in-flight already - not adding more tracks to playlist");
+            trace!("Enough tracks in playlist or in-flight already - not adding more tracks to playlist");
             return Ok(());
         }
         let station_id = self.tuned().ok_or_else(|| {
@@ -410,32 +410,42 @@ impl Model {
                 "Disconnected"
             ))
         })?;
+        debug!("getting new tracks to refill playlist");
         let playlist = session
             .get_playlist(&station_id)
             .await?
             .into_iter()
-            .filter_map(|pe| pe.get_track().map(|pt| pt.into()));
-        self.pandora_fetchlist.extend(playlist);
+            .filter_map(|pe| pe.get_track().map(|pt| pt.into()))
+            .collect();
+        debug!("refilling playlist with new tracks");
+        self.extend_playlist(playlist).await?;
         self.dirty |= true;
         trace!("Successfully refilled playlist.");
         Ok(())
     }
 
     async fn update_track_progress(&mut self, elapsed: &Duration) -> Result<()> {
+        trace!(
+            "Update track progress: last update {}s current update {}s",
+            self.player_progress.map(|p| p.as_secs()).unwrap_or(0),
+            elapsed.as_secs()
+        );
         if self.player_progress.map(|p| p.as_secs()) != Some(elapsed.as_secs()) {
-            self.player_progress = Some(elapsed.clone());
+            trace!("Track time elapsed updated: {elapsed:?}");
+            self.player_progress = Some(*elapsed);
             self.dirty |= true;
             if self.player_paused {
                 warn!("Unexpected track progress request while track paused");
-                self.publish_state(State::Paused(elapsed.clone())).await?;
+                self.publish_state(State::Paused(*elapsed)).await?;
             } else {
-                self.publish_state(State::Playing(elapsed.clone())).await?;
+                self.publish_state(State::Playing(*elapsed)).await?;
             }
         }
         Ok(())
     }
 
     async fn handle_request(&mut self, req: &Request) -> Result<()> {
+        debug!("Request: {req:?}");
         match req {
             Request::Connect => self.connect().await?,
             Request::Tune(s) => self.tune(s).await?,
@@ -468,20 +478,17 @@ impl Model {
         }
         // We have a copy of the broadcast state_receiver, and if we don't drain messages from our copy
         // then everyone's copies will get backed up
-        while let Ok(_) = self.state_receiver.try_recv() {}
+        while self.state_receiver.try_recv().is_ok() {}
 
-        // Check the health of the outgoing message channel, as well
         /*
+        // Check the health of the outgoing message channel, as well
         trace!(
             "Pending messages in notification channel: {}",
-            self.state_receiver.as_ref().map(|c| c.len()).unwrap_or(0)
+            self.state_sender.len()
         );
         trace!(
             "Number of state_receivers for notification channel: {}",
-            self.state_receiver
-                .as_ref()
-                .map(|c| c.receiver_count())
-                .unwrap_or(0)
+            self.state_receiver.receiver_count()
         );
         */
         Ok(())
@@ -551,7 +558,10 @@ impl Model {
 
     pub(crate) async fn extend_playlist(&mut self, new_playlist: Vec<Track>) -> Result<()> {
         self.dirty |= !new_playlist.is_empty();
+        debug!("Extending playlist with {new_playlist:?}");
         for track in new_playlist {
+            debug!("Adding track to fetchlist: {}", &track.song_name);
+            self.pandora_fetchlist.push(track.clone());
             self.publish_state(State::TrackCaching(track)).await?;
         }
         Ok(())
@@ -591,27 +601,32 @@ impl Model {
     }
 
     async fn stop(&mut self, reason: StopReason) -> Result<()> {
-        if self.config.borrow().cache_policy().evict_completed() {
-            trace!("Eviction policy requires evicting track");
-            if let Some(cached_path) = self.get_playing().and_then(|t| t.cached.as_ref()) {
-                std::fs::remove_file(cached_path).with_context(|| {
-                    format!("Failed to evict {} from track cache", cached_path.display())
-                })?;
-                trace!("Evicted {} from track cache.", cached_path.display());
-            }
-        } else {
-            trace!("Not evicting completed track, per configured cache eviction policy");
-        }
-
         if self.get_playing().is_some() {
-            self.publish_state(State::Stopped(reason)).await?;
-            self.dirty |= true;
+            debug!("Stopping track: {reason}");
+            if self.config.borrow().cache_policy().evict_completed() {
+                debug!("Checking for track to evict...");
+                if let Some(cached_path) = self.get_playing().and_then(|t| t.cached.as_ref()) {
+                    trace!("Eviction policy requires evicting track");
+                    std::fs::remove_file(cached_path).with_context(|| {
+                        format!("Failed to evict {} from track cache", cached_path.display())
+                    })?;
+                    trace!("Evicted {} from track cache.", cached_path.display());
+                }
+            } else {
+                trace!("Not evicting completed track, per configured cache eviction policy");
+            }
 
-            todo!("stop active track");
+            debug!("Currently playing track stopped");
+            self.player_paused = false;
+            self.player_track = Either::Left(reason);
+            self.player_progress = None;
+            self.player_length = None;
+
+            self.dirty |= true;
+            self.publish_state(State::Stopped(reason)).await?;
         } else {
-            trace!("No track is currently playing. Nothing to do.");
+            debug!("No track is currently playing. Nothing to do.");
         }
-        self.refill_playlist().await?;
         Ok(())
     }
 
@@ -623,18 +638,22 @@ impl Model {
 
     async fn start(&mut self) -> Result<()> {
         if self.started() {
-            //trace!("Track already started.");
+            debug!("Track already started.");
         } else {
-            trace!("No tracks started yet. Starting next track.");
+            debug!("No tracks started yet. Starting next track.");
+            info!("playlist length: {}", self.playlist_len());
+            info!("pending length: {}", self.pending_len());
             if let Some(track) = self.ready_next_track()? {
                 trace!("send notification 'starting'");
                 self.player_track = Either::Right(track.clone());
                 self.player_progress = Some(Duration::from_secs(0));
-                self.player_length = Some(track.track_length.clone());
+                self.player_length = Some(track.track_length);
                 self.dirty |= true;
 
                 self.publish_state(State::TrackStarting(track)).await?;
                 self.notify_next().await?;
+            } else {
+                warn!("requested to start track, but no tracks are ready");
             }
         }
         Ok(())
@@ -646,10 +665,10 @@ impl Model {
 
     async fn pause(&mut self) -> Result<()> {
         if !self.paused() {
-            if let Some(progress) = self.get_playing().and_then(|_| self.player_progress) {
+            if let Some(progress) = self.get_playing().and(self.player_progress) {
                 self.player_paused = true;
                 self.dirty |= true;
-                self.publish_state(State::Paused(progress.clone())).await?;
+                self.publish_state(State::Paused(progress)).await?;
             }
         }
         Ok(())
@@ -657,10 +676,10 @@ impl Model {
 
     async fn unpause(&mut self) -> Result<()> {
         if self.paused() {
-            if let Some(progress) = self.get_playing().and_then(|_| self.player_progress) {
+            if let Some(progress) = self.get_playing().and(self.player_progress) {
                 self.player_paused = false;
                 self.dirty |= true;
-                self.publish_state(State::Playing(progress.clone())).await?;
+                self.publish_state(State::Playing(progress)).await?;
             }
         }
         Ok(())
