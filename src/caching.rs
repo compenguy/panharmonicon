@@ -7,7 +7,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 
 use crate::errors::Error;
-use crate::messages;
+use crate::messages::{Request, State};
+use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
 #[derive(Debug)]
@@ -116,22 +117,26 @@ pub(crate) struct TrackCacher {
     client: reqwest::Client,
     requests: Vec<FetchRequest>,
     station_id: Option<String>,
-    subscriber: async_broadcast::Receiver<messages::Notification>,
-    publisher: async_broadcast::Sender<messages::Request>,
+    request_sender: RequestSender,
+    state_receiver: StateReceiver,
+    dirty: bool,
 }
 
 impl TrackCacher {
-    pub(crate) fn new(
-        subscriber: async_broadcast::Receiver<messages::Notification>,
-        publisher: async_broadcast::Sender<messages::Request>,
-    ) -> Self {
+    pub(crate) fn new(state_receiver: StateReceiver, request_sender: RequestSender) -> Self {
         TrackCacher {
             client: reqwest::Client::new(),
             requests: Vec::with_capacity(8),
             station_id: None,
-            subscriber,
-            publisher,
+            request_sender,
+            state_receiver,
+            dirty: false,
         }
+    }
+
+    fn publish_request(&mut self, request: Request) -> Result<()> {
+        self.request_sender.send(request)?;
+        Ok(())
     }
 
     async fn fetch_track(&mut self, mut t: Track) -> Result<()> {
@@ -140,43 +145,61 @@ impl TrackCacher {
         let mut fetch_request = FetchRequest::from(t);
         fetch_request.start(self.client.clone()).await;
         self.requests.push(fetch_request);
+        self.dirty |= true;
         Ok(())
     }
 
     async fn cancel_requests(&mut self) {
         for mut request in self.requests.drain(..) {
             request.cancel().await;
+            self.dirty |= true;
         }
     }
 
-    async fn update_requests(&mut self) -> Result<bool> {
-        let mut dirty = false;
-        // Notify of all successfully fetched tracks
+    async fn update_requests(&mut self) -> Result<()> {
+        // Make sure each request's state is current
         for request in self.requests.iter_mut() {
             request.update_state().await;
+        }
+
+        // We have to be a little careful how we do this, because requests aren't clonable
+        // and we want to remove the completed requests from the list and send notifications for
+        // them
+        // We also can't notify while we're iterating, because that requires a mutable borrow of
+        // self, which is why we need to build two local lists from the data before moving on
+        let mut completed_requests = Vec::new();
+        let mut active_requests = Vec::new();
+        for request in self.requests.drain(..) {
+            if request.finished() || request.failed() {
+                completed_requests.push(request);
+            } else {
+                active_requests.push(request);
+            }
+        }
+        self.requests = active_requests;
+
+        // Notify of all tracks removed from the fetchlist
+        for request in completed_requests.into_iter() {
+            let track = request.track.clone();
             if request.finished() {
-                self.publisher
-                    .broadcast(messages::Request::AddTrack(Box::new(request.track.clone())))
-                    .await?;
-                dirty = true;
+                self.dirty |= true;
+                if !request.failed() && track.cached.clone().map(|p| p.exists()).unwrap_or(false) {
+                    self.publish_request(Request::AddTrack(Box::new(track)))?;
+                } else {
+                    self.publish_request(Request::FetchFailed(Box::new(track)))?;
+                }
+            } else if request.failed() {
+                self.publish_request(Request::FetchFailed(Box::new(track)))?;
             }
         }
 
-        // Remove all completed requests (successfully or not)
-        self.requests.retain(|r| !r.finished() && !r.failed());
-
-        self.publisher
-            .broadcast(messages::Request::FetchPending(self.requests.len()))
-            .await?;
-
-        Ok(dirty)
+        Ok(())
     }
 
-    async fn process_messages(&mut self) -> Result<bool> {
-        let mut dirty = false;
-        while let Ok(message) = self.subscriber.try_recv() {
+    async fn process_messages(&mut self) -> Result<()> {
+        while let Ok(message) = self.state_receiver.try_recv() {
             match message {
-                messages::Notification::Tuned(new_s) => {
+                State::Tuned(new_s) => {
                     // if we're changing stations, clear the waitqueue
                     if self
                         .station_id
@@ -187,15 +210,15 @@ impl TrackCacher {
                         self.cancel_requests().await;
                     }
                     self.station_id = Some(new_s);
-                    dirty = true;
+                    self.dirty = true;
                 }
-                messages::Notification::Connected => {
+                State::Connected => {
                     // No longer tuned to a station
                     self.cancel_requests().await;
                     self.station_id = None;
-                    dirty = true;
+                    self.dirty = true;
                 }
-                messages::Notification::PreCaching(t) => {
+                State::TrackCaching(t) => {
                     if self
                         .station_id
                         .as_ref()
@@ -203,7 +226,7 @@ impl TrackCacher {
                         .unwrap_or(false)
                     {
                         self.fetch_track(t).await?;
-                        dirty = true;
+                        self.dirty = true;
                     } else {
                         warn!("Request to cache track that's not from the current station");
                     }
@@ -211,13 +234,14 @@ impl TrackCacher {
                 _ => (),
             }
         }
-        Ok(dirty)
+        Ok(())
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
-        let mut dirty = self.process_messages().await?;
-        dirty |= self.update_requests().await?;
-        trace!("Sending FetchPending({})...", self.requests.len());
+        self.process_messages().await?;
+        self.update_requests().await?;
+        let dirty = self.dirty;
+        self.dirty = false;
         Ok(dirty)
     }
 }

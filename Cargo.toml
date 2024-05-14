@@ -20,6 +20,7 @@ flexi_logger = { version = "0.28", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 dirs = "5"
 serde = "1"
+either = "1"
 serde_derive = "1"
 serde_json = "1"
 keyring = "2"
@@ -31,6 +32,7 @@ rodio = { version = "0.17", default-features = false }
 redlux = { version = "0.7", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.11"
 cursive = { version = "0.20", default-features = false, features = ["crossterm-backend", "toml"] }
+rand = "0.8"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

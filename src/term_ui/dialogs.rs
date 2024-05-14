@@ -13,7 +13,7 @@ use cursive::view::{Nameable, Resizable};
 use log::trace;
 
 use crate::config::{Config, Credentials};
-use crate::messages;
+use crate::messages::Request;
 use crate::term_ui::{callbacks, labels, TerminalContext};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,9 +54,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                     trace!("send request 'tune'");
                     s.with_user_data(|ctx: &mut TerminalContext| {
                         trace!("Tuning to station {}", item.clone());
-                        let _ = ctx
-                            .publisher
-                            .try_broadcast(messages::Request::Tune(item.clone()));
+                        let _ = ctx.publish_request(Request::Tune(item.clone()));
                     });
                 })
                 .with_name("stations")
@@ -103,9 +101,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                             );
                             trace!("send request 'volume'");
                             s.with_user_data(|ctx: &mut TerminalContext| {
-                                let _ = ctx
-                                    .publisher
-                                    .try_broadcast(messages::Request::Volume(new_volume));
+                                let _ = ctx.publish_request(Request::Volume(new_volume));
                             });
                         })
                         .with_name("volume"),

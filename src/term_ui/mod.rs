@@ -8,8 +8,9 @@ use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
 use crate::config::Config;
+use crate::messages::{Request, State, StopReason};
+use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
-use crate::{messages, messages::StopReason};
 
 mod callbacks;
 mod dialogs;
@@ -32,13 +33,21 @@ mod labels {
 #[derive(Debug, Clone)]
 pub(crate) struct TerminalContext {
     config: Rc<RefCell<Config>>,
-    publisher: async_broadcast::Sender<messages::Request>,
+    request_sender: RequestSender,
+}
+
+impl TerminalContext {
+    fn publish_request(&mut self, request: Request) -> Result<()> {
+        self.request_sender.send(request)?;
+        Ok(())
+    }
 }
 
 pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
-    subscriber: async_broadcast::Receiver<messages::Notification>,
     context: TerminalContext,
+    state_receiver: StateReceiver,
+    active_track: Option<Track>,
     last_redraw: std::time::Instant,
     dirty: bool,
 }
@@ -46,18 +55,22 @@ pub(crate) struct Terminal {
 impl Terminal {
     pub(crate) fn new(
         config: Rc<RefCell<Config>>,
-        subscriber: async_broadcast::Receiver<messages::Notification>,
-        publisher: async_broadcast::Sender<messages::Request>,
+        state_receiver: StateReceiver,
+        request_sender: RequestSender,
     ) -> Self {
         let mut siv = cursive::crossterm().into_runner();
-        let context = TerminalContext { config, publisher };
+        let context = TerminalContext {
+            config,
+            request_sender,
+        };
         siv.set_user_data(context.clone());
         siv.set_fps(5);
         siv.set_window_title("panharmonicon");
         let mut term = Self {
             siv,
-            subscriber,
             context,
+            state_receiver,
+            active_track: None,
             last_redraw: std::time::Instant::now(),
             dirty: true,
         };
@@ -163,6 +176,7 @@ impl Terminal {
 
     fn playing_track(&mut self, track: Track) {
         trace!("Updating track info box...");
+        self.active_track = Some(track.clone());
         let Track {
             song_name,
             artist_name,
@@ -246,15 +260,19 @@ impl Terminal {
         });
     }
 
-    fn update_playing(&mut self, elapsed: Duration, duration: Duration, paused: bool) {
+    fn update_playing(&mut self, elapsed: Duration, paused: bool) {
         trace!("Updating track duration...");
+        let total_duration = self
+            .active_track
+            .as_ref()
+            .map(|t| t.track_length.as_secs())
+            .unwrap_or(0);
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 let playpause = if paused { "Paused" } else { "Play" };
                 let total_elapsed = elapsed.as_secs();
                 let elapsed_minutes = total_elapsed / 60;
                 let elapsed_seconds = total_elapsed % 60;
-                let total_duration = duration.as_secs();
                 let duration_minutes = total_duration / 60;
                 let duration_seconds = total_duration % 60;
                 let text = if total_duration > 0 {
@@ -295,6 +313,7 @@ impl Terminal {
     }
 
     fn update_state_stopped(&mut self, reason: StopReason) {
+        self.active_track = None;
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: stopped");
@@ -326,34 +345,32 @@ impl Terminal {
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
         trace!("checking for player notifications...");
-        while let Ok(message) = self.subscriber.try_recv() {
+        while let Ok(message) = self.state_receiver.try_recv() {
             match message {
-                messages::Notification::Connected => {
-                    self.update_state_stopped(StopReason::Initializing)
+                State::AuthFailed(r) => {
+                    todo!()
                 }
-                messages::Notification::Disconnected => self.update_state_disconnected(),
-                messages::Notification::AddStation(name, id) => self.added_station(name, id),
-                messages::Notification::Tuned(name) => self.tuned_station(name),
-                messages::Notification::Starting(track) => self.playing_track(track),
-                messages::Notification::Rated(val) => self.rated_track(val),
-                messages::Notification::Unrated => self.unrated_track(),
-                messages::Notification::Next(track) => self.next_track(track),
-                messages::Notification::Playing(elapsed, duration) => {
-                    self.update_playing(elapsed, duration, false)
-                }
-                messages::Notification::Volume(v) => self.update_volume(v),
-                messages::Notification::Paused(elapsed, duration) => {
-                    self.update_playing(elapsed, duration, true)
-                }
-                messages::Notification::Stopped(r) => self.update_state_stopped(r),
-                messages::Notification::PreCaching(_) => (),
-                messages::Notification::Muted => (),
-                messages::Notification::Unmuted => (),
-                messages::Notification::Quit => (),
+                State::Connected => self.update_state_stopped(StopReason::Initializing),
+                State::Disconnected => self.update_state_disconnected(),
+                State::AddStation(name, id) => self.added_station(name, id),
+                State::Tuned(name) => self.tuned_station(name),
+                State::TrackStarting(track) => self.playing_track(track),
+                State::TrackUpdated(track) => self.playing_track(track),
+                State::Rated(val) => self.rated_track(val),
+                State::Unrated => self.unrated_track(),
+                State::Next(track) => self.next_track(track),
+                State::Playing(elapsed) => self.update_playing(elapsed, false),
+                State::Volume(v) => self.update_volume(v),
+                State::Paused(elapsed) => self.update_playing(elapsed, true),
+                State::Stopped(r) => self.update_state_stopped(r),
+                State::TrackCaching(_) => (),
+                State::Muted => (),
+                State::Unmuted => (),
+                State::Quit => (),
             }
             self.dirty = true;
         }
-        log::trace!("subscriber len: {}", self.subscriber.len());
+        log::trace!("state_receiver len: {}", self.state_receiver.len());
         self.dirty |= self.siv.step();
         log::trace!("dirty: {}", &self.dirty);
         self.redraw();

@@ -14,6 +14,8 @@ pub(crate) enum Error {
     InvalidOperationForState(String, String),
     #[error("Requested track not in cache")]
     TrackNotCached(String),
+    #[error("Requested station {0} not in the station list")]
+    InvalidStation(String),
 }
 
 /*
@@ -23,8 +25,11 @@ impl From<surf::Error> for Error {
     }
 }
 */
-
 impl Error {
+    pub(crate) fn invalid_operation_for_state(operation: &str, state: &str) -> Self {
+        Error::InvalidOperationForState(String::from(operation), String::from(state))
+    }
+
     pub(crate) fn missing_auth_token(&self) -> bool {
         matches!(self, Error::PanharmoniconMissingAuthToken)
     }

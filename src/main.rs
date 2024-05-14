@@ -14,6 +14,7 @@ mod caching;
 mod messages;
 mod model;
 mod pandora;
+mod player;
 mod term_ui;
 mod track;
 
@@ -116,25 +117,31 @@ async fn main() -> Result<()> {
 
     trace!("Initializing application core");
     let mut model = model::Model::new(conf_ref.clone());
-    let req_chan = model.init_request_channel();
-    let notif_chan = model.init_notification_channel();
 
     trace!("Initializing track fetcher");
-    let mut fetcher = caching::TrackCacher::new(notif_chan.clone(), req_chan.clone());
+    let mut fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
 
     trace!("Initializing terminal interface");
-    let mut ui = term_ui::Terminal::new(conf_ref, notif_chan, req_chan);
+    let mut ui = term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
+
+    trace!("Initializing player interface");
+    let mut player = player::Player::new(model.updates_channel(), model.request_channel());
 
     trace!("Starting app");
     let naptime = std::time::Duration::from_millis(100);
 
     while !model.quitting() {
         trace!("Advancing application state...");
-        let step_result = tokio::try_join!(model.update(), ui.update(), fetcher.update());
+        let step_result = tokio::try_join!(
+            player.update(),
+            model.update(),
+            ui.update(),
+            fetcher.update()
+        );
         match step_result {
             Err(e) => error!("Error updating application state: {:?}", e),
-            Ok((false, false, false)) => std::thread::sleep(naptime),
-            Ok((_, _, _)) => (),
+            Ok((false, false, false, false)) => std::thread::sleep(naptime),
+            Ok((_, _, _, _)) => (),
         }
     }
     debug!("Application quit request acknowledged.");
