@@ -9,7 +9,7 @@ use rodio::cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{cpal, cpal::FromSample};
 use rodio::{Sample, Source};
 
-use crate::messages::{Request, State};
+use crate::messages::{Request, State, StopReason};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
@@ -342,7 +342,6 @@ impl Player {
             self.reset();
             self.last_started = None;
             self.elapsed = Duration::default();
-            // TODO: I don't think we need the duration member in player
             self.duration = Duration::default();
             self.dirty |= true;
         }
@@ -371,6 +370,19 @@ impl Player {
 
     fn duration(&self) -> Duration {
         self.duration
+    }
+
+    fn check_playing(&mut self) -> Result<()> {
+        if self.active_track.is_some() && !self.active() {
+            // We were playing a track, but we've stopped
+            if self.elapsed() >= self.duration {
+                self.publish_request(Request::Stop(StopReason::TrackCompleted))?;
+            } else {
+                self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
+            }
+            self.stop();
+        }
+        Ok(())
     }
 
     pub(crate) async fn poll_progress(&mut self) -> Result<()> {
@@ -454,6 +466,8 @@ impl Player {
                 State::Disconnected => self.stop(),
                 State::TrackStarting(track) => self.start(&track)?,
                 State::Volume(v) => self.set_volume(v),
+                State::Playing(_) => self.unpause(),
+                State::Paused(_) => self.pause(),
                 State::Muted => self.mute(),
                 State::Unmuted => self.unmute(),
                 State::Stopped(_) => self.stop(),
@@ -468,6 +482,7 @@ impl Player {
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
+        self.check_playing()?;
         self.poll_progress().await?;
         self.process_messages().await
     }
