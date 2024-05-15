@@ -178,7 +178,7 @@ pub(crate) fn playing_view() -> LinearLayout {
         .child(HideableView::new(station_row).with_name("stations_hideable"))
 }
 
-pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
+pub(crate) fn login_dialog(config: Rc<RefCell<Config>>, message: Option<String>) -> Option<Dialog> {
     let credentials = config.borrow().login_credentials().clone();
     let username = credentials.username().unwrap_or_default();
     let password = credentials.password().ok().flatten().unwrap_or_default();
@@ -234,7 +234,8 @@ pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
                             .selected(index)
                             .with_name("store"),
                     )),
-            ),
+            )
+            .child(TextView::new(message.unwrap_or_default())),
     )
     .button("Connect", crate::term_ui::callbacks::connect_button)
     .title("Pandora Login");

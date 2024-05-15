@@ -32,13 +32,6 @@ impl Volume {
         *self = Self::Unmuted(new_volume.min(1.0f32).max(0.0f32));
     }
 
-    fn muted(self) -> bool {
-        match self {
-            Self::Muted => true,
-            Self::Unmuted(_) => false,
-        }
-    }
-
     fn mute(&mut self) {
         *self = Self::Muted;
     }
@@ -156,20 +149,12 @@ impl AudioDevice {
         !self.sink.empty()
     }
 
-    fn paused(&self) -> bool {
-        self.sink.is_paused()
-    }
-
     fn pause(&mut self) {
         self.sink.pause();
     }
 
     fn unpause(&mut self) {
         self.sink.play()
-    }
-
-    fn volume(&self) -> f32 {
-        self.volume.volume()
     }
 
     fn set_volume(&mut self, new_volume: f32) {
@@ -179,10 +164,6 @@ impl AudioDevice {
 
     fn refresh_volume(&mut self) {
         self.sink.set_volume(self.volume.volume());
-    }
-
-    fn muted(&self) -> bool {
-        self.volume.muted()
     }
 
     fn mute(&mut self) {
@@ -331,14 +312,6 @@ impl Player {
         Ok(())
     }
 
-    fn started(&self) -> bool {
-        assert!(
-            !(self.active() && self.elapsed() == Duration::default()),
-            "Application state error: audio device is active, but no track playtime has elapsed."
-        );
-        self.active()
-    }
-
     fn stop(&mut self) {
         debug!("Resetting player state for stopped track");
         self.reset();
@@ -348,29 +321,9 @@ impl Player {
         self.dirty |= true;
     }
 
-    fn stopped(&self) -> bool {
-        assert!(
-            !(self.active() && self.elapsed() == Duration::default()),
-            "Application state error: audio device is active, but no track playtime has elapsed."
-        );
-        !self.active()
-    }
-
-    fn playing(&self) -> Option<&Track> {
-        if self.elapsed() > Duration::default() {
-            self.active_track.as_ref()
-        } else {
-            None
-        }
-    }
-
     fn elapsed(&self) -> Duration {
         let elapsed_since_last_started = self.last_started.map(|i| i.elapsed()).unwrap_or_default();
         self.elapsed + elapsed_since_last_started
-    }
-
-    fn duration(&self) -> Duration {
-        self.duration
     }
 
     fn check_playing(&mut self) -> Result<()> {
@@ -417,16 +370,6 @@ impl Player {
         self.audio_device.active()
     }
 
-    fn paused(&self) -> bool {
-        // This returns true when a track has actually been started, but time
-        // is not elapsing on it.
-        assert!(
-            !(self.audio_device.paused() && self.last_started.is_some()),
-            "Application state error: track is paused, but track playtime still increasing."
-        );
-        self.audio_device.paused()
-    }
-
     fn pause(&mut self) {
         self.elapsed += self
             .last_started
@@ -445,17 +388,9 @@ impl Player {
         }
     }
 
-    fn volume(&self) -> f32 {
-        self.audio_device.volume()
-    }
-
     fn set_volume(&mut self, new_volume: f32) {
         self.audio_device.set_volume(new_volume);
         self.dirty |= true;
-    }
-
-    fn muted(&self) -> bool {
-        self.audio_device.muted()
     }
 
     fn mute(&mut self) {

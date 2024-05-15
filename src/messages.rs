@@ -59,7 +59,6 @@ pub(crate) enum StopReason {
     TrackInterrupted,
     TrackCompleted,
     UserRequest,
-    SessionTimedOut,
 }
 
 impl std::fmt::Display for StopReason {
@@ -70,7 +69,6 @@ impl std::fmt::Display for StopReason {
             StopReason::TrackInterrupted => write!(f, "Track Interrupted"),
             StopReason::TrackCompleted => write!(f, "Track Completed"),
             StopReason::UserRequest => write!(f, "Stop"),
-            StopReason::SessionTimedOut => write!(f, "Session Timed Out"),
         }
     }
 }
@@ -84,11 +82,8 @@ pub(crate) enum State {
     Tuned(String),
     TrackCaching(Track),
     TrackStarting(Track),
-    TrackUpdated(Track),
     #[allow(dead_code)]
     Next(Option<Track>),
-    Rated(u32),
-    Unrated,
     Volume(f32),
     Muted,
     Unmuted,
@@ -108,8 +103,6 @@ impl PartialEq<State> for State {
             (State::TrackStarting(t), State::TrackStarting(u)) => t.track_token == u.track_token,
             (State::Next(Some(t)), State::Next(Some(u))) => t.track_token == u.track_token,
             (State::Next(None), State::Next(None)) => true,
-            (State::Rated(a), State::Rated(b)) => a == b,
-            (State::Unrated, State::Unrated) => true,
             (State::Volume(a), State::Volume(b)) => (a * 100.0) as u8 == (b * 100.0) as u8,
             (State::Muted, State::Muted) => true,
             (State::Unmuted, State::Unmuted) => true,

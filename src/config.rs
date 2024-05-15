@@ -164,15 +164,6 @@ impl Credentials {
         }
     }
 
-    #[must_use = "Credentials may not be converted between variants in-place. Calling \"as_<type>\" creates a copy as another variant."]
-    pub(crate) fn as_invalid(&self) -> Credentials {
-        match self {
-            Self::Session(u, _) => Self::Session(u.clone().map(String::from), None),
-            Self::ConfigFile(u, _) => Self::ConfigFile(u.to_string(), String::new()),
-            Self::Keyring(_) => self.clone(),
-        }
-    }
-
     fn get_from_keyring(username: &str) -> Result<Option<String>> {
         let service = String::from(crate_name!());
         let keyring = keyring::Entry::new(&service, username)?;
@@ -254,13 +245,6 @@ impl PartialConfig {
         self.station_id = Some(station);
         self
     }
-
-    /* TODO: There's no UI to expose this configuration option
-    pub(crate) fn save_station(mut self, save: bool) -> Self {
-        self.save_station = Some(save);
-        self
-    }
-    */
 
     pub(crate) fn volume(mut self, volume: f32) -> Self {
         self.volume = Some(volume);
@@ -454,12 +438,6 @@ impl Config {
     pub(crate) fn station_id(&self) -> Option<String> {
         self.station_id.clone()
     }
-
-    /* TODO: There's no UI to expose this configuration option
-    pub(crate) fn save_station(&self) -> bool {
-        self.save_station
-    }
-    */
 
     pub(crate) fn volume(&self) -> f32 {
         self.volume

@@ -248,10 +248,6 @@ impl Model {
         self.player_track.as_ref().right()
     }
 
-    pub(crate) fn stopped(&self) -> Option<&StopReason> {
-        self.player_track.as_ref().left()
-    }
-
     pub(crate) fn ready_next_track(&mut self) -> Result<Option<Track>> {
         if self.tuned().is_none() {
             return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
@@ -304,10 +300,6 @@ impl Model {
 
     pub(crate) fn quitting(&self) -> bool {
         self.panharmonicon_quitting
-    }
-
-    pub(crate) fn get_session_mut(&mut self) -> Option<&mut PandoraSession> {
-        self.pandora_session.as_mut()
     }
 
     pub(crate) fn get_next(&self) -> Option<&Track> {

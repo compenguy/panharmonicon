@@ -204,40 +204,6 @@ impl Terminal {
         self.update_playing(Duration::default(), false);
     }
 
-    fn rated_track(&mut self, rating: u32) {
-        trace!("Updating track rating...");
-        self.siv.call_on_name("title", |v: &mut TextView| {
-            let mut title = v
-                .get_content()
-                .source()
-                .trim_end_matches(labels::LABEL_THUMBS_UP)
-                .trim_end()
-                .to_string();
-
-            debug!("Rating title {}", title);
-
-            if rating > 0 {
-                title.push(' ');
-                title.push_str(labels::LABEL_THUMBS_UP);
-            }
-            v.set_content(title);
-        });
-    }
-
-    fn unrated_track(&mut self) {
-        trace!("Removing track rating...");
-        self.siv.call_on_name("title", |v: &mut TextView| {
-            let title = v
-                .get_content()
-                .source()
-                .trim_end_matches(labels::LABEL_THUMBS_UP)
-                .trim_end()
-                .to_string();
-
-            v.set_content(title);
-        });
-    }
-
     fn next_track(&mut self, track: Option<Track>) {
         trace!("Updating next track...");
         let styled_text = if let Some(Track {
@@ -290,7 +256,7 @@ impl Terminal {
             });
     }
 
-    fn update_state_disconnected(&mut self) {
+    fn update_state_disconnected(&mut self, message: Option<String>) {
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: disconnected");
@@ -307,7 +273,7 @@ impl Terminal {
         {
             trace!("Activating login dialog");
 
-            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {
+            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone(), message) {
                 self.siv.add_layer(dialog);
             }
         }
@@ -348,17 +314,12 @@ impl Terminal {
         trace!("checking for player notifications...");
         while let Ok(message) = self.state_receiver.try_recv() {
             match message {
-                State::AuthFailed(r) => {
-                    todo!()
-                }
+                State::AuthFailed(r) => self.update_state_disconnected(Some(r.to_string())),
                 State::Connected => self.update_state_stopped(StopReason::Initializing),
-                State::Disconnected => self.update_state_disconnected(),
+                State::Disconnected => self.update_state_disconnected(None),
                 State::AddStation(name, id) => self.added_station(name, id),
                 State::Tuned(name) => self.tuned_station(name),
                 State::TrackStarting(track) => self.playing_track(track),
-                State::TrackUpdated(track) => self.playing_track(track),
-                State::Rated(val) => self.rated_track(val),
-                State::Unrated => self.unrated_track(),
                 State::Next(track) => self.next_track(track),
                 State::Playing(elapsed) => self.update_playing(elapsed, false),
                 State::Volume(v) => self.update_volume(v),
