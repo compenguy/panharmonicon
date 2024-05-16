@@ -165,11 +165,17 @@ impl TrackCacher {
     }
 
     async fn fetch_track(&mut self, mut t: Track) -> Result<()> {
-        t.cached = Some(cached_path_for_track(&t, true)?);
-        debug!("Fetching track {:?}", &t.cached);
-        let mut fetch_request = FetchRequest::from(t);
-        fetch_request.start(self.client.clone()).await;
-        self.requests.push(fetch_request);
+        let track_path = cached_path_for_track(&t, true)?;
+        t.cached = Some(track_path.clone());
+        if track_path.exists() {
+            debug!("Track already in cache {:?}", track_path.display());
+            self.publish_request(Request::AddTrack(Box::new(t)))?;
+        } else {
+            debug!("Track not in cache, fetching {}", track_path.display());
+            let mut fetch_request = FetchRequest::from(t);
+            fetch_request.start(self.client.clone()).await;
+            self.requests.push(fetch_request);
+        }
         self.dirty |= true;
         Ok(())
     }
