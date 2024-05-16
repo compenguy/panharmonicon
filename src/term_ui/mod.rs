@@ -48,7 +48,6 @@ pub(crate) struct Terminal {
     context: TerminalContext,
     state_receiver: StateReceiver,
     active_track: Option<Track>,
-    last_redraw: std::time::Instant,
     dirty: bool,
 }
 
@@ -71,7 +70,6 @@ impl Terminal {
             context,
             state_receiver,
             active_track: None,
-            last_redraw: std::time::Instant::now(),
             dirty: true,
         };
         term.initialize();
@@ -82,7 +80,7 @@ impl Terminal {
         self.init_key_mappings();
         self.init_theme();
         self.init_playback();
-        self.redraw();
+        self.drive_ui();
     }
 
     fn init_key_mappings(&mut self) {
@@ -155,6 +153,7 @@ impl Terminal {
                     v.add_item(name, id);
                 }
             });
+        self.dirty |= true;
     }
 
     fn tuned_station(&mut self, id: String) {
@@ -172,6 +171,7 @@ impl Terminal {
                     v.set_selection(0);
                 }
             });
+        self.dirty |= true;
     }
 
     fn playing_track(&mut self, track: Track) {
@@ -202,6 +202,7 @@ impl Terminal {
             v.set_content(album_name);
         });
         self.update_playing(Duration::default(), false);
+        self.dirty |= true;
     }
 
     fn next_track(&mut self, track: Option<Track>) {
@@ -225,6 +226,7 @@ impl Terminal {
             debug!("Next up: {:?}", track);
             v.set_content(styled_text);
         });
+        self.dirty |= true;
     }
 
     fn update_playing(&mut self, elapsed: Duration, paused: bool) {
@@ -254,6 +256,7 @@ impl Terminal {
                 trace!("Playing panel title: {}", text);
                 v.set_title(text);
             });
+        self.dirty |= true;
     }
 
     fn update_state_disconnected(&mut self, message: Option<String>) {
@@ -277,6 +280,7 @@ impl Terminal {
                 self.siv.add_layer(dialog);
             }
         }
+        self.dirty |= true;
     }
 
     fn update_state_stopped(&mut self, reason: StopReason) {
@@ -291,6 +295,7 @@ impl Terminal {
             trace!("Deactivating login dialog");
             self.siv.pop_layer();
         }
+        self.dirty |= true;
     }
 
     fn update_volume(&mut self, volume: f32) {
@@ -304,13 +309,10 @@ impl Terminal {
             );
             v.set_value(volume_adj);
         });
+        self.dirty |= true;
     }
 
-    fn redraw_expired(&self) -> bool {
-        self.last_redraw.elapsed() > std::time::Duration::from_millis(100)
-    }
-
-    pub(crate) async fn update(&mut self) -> Result<bool> {
+    async fn process_messages(&mut self) -> Result<()> {
         trace!("checking for player notifications...");
         while let Ok(message) = self.state_receiver.try_recv() {
             match message {
@@ -330,20 +332,25 @@ impl Terminal {
                 State::Unmuted => (),
                 State::Quit => (),
             }
-            self.dirty = true;
         }
-        self.dirty |= self.siv.step();
-        self.redraw();
-        Ok(self.dirty)
+        Ok(())
     }
 
-    fn redraw(&mut self) {
-        // rate-limit redraws to no more than 6-7 per second, and only if dirty
-        if self.dirty && self.redraw_expired() {
+    fn drive_ui(&mut self) -> bool {
+        self.dirty |= self.siv.step();
+        if self.dirty {
             trace!("forcing ui update");
             self.siv.refresh();
-            self.last_redraw = std::time::Instant::now();
             self.dirty = false;
+            true
+        } else {
+            false
         }
+    }
+
+    pub(crate) async fn update(&mut self) -> Result<bool> {
+        self.process_messages().await?;
+        let dirty = self.drive_ui();
+        Ok(dirty)
     }
 }
