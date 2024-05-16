@@ -134,32 +134,37 @@ async fn main() -> Result<()> {
 
     while !model.quitting() {
         trace!("Advancing application state...");
+        /*
         let mut dirty = false;
         trace!("Advancing model...");
         match model.update().await {
             Ok(d) => dirty |= d,
             Err(e) => error!("Error updating model state: {e:#}"),
         }
+
         trace!("Advancing player...");
         match player.update().await {
             Ok(d) => dirty |= d,
             Err(e) => error!("Error updating player state: {e:#}"),
         }
+
         trace!("Advancing ui...");
         match ui.update().await {
             Ok(d) => dirty |= d,
             Err(e) => error!("Error updating ui state: {e:#}"),
         }
+
         trace!("Advancing fetcher...");
         match fetcher.update().await {
             Ok(d) => dirty |= d,
             Err(e) => error!("Error updating fetcher state: {e:#}"),
         }
+
         if !dirty {
             trace!("naptime");
             std::thread::sleep(naptime);
         }
-        /*
+        */
         let step_result = tokio::try_join!(
             model.update(),
             player.update(),
@@ -167,11 +172,10 @@ async fn main() -> Result<()> {
             fetcher.update()
         );
         match step_result {
-            Err(e) => error!("Error updating application state: {:?}", e),
+            Err(e) => error!("Error updating application state: {:#}", e),
             Ok((false, false, false, false)) => std::thread::sleep(naptime),
             Ok((_, _, _, _)) => (),
         }
-        */
     }
     debug!("Application quit request acknowledged.");
     // Explicitly drop the UI to force it to write changed settings out
