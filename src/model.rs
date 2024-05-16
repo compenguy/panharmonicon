@@ -19,6 +19,9 @@ pub(crate) type StateReceiver = async_broadcast::Receiver<State>;
 pub(crate) type RequestSender = mpsc::Sender<Request>;
 pub(crate) type RequestReceiver = mpsc::Receiver<Request>;
 
+const FETCHLIST_MAX_LEN: usize = 4;
+const PLAYLIST_MAX_LEN: usize = 12;
+
 // player/volume: f32
 // player/muted: bool
 // player/track: Either<Track, StopReason>
@@ -68,8 +71,8 @@ impl Model {
             pandora_session: None,
             pandora_station: None,
             pandora_stations: HashMap::with_capacity(16),
-            pandora_readylist: VecDeque::with_capacity(8),
-            pandora_fetchlist: Vec::with_capacity(4),
+            pandora_readylist: VecDeque::with_capacity(PLAYLIST_MAX_LEN),
+            pandora_fetchlist: Vec::with_capacity(FETCHLIST_MAX_LEN),
             panharmonicon_quitting: false,
             request_sender,
             request_receiver,
@@ -386,7 +389,7 @@ impl Model {
     }
 
     pub(crate) async fn refill_playlist(&mut self) -> Result<()> {
-        if self.playlist_len() + self.pending_len() > 4 {
+        if self.playlist_len() + self.pending_len() > (PLAYLIST_MAX_LEN - FETCHLIST_MAX_LEN) {
             trace!("Enough tracks in playlist or in-flight already - not adding more tracks to playlist");
             return Ok(());
         }
@@ -594,7 +597,7 @@ impl Model {
 
     async fn stop(&mut self, reason: StopReason) -> Result<()> {
         if self.get_playing().is_some() {
-            debug!("Stopping track: {reason}");
+            info!("Stopping track: {reason}");
             if self.config.borrow().cache_policy().evict_completed() {
                 debug!("Checking for track to evict...");
                 if let Some(cached_path) = self.get_playing().and_then(|t| t.cached.as_ref()) {
@@ -633,7 +636,11 @@ impl Model {
             debug!("Track already started.");
         } else {
             debug!("No tracks started yet. Starting next track.");
-            info!("playlist length: {} + {} pending", self.playlist_len(), self.pending_len());
+            info!(
+                "playlist length: {} + {} pending",
+                self.playlist_len(),
+                self.pending_len()
+            );
             if let Some(track) = self.ready_next_track()? {
                 trace!("send notification 'starting'");
                 self.player_track = Either::Right(track.clone());
