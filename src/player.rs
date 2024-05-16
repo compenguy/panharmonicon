@@ -295,18 +295,23 @@ impl Player {
         } else {
             info!("Starting new track {}", track.song_name);
         }
-        self.active_track = Some(track.clone());
         debug!("Starting track: {:?}", track.song_name);
         if let Some(cached) = track.cached.as_ref() {
             trace!("Starting decoding of track {}", cached.display());
             if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
                 error!("Failed to start track at {}: {e:#}", cached.display());
+                warn!("Deleting failed track from cache: {}", cached.display());
+                let _ = std::fs::remove_file(cached);
+                warn!("Informing app that currently playing track stopped unexpectedly");
+                self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
                 self.stop();
-                Err(e)
+                return Err(e);
             } else {
+                self.active_track = Some(track.clone());
                 self.duration = track.track_length;
                 self.last_started = Some(Instant::now());
                 self.dirty |= true;
+                self.publish_request(Request::UpdateTrackProgress(Duration::default()))?;
             }
         } else {
             error!("Uncached track! Stopping...");
@@ -330,13 +335,16 @@ impl Player {
     }
 
     fn check_playing(&mut self) -> Result<()> {
-        if self.active_track.is_some() && !self.active() {
+        // It seems like there's a race condition between requesting the track to start and when we
+        // check playing, so we require at least one second to have elapsed before we'll report a
+        // track is done
+        if self.active_track.is_some() && !self.active() && self.elapsed().as_secs() >= 1 {
             // We were playing a track, but we've stopped
             if self.elapsed() >= self.duration {
-                debug!("Currently playing track completed");
+                info!("Informing app that currently playing track stopped due to completion");
                 self.publish_request(Request::Stop(StopReason::TrackCompleted))?;
             } else {
-                warn!("Currently playing track ended unexpectedly");
+                warn!("Informing app that currently playing track stopped unexpectedly");
                 self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
             }
             self.stop();
@@ -344,6 +352,8 @@ impl Player {
         Ok(())
     }
 
+    // Check track progress (elapsed playback time), and send a notification if
+    // the elapsed time has ticked over to a new second
     pub(crate) async fn poll_progress(&mut self) -> Result<()> {
         let elapsed = self.elapsed();
         trace!(
@@ -417,7 +427,10 @@ impl Player {
                 State::Paused(_) => self.pause(),
                 State::Muted => self.mute(),
                 State::Unmuted => self.unmute(),
-                State::Stopped(_) => self.stop(),
+                State::Stopped(reason) => {
+                    info!("Stopping track playback: {:?}", reason);
+                    self.stop()
+                }
                 State::Quit => self.stop(),
                 _ => (),
             }
