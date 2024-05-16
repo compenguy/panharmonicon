@@ -17,7 +17,7 @@ pub(crate) struct FetchRequest {
     track: Track,
     completed: bool,
     failed: bool,
-    task_handle: Option<JoinHandle<Result<()>>>,
+    task_handle: Option<JoinHandle<Result<Track>>>,
 }
 
 impl From<Track> for FetchRequest {
@@ -104,10 +104,30 @@ impl FetchRequest {
             let th = tokio::spawn(async move {
                 debug!("Retrieving track {}...", path.display());
                 debug!("retrieval start time: {:?}", Instant::now());
-                save_request_to_file(req_builder, &path).await?;
+
+                if let Err(e) = save_request_to_file(req_builder, path.with_extension("tmp")).await {
+                    error!("Failed to fetch requested file: {e:#}");
+                    let _ = std::fs::remove_file(path.with_extension("tmp"));
+                    return Err(e.into());
+                }
                 debug!("retrieval finish time: {:?}", Instant::now());
                 trace!("applying tags to track...");
-                tag_m4a(&track, &path)
+                if let Err(e) = tag_m4a(&track, &path.with_extension("tmp")) {
+                    error!("Failed to tag requested file: {e:#}");
+                    let _ = std::fs::remove_file(path.with_extension("tmp"));
+                    return Err(e.into());
+                }
+                if let Err(e) = std::fs::rename(path.with_extension("tmp"), &path) {
+                    error!("Failed to finalize requested file: {e:#}");
+                    let _ = std::fs::remove_file(path.with_extension("tmp"));
+                    return Err(e.into());
+                }
+                if path.exists() {
+                    Ok(track)
+                } else {
+                    error!("Track fetch, tag, and rename completed successfully, but final track file does not exist.");
+                    Err(anyhow::anyhow!("Downloaded track does not exist"))
+                }
             });
             self.task_handle = Some(th);
         } else {

@@ -292,19 +292,22 @@ impl Player {
                 info!("Stopping current track...");
                 self.stop();
             }
+        } else {
+            info!("Starting new track {}", track.song_name);
         }
         self.active_track = Some(track.clone());
         debug!("Starting track: {:?}", track.song_name);
         if let Some(cached) = track.cached.as_ref() {
             trace!("Starting decoding of track {}", cached.display());
-            // TODO: catch errors here, and delete tracks that error on starting
-            self.audio_device
-                .play_m4a_from_path(PathBuf::from(&cached))
-                .with_context(|| format!("Failed to start track at {}", cached.display()))?;
-            self.duration = track.track_length;
-
-            self.last_started = Some(Instant::now());
-            self.dirty |= true;
+            if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
+                error!("Failed to start track at {}: {e:#}", cached.display());
+                self.stop();
+                Err(e)
+            } else {
+                self.duration = track.track_length;
+                self.last_started = Some(Instant::now());
+                self.dirty |= true;
+            }
         } else {
             error!("Uncached track! Stopping...");
             self.stop();

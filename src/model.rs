@@ -633,8 +633,7 @@ impl Model {
             debug!("Track already started.");
         } else {
             debug!("No tracks started yet. Starting next track.");
-            info!("playlist length: {}", self.playlist_len());
-            info!("pending length: {}", self.pending_len());
+            info!("playlist length: {} + {} pending", self.playlist_len(), self.pending_len());
             if let Some(track) = self.ready_next_track()? {
                 trace!("send notification 'starting'");
                 self.player_track = Either::Right(track.clone());
