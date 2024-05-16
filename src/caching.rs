@@ -105,21 +105,22 @@ impl FetchRequest {
                 debug!("Retrieving track {}...", path.display());
                 debug!("retrieval start time: {:?}", Instant::now());
 
-                if let Err(e) = save_request_to_file(req_builder, path.with_extension("tmp")).await {
+                if let Err(e) = save_request_to_file(req_builder, path.with_extension("tmp")).await
+                {
                     error!("Failed to fetch requested file: {e:#}");
-                    let _ = std::fs::remove_file(path.with_extension("tmp"));
-                    return Err(e.into());
+                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
+                    return Err(e);
                 }
                 debug!("retrieval finish time: {:?}", Instant::now());
                 trace!("applying tags to track...");
                 if let Err(e) = tag_m4a(&track, &path.with_extension("tmp")) {
                     error!("Failed to tag requested file: {e:#}");
-                    let _ = std::fs::remove_file(path.with_extension("tmp"));
-                    return Err(e.into());
+                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
+                    return Err(e);
                 }
                 if let Err(e) = std::fs::rename(path.with_extension("tmp"), &path) {
                     error!("Failed to finalize requested file: {e:#}");
-                    let _ = std::fs::remove_file(path.with_extension("tmp"));
+                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
                     return Err(e.into());
                 }
                 if path.exists() {
