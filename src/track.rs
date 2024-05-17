@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use pandora_api::json::station::PlaylistTrack;
@@ -74,15 +75,17 @@ impl From<&PlaylistTrack> for Track {
 
 impl Track {
     pub(crate) fn exists(&self) -> bool {
-        if let Some(cached) = &self.cached {
+        if let Some(cached) = self.path() {
             log::trace!("Track cache location specified: {}", cached.display());
             log::trace!("Track cache file exists: {}", cached.exists());
+            true
         } else {
             log::warn!("No track cache location specified!");
+            false
         }
-        self.cached
-            .as_ref()
-            .map(|pb| pb.exists())
-            .unwrap_or_default()
+    }
+
+    pub(crate) fn path(&self) -> Option<PathBuf> {
+        self.cached.clone()
     }
 }
