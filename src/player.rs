@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, Read, Seek};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -296,12 +296,15 @@ impl Player {
             info!("Starting new track {}", track.song_name);
         }
         debug!("Starting track: {:?}", track.song_name);
-        if let Some(cached) = track.cached.as_ref() {
-            trace!("Starting decoding of track {}", cached.display());
-            if let Err(e) = self.audio_device.play_m4a_from_path(PathBuf::from(&cached)) {
-                error!("Failed to start track at {}: {e:#}", cached.display());
-                warn!("Deleting failed track from cache: {}", cached.display());
-                let _ = std::fs::remove_file(cached);
+        if let Some(cached_path) = track.path() {
+            trace!("Starting decoding of track {}", cached_path.display());
+            if let Err(e) = self.audio_device.play_m4a_from_path(&cached_path) {
+                error!("Failed to start track at {}: {e:#}", cached_path.display());
+                warn!(
+                    "Deleting failed track from cache: {}",
+                    cached_path.display()
+                );
+                let _ = std::fs::remove_file(&cached_path);
                 warn!("Informing app that currently playing track stopped unexpectedly");
                 self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
                 self.stop();

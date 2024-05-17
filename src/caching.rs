@@ -164,15 +164,15 @@ impl TrackCacher {
         Ok(())
     }
 
-    async fn fetch_track(&mut self, mut t: Track) -> Result<()> {
-        let track_path = cached_path_for_track(&t, true)?;
-        t.cached = Some(track_path.clone());
+    async fn fetch_track(&mut self, mut track: Track) -> Result<()> {
+        let track_path = cached_path_for_track(&track, true)?;
+        track.cached = Some(track_path.clone());
         if track_path.exists() {
             debug!("Track already in cache {:?}", track_path.display());
-            self.publish_request(Request::AddTrack(Box::new(t)))?;
+            self.publish_request(Request::AddTrack(Box::new(track)))?;
         } else {
             debug!("Track not in cache, fetching {}", track_path.display());
-            let mut fetch_request = FetchRequest::from(t);
+            let mut fetch_request = FetchRequest::from(track);
             fetch_request.start(self.client.clone()).await;
             self.requests.push(fetch_request);
         }
@@ -215,7 +215,7 @@ impl TrackCacher {
             let track = request.track.clone();
             if request.finished() {
                 self.dirty |= true;
-                if !request.failed() && track.cached.clone().map(|p| p.exists()).unwrap_or(false) {
+                if !request.failed() && track.exists() {
                     self.publish_request(Request::AddTrack(Box::new(track)))?;
                 } else {
                     self.publish_request(Request::FetchFailed(Box::new(track)))?;
@@ -304,13 +304,6 @@ fn app_cache_dir() -> Result<PathBuf> {
         .join(crate_name!()))
 }
 
-fn precached_path_for_track(track: &Track) -> Option<PathBuf> {
-    track
-        .cached
-        .as_ref()
-        .and_then(|p| if p.exists() { Some(p.clone()) } else { None })
-}
-
 async fn save_request_to_file<P: AsRef<Path>>(
     req_builder: reqwest::RequestBuilder,
     path: P,
@@ -358,7 +351,7 @@ async fn save_request_to_file<P: AsRef<Path>>(
 }
 
 fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
-    if let Some(precached) = precached_path_for_track(track) {
+    if let Some(precached) = track.path() {
         return Ok(precached);
     }
 
