@@ -89,3 +89,22 @@ impl Track {
         self.cached.clone()
     }
 }
+
+impl From<Track> for mpris_server::Metadata {
+    fn from(track: Track) -> Self {
+        let rating = if track.song_rating > 0 {
+            1.0f64
+        } else {
+            0.0f64
+        };
+        Self::builder()
+            .length(mpris_server::Time::from_millis(
+                track.track_length.as_millis() as i64,
+            ))
+            .title(track.song_name.clone())
+            .album(track.album_name.clone())
+            .artist(Some(track.artist_name.clone()))
+            .user_rating(rating)
+            .build()
+    }
+}

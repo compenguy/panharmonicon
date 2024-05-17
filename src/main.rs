@@ -13,6 +13,8 @@ use crate::config::Config;
 mod caching;
 mod messages;
 mod model;
+#[cfg(feature = "mpris")]
+mod mpris_ui;
 mod pandora;
 mod player;
 mod term_ui;
@@ -118,53 +120,56 @@ async fn main() -> Result<()> {
     let conf_ref = Rc::new(RefCell::new(conf));
 
     trace!("Initializing application core");
-    let mut model = model::Model::new(conf_ref.clone());
+    let model = model::Model::new(conf_ref.clone());
 
     trace!("Initializing track fetcher");
-    let mut fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
+    let fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
 
     trace!("Initializing terminal interface");
-    let mut ui = term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
+    let ui = term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
 
     trace!("Initializing player interface");
-    let mut player = player::Player::new(model.updates_channel(), model.request_channel());
+    let player = player::Player::new(model.updates_channel(), model.request_channel());
 
-    trace!("Starting app");
+    #[cfg(not(feature = "mpris"))]
+    {
+        trace!("Starting app");
+        if let Err(e) = application_loop(model, fetcher, ui, player).await {
+            error!("Application error {e:#}.");
+            error!("Exiting...");
+        } else {
+            debug!("Application quit request acknowledged.");
+        }
+    }
+
+    #[cfg(feature = "mpris")]
+    {
+        trace!("Initializing mpris interface");
+        let mpris =
+            mpris_ui::MprisServer::new(model.updates_channel(), model.request_channel()).await?;
+
+        trace!("Starting app");
+        if let Err(e) = application_loop(model, fetcher, ui, player, mpris).await {
+            error!("Application error {e:#}.");
+            error!("Exiting...");
+        } else {
+            debug!("Application quit request acknowledged.");
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "mpris"))]
+async fn application_loop(
+    mut model: model::Model,
+    mut fetcher: caching::TrackCacher,
+    mut ui: term_ui::Terminal,
+    mut player: player::Player,
+) -> Result<()> {
     let naptime = std::time::Duration::from_millis(100);
-
     while !model.quitting() {
         trace!("Advancing application state...");
-        /*
-        let mut dirty = false;
-        trace!("Advancing model...");
-        match model.update().await {
-            Ok(d) => dirty |= d,
-            Err(e) => error!("Error updating model state: {e:#}"),
-        }
-
-        trace!("Advancing player...");
-        match player.update().await {
-            Ok(d) => dirty |= d,
-            Err(e) => error!("Error updating player state: {e:#}"),
-        }
-
-        trace!("Advancing ui...");
-        match ui.update().await {
-            Ok(d) => dirty |= d,
-            Err(e) => error!("Error updating ui state: {e:#}"),
-        }
-
-        trace!("Advancing fetcher...");
-        match fetcher.update().await {
-            Ok(d) => dirty |= d,
-            Err(e) => error!("Error updating fetcher state: {e:#}"),
-        }
-
-        if !dirty {
-            trace!("naptime");
-            std::thread::sleep(naptime);
-        }
-        */
         let step_result = tokio::try_join!(
             model.update(),
             player.update(),
@@ -177,10 +182,32 @@ async fn main() -> Result<()> {
             Ok((_, _, _, _)) => (),
         }
     }
-    debug!("Application quit request acknowledged.");
-    // Explicitly drop the UI to force it to write changed settings out
-    drop(ui);
-    debug!("Application interface terminated.");
+    Ok(())
+}
 
+#[cfg(feature = "mpris")]
+async fn application_loop(
+    mut model: model::Model,
+    mut fetcher: caching::TrackCacher,
+    mut ui: term_ui::Terminal,
+    mut player: player::Player,
+    mut mpris: mpris_ui::MprisServer,
+) -> Result<()> {
+    let naptime = std::time::Duration::from_millis(100);
+    while !model.quitting() {
+        trace!("Advancing application state...");
+        let step_result = tokio::try_join!(
+            model.update(),
+            player.update(),
+            ui.update(),
+            fetcher.update(),
+            mpris.update(),
+        );
+        match step_result {
+            Err(e) => error!("Error updating application state: {:#}", e),
+            Ok((false, false, false, false, false)) => std::thread::sleep(naptime),
+            Ok((_, _, _, _, _)) => (),
+        }
+    }
     Ok(())
 }
