@@ -42,17 +42,43 @@ impl FetchRequest {
             .unwrap_or(false)
         {
             if let Some(ref mut th) = &mut self.task_handle {
-                if let Err(e) = th.await {
-                    self.failed = true;
-                    self.completed = false;
-                    error!("Error during in-flight request for track {e:#}");
-                } else {
-                    self.completed = self.track.exists();
-                    self.failed = !self.completed;
-                    debug!("In-flight request for track completed: {}", &self.completed);
+                match th.await {
+                    Err(e) if e.is_cancelled() => {
+                        debug!("Track fetch task was cancelled");
+                        self.failed = true;
+                        self.completed = false;
+                    }
+                    Err(e) if e.is_panic() => {
+                        warn!("Track fetch task panicked");
+                        self.failed = true;
+                        self.completed = false;
+                        // TODO: trigger a retry?
+                    }
+                    Err(e) => {
+                        error!("Unhandled track fetch task error: {e:#}");
+                        self.failed = true;
+                        self.completed = false;
+                        // TODO: trigger a retry?
+                    }
+                    Ok(Err(e)) => {
+                        // TODO: dig into these error codes, figure out which ones are worth retrying
+                        // the fetch for
+                        if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+                            error!("reqwest error {e:#}");
+                        }
+                        self.failed = true;
+                        self.completed = false;
+                        error!("Error during in-flight request for track {e:#}");
+                    }
+                    Ok(Ok(_)) => {
+                        self.completed = self.track.exists();
+                        self.failed = !self.completed;
+                        debug!("In-flight request for track completed: {}", &self.completed);
+                    }
                 }
             } else if !self.failed && !self.completed {
                 warn!("Unexpected condition: no track request in-flight, and it was neither failed nor completed");
+                // TODO: this seems like a retry-able condition
                 self.failed = true;
             }
             self.task_handle = None;
