@@ -70,6 +70,11 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
     type Error = anyhow::Error;
 
     fn try_from(pl_track: &PlaylistTrack) -> std::result::Result<Self, Self::Error> {
+        let cache_path = cache_file_path(
+            &pl_track.song_name,
+            &pl_track.artist_name,
+            &pl_track.album_name,
+        )?;
         let track = Track {
             track_token: pl_track.track_token.clone(),
             music_id: pl_track.music_id.clone(),
@@ -85,11 +90,7 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
                 .and_then(|v| v.as_u64())
                 .map(Duration::from_secs)
                 .unwrap_or_default(),
-            cache_path: cache_file_path(
-                &pl_track.song_name,
-                &pl_track.artist_name,
-                &pl_track.album_name,
-            )?,
+            cache_path,
         };
 
         Ok(track)
@@ -185,6 +186,10 @@ async fn download_to_cache<P: AsRef<std::path::Path>>(
     path: P,
 ) -> Result<()> {
     let path = path.as_ref();
+    if let Some(parent_dir) = path.parent() {
+        std::fs::create_dir_all(parent_dir)?;
+    }
+
     let mut resp = req_builder
         .send()
         .await
