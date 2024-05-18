@@ -275,7 +275,7 @@ impl Model {
         }
 
         track
-            .path()
+            .valid_path()
             .ok_or_else(|| Error::TrackNotCached(track.song_name.clone()))?;
 
         self.pandora_readylist.push_back(track.clone());
@@ -599,7 +599,7 @@ impl Model {
             info!("Stopping track: {reason}");
             if self.config.borrow().cache_policy().evict_completed() {
                 debug!("Checking for track to evict...");
-                if let Some(cached_path) = self.get_playing().and_then(|t| t.path()) {
+                if let Some(cached_path) = self.get_playing().and_then(|t| t.valid_path()) {
                     trace!("Eviction policy requires evicting track");
                     std::fs::remove_file(&cached_path).with_context(|| {
                         format!("Failed to evict {} from track cache", cached_path.display())

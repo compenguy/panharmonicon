@@ -1,7 +1,13 @@
+use std::fs::File;
+use std::io::BufReader;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use anyhow::{Context, Result};
+use log::trace;
 use pandora_api::json::station::PlaylistTrack;
+
+use crate::errors::Error;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Track {
@@ -75,17 +81,80 @@ impl From<&PlaylistTrack> for Track {
 
 impl Track {
     pub(crate) fn exists(&self) -> bool {
-        if let Some(cached) = self.path() {
-            log::trace!("Track cache location specified: {}", cached.display());
-            log::trace!("Track cache file exists: {}", cached.exists());
-            true
+        self.cached.as_ref().map(|p| p.exists()).unwrap_or(false)
+    }
+
+    pub(crate) fn valid_path(&self) -> Option<PathBuf> {
+        self.cached.clone().filter(|p| p.exists())
+    }
+
+    pub(crate) fn cache(&mut self, create_path: bool) -> Result<PathBuf> {
+        if let Some(track_cache_path) = &self.cached {
+            Ok(track_cache_path.clone())
         } else {
-            log::warn!("No track cache location specified!");
-            false
+            let artist = sanitize_filename(&self.artist_name);
+            let album = sanitize_filename(&self.album_name);
+            let song = sanitize_filename(&self.song_name);
+
+            let mut track_cache_path = app_cache_dir()?.join(&artist).join(album);
+
+            if create_path {
+                std::fs::create_dir_all(&track_cache_path).with_context(|| {
+                    format!(
+                        "Failed to create directory for caching track as {}",
+                        track_cache_path.to_string_lossy()
+                    )
+                })?;
+            }
+            let filename = format!("{artist} - {song}.{}", "m4a");
+            track_cache_path.push(filename);
+            self.cached = Some(track_cache_path.clone());
+            Ok(track_cache_path)
         }
     }
 
-    pub(crate) fn path(&self) -> Option<PathBuf> {
-        self.cached.clone().filter(|p| p.exists())
+    pub(crate) fn get_m4a_decoder(&self) -> Result<redlux::Decoder<BufReader<File>>> {
+        let path = self
+            .valid_path()
+            .ok_or_else(|| Error::TrackNotCached(self.track_token.clone()))?;
+
+        trace!(
+            "Creating decoder for track at {} for playback",
+            path.display()
+        );
+        let file = File::open(&path)
+            .with_context(|| format!("Failed opening media file at {}", path.display()))?;
+        let metadata = file.metadata().with_context(|| {
+            format!(
+                "Failed retrieving metadata for media file at {}",
+                path.display()
+            )
+        })?;
+        let reader = BufReader::new(file);
+        redlux::Decoder::new_mpeg4(reader, metadata.len())
+            .context("Failed initializing media decoder")
     }
+}
+
+// https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
+fn sanitize_filename(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '/' => '_',
+            '\\' => '_',
+            '?' => '_',
+            '*' => '_',
+            ':' => '_',
+            '|' => '_',
+            '<' => '_',
+            '>' => '_',
+            _ => c,
+        })
+        .collect()
+}
+
+fn app_cache_dir() -> Result<PathBuf> {
+    Ok(dirs::cache_dir()
+        .ok_or(Error::AppDirNotFound)?
+        .join(clap::crate_name!()))
 }

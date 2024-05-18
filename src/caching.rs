@@ -1,8 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use clap::crate_name;
 use log::{debug, error, trace, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
@@ -138,6 +137,14 @@ impl FetchRequest {
                     return Err(e);
                 }
                 debug!("retrieval finish time: {:?}", Instant::now());
+
+                trace!("Checking that downloaded track is valid/playable...");
+                if let Err(e) = track.get_m4a_decoder() {
+                    error!("Failed to decode requested file: {e:#}");
+                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
+                    return Err(e);
+                }
+
                 trace!("applying tags to track...");
                 if let Err(e) = tag_m4a(&track, &path.with_extension("tmp")) {
                     error!("Failed to tag requested file: {e:#}");
@@ -191,8 +198,7 @@ impl TrackCacher {
     }
 
     async fn fetch_track(&mut self, mut track: Track) -> Result<()> {
-        let track_path = cached_path_for_track(&track, true)?;
-        track.cached = Some(track_path.clone());
+        let track_path = track.cache(true)?;
         if track_path.exists() {
             debug!("Track already in cache {:?}", track_path.display());
             self.publish_request(Request::AddTrack(Box::new(track)))?;
@@ -307,29 +313,6 @@ impl TrackCacher {
     }
 }
 
-// https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
-fn sanitize_filename(text: &str) -> String {
-    text.chars()
-        .map(|c| match c {
-            '/' => '_',
-            '\\' => '_',
-            '?' => '_',
-            '*' => '_',
-            ':' => '_',
-            '|' => '_',
-            '<' => '_',
-            '>' => '_',
-            _ => c,
-        })
-        .collect()
-}
-
-fn app_cache_dir() -> Result<PathBuf> {
-    Ok(dirs::cache_dir()
-        .ok_or(Error::AppDirNotFound)?
-        .join(crate_name!()))
-}
-
 async fn save_request_to_file<P: AsRef<Path>>(
     req_builder: reqwest::RequestBuilder,
     path: P,
@@ -374,30 +357,6 @@ async fn save_request_to_file<P: AsRef<Path>>(
         */
     debug!("Track data streamed to file successfully.");
     Ok(())
-}
-
-fn cached_path_for_track(track: &Track, create_path: bool) -> Result<PathBuf> {
-    if let Some(precached) = track.path() {
-        return Ok(precached);
-    }
-
-    let artist = sanitize_filename(&track.artist_name);
-    let album = sanitize_filename(&track.album_name);
-    let song = sanitize_filename(&track.song_name);
-
-    let mut track_cache_path = app_cache_dir()?.join(&artist).join(album);
-
-    if create_path {
-        std::fs::create_dir_all(&track_cache_path).with_context(|| {
-            format!(
-                "Failed to create directory for caching track as {}",
-                track_cache_path.to_string_lossy()
-            )
-        })?;
-    }
-    let filename = format!("{artist} - {song}.{}", "m4a");
-    track_cache_path.push(filename);
-    Ok(track_cache_path)
 }
 
 fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {

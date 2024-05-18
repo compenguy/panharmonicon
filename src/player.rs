@@ -1,13 +1,11 @@
-use std::fs::File;
-use std::io::{BufReader, Read, Seek};
-use std::path::Path;
+use std::io::BufReader;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{debug, error, info, trace, warn};
+use rodio::cpal;
 use rodio::cpal::traits::{DeviceTrait, HostTrait};
-use rodio::{cpal, cpal::FromSample};
-use rodio::{Sample, Source};
+use rodio::Source;
 
 use crate::messages::{Request, State, StopReason};
 use crate::model::{RequestSender, StateReceiver};
@@ -78,6 +76,7 @@ impl AudioDevice {
         }
     }
 
+    /*
     fn play_m4a_from_path<P>(&mut self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
@@ -101,17 +100,8 @@ impl AudioDevice {
         let decoder = self.m4a_decoder_for_reader(file, metadata.len())?;
         self.play_from_source(decoder)
     }
+    */
 
-    fn m4a_decoder_for_reader<R: Read + Seek + Send + 'static>(
-        &mut self,
-        reader: R,
-        size: u64,
-    ) -> Result<redlux::Decoder<BufReader<R>>> {
-        let reader = BufReader::new(reader);
-        redlux::Decoder::new_mpeg4(reader, size).context("Failed initializing media decoder")
-    }
-
-    /*
     fn play_from_source(
         &mut self,
         source: redlux::Decoder<BufReader<std::fs::File>>,
@@ -123,8 +113,8 @@ impl AudioDevice {
         self.sink.play();
         Ok(())
     }
-    */
 
+    /*
     fn play_from_source<S>(&mut self, source: S) -> Result<()>
     where
         S: Source + Send + 'static,
@@ -138,6 +128,7 @@ impl AudioDevice {
         self.sink.play();
         Ok(())
     }
+    */
 
     fn reset(&mut self) {
         self.sink = rodio::Sink::try_new(&self.handle)
@@ -296,9 +287,12 @@ impl Player {
             info!("Starting new track {}", track.song_name);
         }
         debug!("Starting track: {:?}", track.song_name);
-        if let Some(cached_path) = track.path() {
+        if let Some(cached_path) = track.valid_path() {
             trace!("Starting decoding of track {}", cached_path.display());
-            if let Err(e) = self.audio_device.play_m4a_from_path(&cached_path) {
+            if let Err(e) = track
+                .get_m4a_decoder()
+                .and_then(|dec| self.audio_device.play_from_source(dec))
+            {
                 error!("Failed to start track at {}: {e:#}", cached_path.display());
                 warn!(
                     "Deleting failed track from cache: {}",
