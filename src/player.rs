@@ -279,42 +279,41 @@ impl Player {
                 warn!("The requested track is already playing");
                 return Ok(());
             } else {
-                info!("New track requested ({}) while track already playing ({}). Stopping current track...", track.song_name, active_track.song_name);
+                info!("New track requested ({}) while track already playing ({}). Stopping current track...", track.title, active_track.title);
                 info!("Stopping current track...");
                 self.stop();
             }
         } else {
-            info!("Starting new track {}", track.song_name);
+            info!("Starting new track {}", track.title);
         }
-        debug!("Starting track: {:?}", track.song_name);
-        if let Some(cached_path) = track.valid_path() {
-            trace!("Starting decoding of track {}", cached_path.display());
-            if let Err(e) = track
-                .get_m4a_decoder()
-                .and_then(|dec| self.audio_device.play_from_source(dec))
-            {
-                error!("Failed to start track at {}: {e:#}", cached_path.display());
-                warn!(
-                    "Deleting failed track from cache: {}",
-                    cached_path.display()
-                );
-                let _ = std::fs::remove_file(&cached_path);
-                warn!("Informing app that currently playing track stopped unexpectedly");
-                self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
-                self.stop();
-                return Err(e);
-            } else {
-                self.active_track = Some(track.clone());
-                self.duration = track.track_length;
-                self.last_started = Some(Instant::now());
-                self.dirty |= true;
-                self.publish_request(Request::UpdateTrackProgress(Duration::default()))?;
-            }
-        } else {
-            error!("Uncached track! Stopping...");
+
+        debug!("Starting track: {:?}", track.title);
+        trace!("Starting decoding of track {}", track.cache_path.display());
+        if let Err(e) = track
+            .get_m4a_decoder()
+            .and_then(|dec| self.audio_device.play_from_source(dec))
+        {
+            error!(
+                "Failed to start track at {}: {e:#}",
+                track.cache_path.display()
+            );
+            warn!(
+                "Deleting failed track from cache: {}",
+                track.cache_path.display()
+            );
+            track.remove_from_cache();
+            warn!("Informing app that currently playing track stopped unexpectedly");
+            self.publish_request(Request::Stop(StopReason::TrackInterrupted))?;
             self.stop();
+            Err(e)
+        } else {
+            self.active_track = Some(track.clone());
+            self.duration = track.track_length;
+            self.last_started = Some(Instant::now());
+            self.dirty |= true;
+            self.publish_request(Request::UpdateTrackProgress(Duration::default()))?;
+            Ok(())
         }
-        Ok(())
     }
 
     fn stop(&mut self) {

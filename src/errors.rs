@@ -12,7 +12,7 @@ pub(crate) enum Error {
     KeyringFailure(#[from] keyring::error::Error),
     #[error("Error invalid operation {0} for state {1}")]
     InvalidOperationForState(String, String),
-    #[error("Requested track not in cache")]
+    #[error("Requested track not in cache ({0})")]
     TrackNotCached(String),
     #[error("Requested station {0} not in the station list")]
     InvalidStation(String),

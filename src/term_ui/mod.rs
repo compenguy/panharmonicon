@@ -178,15 +178,15 @@ impl Terminal {
         trace!("Updating track info box...");
         self.active_track = Some(track.clone());
         let Track {
-            song_name,
+            title,
             artist_name,
             album_name,
             song_rating,
             ..
         } = track;
         self.siv.call_on_name("title", |v: &mut TextView| {
-            debug!("Playing title {} ({})", song_name, song_rating);
-            let mut title = song_name.clone();
+            debug!("Playing title {} ({})", title, song_rating);
+            let mut title = title.clone();
             if song_rating > 0 {
                 title.push(' ');
                 title.push_str(labels::LABEL_THUMBS_UP);
@@ -208,13 +208,11 @@ impl Terminal {
     fn next_track(&mut self, track: Option<Track>) {
         trace!("Updating next track...");
         let styled_text = if let Some(Track {
-            song_name,
-            artist_name,
-            ..
+            title, artist_name, ..
         }) = &track
         {
             let mut styled = StyledString::new();
-            styled.append_plain(song_name);
+            styled.append_plain(title);
             styled.append_styled(" by ", ColorStyle::secondary());
             styled.append_plain(artist_name);
             styled

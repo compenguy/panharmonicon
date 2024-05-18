@@ -1,8 +1,9 @@
 use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 //use cpal::traits::{DeviceTrait, HostTrait};
 use either::Either;
 use log::{debug, error, info, trace, warn};
@@ -274,9 +275,9 @@ impl Model {
             )));
         }
 
-        track
-            .valid_path()
-            .ok_or_else(|| Error::TrackNotCached(track.song_name.clone()))?;
+        if !track.cached() {
+            return Err(Error::TrackNotCached(track.title.clone()).into());
+        }
 
         self.pandora_readylist.push_back(track.clone());
         self.unfetch_track(track);
@@ -337,7 +338,7 @@ impl Model {
         let new_rating_value: u32 = if rating.unwrap_or(false) { 1 } else { 0 };
         if let Some(rating) = rating {
             session.add_feedback(&track, rating).await?;
-            trace!("Rated track {} with value {}", track.song_name, rating);
+            trace!("Rated track {} with value {}", track.title, rating);
         } else {
             session.delete_feedback_for_track(&track).await?;
             trace!("Successfully removed track rating.");
@@ -405,12 +406,13 @@ impl Model {
             ))
         })?;
         debug!("getting new tracks to refill playlist");
-        let playlist = session
+        let playlist: Result<Vec<Track>> = session
             .get_playlist(&station_id)
             .await?
             .into_iter()
-            .filter_map(|pe| pe.get_track().map(|pt| pt.into()))
+            .filter_map(|pe| pe.get_track().map(Track::try_from))
             .collect();
+        let playlist = playlist?;
         debug!("refilling playlist with new tracks");
         self.extend_playlist(playlist).await?;
         self.dirty |= true;
@@ -554,7 +556,7 @@ impl Model {
         self.dirty |= !new_playlist.is_empty();
         debug!("Extending playlist with {new_playlist:?}");
         for track in new_playlist {
-            debug!("Adding track to fetchlist: {}", &track.song_name);
+            debug!("Adding track to fetchlist: {}", &track.title);
             self.pandora_fetchlist.push(track.clone());
             self.publish_state(State::TrackCaching(track)).await?;
         }
@@ -599,12 +601,9 @@ impl Model {
             info!("Stopping track: {reason}");
             if self.config.borrow().cache_policy().evict_completed() {
                 debug!("Checking for track to evict...");
-                if let Some(cached_path) = self.get_playing().and_then(|t| t.valid_path()) {
+                if let Some(track) = self.get_playing() {
                     trace!("Eviction policy requires evicting track");
-                    std::fs::remove_file(&cached_path).with_context(|| {
-                        format!("Failed to evict {} from track cache", cached_path.display())
-                    })?;
-                    trace!("Evicted {} from track cache.", cached_path.display());
+                    track.remove_from_cache();
                 }
             } else {
                 trace!("Not evicting completed track, per configured cache eviction policy");

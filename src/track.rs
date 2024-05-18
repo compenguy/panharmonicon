@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 
 use anyhow::{Context, Result};
-use log::trace;
+use log::{debug, error, trace};
 use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
@@ -26,114 +27,244 @@ pub(crate) struct Track {
     /// The name of the album for this track.
     pub album_name: String,
     /// The name of the song for this track.
-    pub song_name: String,
+    pub title: String,
     /// The rating of the song for this track.
     pub song_rating: u32,
     /// The track length, if provided
     pub track_length: Duration,
-    /// If the song is cached locally, the path for it
-    pub cached: Option<std::path::PathBuf>,
+    /// The path where the song would be cached, if already fetched
+    pub cache_path: std::path::PathBuf,
 }
 
-impl From<PlaylistTrack> for Track {
-    fn from(playlist_track: PlaylistTrack) -> Self {
-        Track {
-            track_token: playlist_track.track_token,
-            music_id: playlist_track.music_id,
-            station_id: playlist_track.station_id,
-            audio_stream: playlist_track.audio_url_map.high_quality.audio_url,
-            artist_name: playlist_track.artist_name,
-            album_name: playlist_track.album_name,
-            song_name: playlist_track.song_name,
-            song_rating: playlist_track.song_rating,
-            track_length: playlist_track
+impl std::convert::TryFrom<PlaylistTrack> for Track {
+    type Error = anyhow::Error;
+
+    fn try_from(pl_track: PlaylistTrack) -> std::result::Result<Self, Self::Error> {
+        let cache_path = cache_file_path(
+            &pl_track.song_name,
+            &pl_track.artist_name,
+            &pl_track.album_name,
+        )?;
+        let track = Track {
+            track_token: pl_track.track_token,
+            music_id: pl_track.music_id,
+            station_id: pl_track.station_id,
+            audio_stream: pl_track.audio_url_map.high_quality.audio_url,
+            artist_name: pl_track.artist_name,
+            album_name: pl_track.album_name,
+            title: pl_track.song_name,
+            song_rating: pl_track.song_rating,
+            track_length: pl_track
                 .optional
                 .get("trackLength")
                 .and_then(|v| v.as_u64())
                 .map(Duration::from_secs)
                 .unwrap_or_default(),
-            cached: None,
-        }
+            cache_path,
+        };
+        Ok(track)
     }
 }
 
-impl From<&PlaylistTrack> for Track {
-    fn from(playlist_track: &PlaylistTrack) -> Self {
-        Track {
-            track_token: playlist_track.track_token.clone(),
-            music_id: playlist_track.music_id.clone(),
-            station_id: playlist_track.station_id.clone(),
-            audio_stream: playlist_track.audio_url_map.high_quality.audio_url.clone(),
-            artist_name: playlist_track.artist_name.clone(),
-            album_name: playlist_track.album_name.clone(),
-            song_name: playlist_track.song_name.clone(),
-            song_rating: playlist_track.song_rating,
-            track_length: playlist_track
+impl std::convert::TryFrom<&PlaylistTrack> for Track {
+    type Error = anyhow::Error;
+
+    fn try_from(pl_track: &PlaylistTrack) -> std::result::Result<Self, Self::Error> {
+        let track = Track {
+            track_token: pl_track.track_token.clone(),
+            music_id: pl_track.music_id.clone(),
+            station_id: pl_track.station_id.clone(),
+            audio_stream: pl_track.audio_url_map.high_quality.audio_url.clone(),
+            artist_name: pl_track.artist_name.clone(),
+            album_name: pl_track.album_name.clone(),
+            title: pl_track.song_name.clone(),
+            song_rating: pl_track.song_rating,
+            track_length: pl_track
                 .optional
                 .get("trackLength")
                 .and_then(|v| v.as_u64())
                 .map(Duration::from_secs)
                 .unwrap_or_default(),
-            cached: None,
-        }
+            cache_path: cache_file_path(
+                &pl_track.song_name,
+                &pl_track.artist_name,
+                &pl_track.album_name,
+            )?,
+        };
+
+        Ok(track)
     }
 }
 
 impl Track {
-    pub(crate) fn exists(&self) -> bool {
-        self.cached.as_ref().map(|p| p.exists()).unwrap_or(false)
-    }
-
-    pub(crate) fn valid_path(&self) -> Option<PathBuf> {
-        self.cached.clone().filter(|p| p.exists())
-    }
-
-    pub(crate) fn cache(&mut self, create_path: bool) -> Result<PathBuf> {
-        if let Some(track_cache_path) = &self.cached {
-            Ok(track_cache_path.clone())
-        } else {
-            let artist = sanitize_filename(&self.artist_name);
-            let album = sanitize_filename(&self.album_name);
-            let song = sanitize_filename(&self.song_name);
-
-            let mut track_cache_path = app_cache_dir()?.join(&artist).join(album);
-
-            if create_path {
-                std::fs::create_dir_all(&track_cache_path).with_context(|| {
-                    format!(
-                        "Failed to create directory for caching track as {}",
-                        track_cache_path.to_string_lossy()
-                    )
-                })?;
-            }
-            let filename = format!("{artist} - {song}.{}", "m4a");
-            track_cache_path.push(filename);
-            self.cached = Some(track_cache_path.clone());
-            Ok(track_cache_path)
-        }
+    pub(crate) fn cached(&self) -> bool {
+        // Ensure that the track in the cache is playable, it will be deleted if it isn't
+        self.cache_path.exists() && self.get_m4a_decoder().is_ok()
     }
 
     pub(crate) fn get_m4a_decoder(&self) -> Result<redlux::Decoder<BufReader<File>>> {
-        let path = self
-            .valid_path()
-            .ok_or_else(|| Error::TrackNotCached(self.track_token.clone()))?;
+        if !self.cache_path.exists() {
+            return Err(Error::TrackNotCached(self.title.clone()).into());
+        }
 
-        trace!(
-            "Creating decoder for track at {} for playback",
+        match get_m4a_decoder(&self.cache_path) {
+            Err(e) => {
+                error!("Failed read media file: {e:#}");
+                self.remove_from_cache();
+                Err(e)
+            }
+            Ok(decoder) => Ok(decoder),
+        }
+    }
+
+    pub(crate) async fn download_to_cache(&self, client: &reqwest::Client) -> Result<()> {
+        if !self.cache_path.exists() {
+            return Err(Error::TrackNotCached(self.title.clone()).into());
+        }
+
+        let req_builder = client.get(&self.audio_stream);
+
+        if let Err(e) = download_to_cache(req_builder, &self.cache_path).await {
+            error!("Failed to download requested file: {e:#}");
+            self.remove_from_cache();
+            Err(e)
+        } else {
+            self.tag_cached_file()?;
+            // Let's make sure the track is playable before we report success adding it to the
+            // cache
+            self.get_m4a_decoder()?;
+            Ok(())
+        }
+    }
+
+    fn tag_cached_file(&self) -> Result<()> {
+        if !self.cache_path.exists() {
+            return Err(Error::TrackNotCached(self.title.clone()).into());
+        }
+
+        if let Err(e) = tag_cached_file(
+            &self.cache_path,
+            &self.title,
+            &self.artist_name,
+            &self.album_name,
+        ) {
+            error!("Failed to download requested file: {e:#}");
+            self.remove_from_cache();
+            Err(e)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub(crate) fn remove_from_cache(&self) {
+        let _ = std::fs::remove_file(&self.cache_path);
+    }
+}
+
+fn get_m4a_decoder<P: AsRef<Path>>(path: P) -> Result<redlux::Decoder<BufReader<File>>> {
+    let path = path.as_ref();
+    trace!(
+        "Creating decoder for track at {} for playback",
+        path.display()
+    );
+    let file = File::open(path)
+        .with_context(|| format!("Failed opening media file at {}", path.display()))?;
+    let metadata = file.metadata().with_context(|| {
+        format!(
+            "Failed retrieving metadata for media file at {}",
             path.display()
-        );
-        let file = File::open(&path)
-            .with_context(|| format!("Failed opening media file at {}", path.display()))?;
-        let metadata = file.metadata().with_context(|| {
+        )
+    })?;
+    let reader = BufReader::new(file);
+    redlux::Decoder::new_mpeg4(reader, metadata.len()).context("Failed initializing media decoder")
+}
+
+async fn download_to_cache<P: AsRef<std::path::Path>>(
+    req_builder: reqwest::RequestBuilder,
+    path: P,
+) -> Result<()> {
+    let path = path.as_ref();
+    let mut resp = req_builder
+        .send()
+        .await
+        .map_err(Error::from)
+        .with_context(|| format!("Error completing fetch request to file {}", path.display()))?;
+    let mut file = tokio::fs::File::create(&path)
+        .await
+        .with_context(|| format!("Failed creating file on disk as {}", path.display()))?;
+
+    while let Some(chunk) = resp.chunk().await? {
+        file.write(&chunk)
+            .await
+            .with_context(|| format!("Error writing fetched track to file {}", path.display()))?;
+    }
+
+    /*
+    tokio::io::copy(&mut resp.bytes_stream(), &mut file)
+        .await
+        .with_context(|| {
             format!(
-                "Failed retrieving metadata for media file at {}",
+                "Error writing fetched track to file {}",
+                path.as_ref().display()
+            )
+        })?;
+        */
+    debug!("Track data streamed to file successfully.");
+    Ok(())
+}
+
+fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &str) -> Result<()> {
+    let path = path.as_ref();
+    debug!("Reading tags from m4a");
+    let mut tag = match mp4ameta::Tag::read_from_path(path) {
+        Ok(tag) => tag,
+        Err(mp4ameta::Error {
+            kind: mp4ameta::ErrorKind::NoTag,
+            ..
+        }) => mp4ameta::Tag::default(),
+        err => err.with_context(|| format!("Failed reading m4a file at {}", path.display()))?,
+    };
+
+    debug!("Updating tags with pandora metadata");
+    let mut dirty = false;
+
+    if tag.artist().is_none() {
+        tag.set_artist(artist);
+        dirty = true;
+    }
+
+    if tag.album().is_none() {
+        tag.set_album(album);
+        dirty = true;
+    }
+
+    if tag.title().is_none() {
+        tag.set_title(title);
+        dirty = true;
+    }
+
+    if dirty {
+        debug!("Writing tags back to file");
+        tag.write_to_path(path).with_context(|| {
+            format!(
+                "Failed while writing updated MP3 tags back to {}",
                 path.display()
             )
         })?;
-        let reader = BufReader::new(file);
-        redlux::Decoder::new_mpeg4(reader, metadata.len())
-            .context("Failed initializing media decoder")
     }
+    Ok(())
+}
+
+fn cache_file_path(title: &str, artist: &str, album: &str) -> Result<PathBuf> {
+    let artist = sanitize_filename(artist);
+    let title = sanitize_filename(title);
+    let album = sanitize_filename(album);
+
+    let mut path = app_cache_dir()?.join(&artist).join(album);
+
+    let filename = format!("{artist} - {title}.{}", "m4a");
+    path.push(filename);
+    Ok(path)
 }
 
 // https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words

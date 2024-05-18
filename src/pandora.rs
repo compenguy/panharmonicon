@@ -228,10 +228,10 @@ impl PandoraSession {
                 .find(|fb| fb.music_token == music_token)
                 .map(|fb| fb.feedback_id.clone())
             {
-                trace!("Deleting feedback for song {}", track.song_name);
+                trace!("Deleting feedback for song {}", track.title);
                 self.delete_feedback(&feedback_id).await?;
             } else {
-                trace!("No feedback for song {} to delete.", track.song_name);
+                trace!("No feedback for song {} to delete.", track.title);
             }
         } else {
             trace!("Request to remove feedback for track that is unrated");

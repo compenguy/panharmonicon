@@ -1,12 +1,7 @@
-use std::path::Path;
-use std::time::Instant;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{debug, error, trace, warn};
-use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 
-use crate::errors::Error;
 use crate::messages::{Request, State};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
@@ -21,7 +16,7 @@ pub(crate) struct FetchRequest {
 
 impl From<Track> for FetchRequest {
     fn from(track: Track) -> Self {
-        let completed = track.exists();
+        let completed = track.cached();
         FetchRequest {
             track,
             completed,
@@ -70,7 +65,7 @@ impl FetchRequest {
                         error!("Error during in-flight request for track {e:#}");
                     }
                     Ok(Ok(_)) => {
-                        self.completed = self.track.exists();
+                        self.completed = self.track.cached();
                         self.failed = !self.completed;
                         debug!("In-flight request for track completed: {}", &self.completed);
                     }
@@ -89,17 +84,13 @@ impl FetchRequest {
 
         if let Some(th) = &self.task_handle {
             debug!(
-                "Aborting in-flight request for track being saved to {:?}",
-                &self.track.cached
+                "Aborting in-flight request for track being saved to {}",
+                &self.track.cache_path.display()
             );
             th.abort();
             self.failed = true;
             self.completed = false;
-            if let Some(path) = &self.track.cached {
-                if let Err(e) = tokio::fs::remove_file(path).await {
-                    warn!("Failed to delete cancelled cache request: {e:#}");
-                }
-            }
+            self.track.remove_from_cache();
         }
         self.task_handle = None;
     }
@@ -117,55 +108,17 @@ impl FetchRequest {
             warn!("Programming error: restarting an already started fetch task");
             return;
         }
-        if self.completed {
+        if self.track.cached() {
             debug!("Cache hit!");
-            return;
-        }
-        debug!("Cache miss!");
-        if let Some(path) = self.track.cached.clone() {
+        } else {
+            debug!("Cache miss!");
             let track = self.track.clone();
-            let path = path.clone();
-            let req_builder = client.get(&track.audio_stream);
             let th = tokio::spawn(async move {
-                debug!("Retrieving track {}...", path.display());
-                debug!("retrieval start time: {:?}", Instant::now());
-
-                if let Err(e) = save_request_to_file(req_builder, path.with_extension("tmp")).await
-                {
-                    error!("Failed to fetch requested file: {e:#}");
-                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
-                    return Err(e);
-                }
-                debug!("retrieval finish time: {:?}", Instant::now());
-
-                trace!("Checking that downloaded track is valid/playable...");
-                if let Err(e) = track.get_m4a_decoder() {
-                    error!("Failed to decode requested file: {e:#}");
-                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
-                    return Err(e);
-                }
-
-                trace!("applying tags to track...");
-                if let Err(e) = tag_m4a(&track, &path.with_extension("tmp")) {
-                    error!("Failed to tag requested file: {e:#}");
-                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
-                    return Err(e);
-                }
-                if let Err(e) = std::fs::rename(path.with_extension("tmp"), &path) {
-                    error!("Failed to finalize requested file: {e:#}");
-                    let _ = tokio::fs::remove_file(path.with_extension("tmp")).await;
-                    return Err(e.into());
-                }
-                if path.exists() {
-                    Ok(track)
-                } else {
-                    error!("Track fetch, tag, and rename completed successfully, but final track file does not exist.");
-                    Err(anyhow::anyhow!("Downloaded track does not exist"))
-                }
+                debug!("Retrieving track {}...", &track.title);
+                track.download_to_cache(&client).await?;
+                Ok(track)
             });
             self.task_handle = Some(th);
-        } else {
-            warn!("Not fetching requested track: no cache location supplied for track");
         }
     }
 }
@@ -197,13 +150,12 @@ impl TrackCacher {
         Ok(())
     }
 
-    async fn fetch_track(&mut self, mut track: Track) -> Result<()> {
-        let track_path = track.cache(true)?;
-        if track_path.exists() {
-            debug!("Track already in cache {:?}", track_path.display());
+    async fn fetch_track(&mut self, track: Track) -> Result<()> {
+        if track.cached() {
+            debug!("Track {} in cache, not fetching.", &track.title);
             self.publish_request(Request::AddTrack(Box::new(track)))?;
         } else {
-            debug!("Track not in cache, fetching {}", track_path.display());
+            debug!("Track {} not in cache, fetching...", &track.title);
             let mut fetch_request = FetchRequest::from(track);
             fetch_request.start(self.client.clone()).await;
             self.requests.push(fetch_request);
@@ -247,7 +199,7 @@ impl TrackCacher {
             let track = request.track.clone();
             if request.finished() {
                 self.dirty |= true;
-                if !request.failed() && track.exists() {
+                if !request.failed() && track.cached() {
                     self.publish_request(Request::AddTrack(Box::new(track)))?;
                 } else {
                     self.publish_request(Request::FetchFailed(Box::new(track)))?;
@@ -311,94 +263,4 @@ impl TrackCacher {
         self.dirty = false;
         Ok(dirty)
     }
-}
-
-async fn save_request_to_file<P: AsRef<Path>>(
-    req_builder: reqwest::RequestBuilder,
-    path: P,
-) -> Result<()> {
-    let mut resp = req_builder
-        .send()
-        .await
-        .map_err(Error::from)
-        .with_context(|| {
-            format!(
-                "Error completing fetch request to file {}",
-                path.as_ref().display()
-            )
-        })?;
-    let mut file = tokio::fs::File::create(path.as_ref())
-        .await
-        .with_context(|| {
-            format!(
-                "Failed creating file on disk as {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-
-    while let Some(chunk) = resp.chunk().await? {
-        file.write(&chunk).await.with_context(|| {
-            format!(
-                "Error writing fetched track to file {}",
-                path.as_ref().display()
-            )
-        })?;
-    }
-
-    /*
-    tokio::io::copy(&mut resp.bytes_stream(), &mut file)
-        .await
-        .with_context(|| {
-            format!(
-                "Error writing fetched track to file {}",
-                path.as_ref().display()
-            )
-        })?;
-        */
-    debug!("Track data streamed to file successfully.");
-    Ok(())
-}
-
-fn tag_m4a<P: AsRef<Path>>(track: &Track, path: P) -> Result<()> {
-    debug!("Reading tags from m4a");
-    let mut tag = match mp4ameta::Tag::read_from_path(path.as_ref()) {
-        Ok(tag) => tag,
-        Err(mp4ameta::Error {
-            kind: mp4ameta::ErrorKind::NoTag,
-            ..
-        }) => mp4ameta::Tag::default(),
-        err => err.with_context(|| {
-            format!(
-                "Failed reading m4a file at {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?,
-    };
-
-    debug!("Updating tags with pandora metadata");
-    let mut dirty = false;
-
-    if tag.artist().is_none() {
-        tag.set_artist(&track.artist_name);
-        dirty = true;
-    }
-    if tag.album().is_none() {
-        tag.set_album(&track.album_name);
-        dirty = true;
-    }
-    if tag.title().is_none() {
-        tag.set_title(&track.song_name);
-        dirty = true;
-    }
-
-    debug!("Writing tags back to file");
-    if dirty {
-        tag.write_to_path(path.as_ref()).with_context(|| {
-            format!(
-                "Failed while writing updated MP3 tags back to {}",
-                path.as_ref().to_string_lossy()
-            )
-        })?;
-    }
-    Ok(())
 }
