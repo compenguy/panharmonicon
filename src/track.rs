@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
 use anyhow::{Context, Result};
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 use pandora_api::json::station::PlaylistTrack;
 
 use crate::errors::Error;
@@ -118,8 +118,9 @@ impl Track {
     }
 
     pub(crate) async fn download_to_cache(&self, client: &reqwest::Client) -> Result<()> {
-        if !self.cache_path.exists() {
-            return Err(Error::TrackNotCached(self.title.clone()).into());
+        if self.cached() {
+            info!("Ignoring request to download track - valid local copy exists in cache");
+            return Ok(());
         }
 
         let req_builder = client.get(&self.audio_stream);
