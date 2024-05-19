@@ -68,7 +68,7 @@ impl std::fmt::Display for StopReason {
             StopReason::Untuning => write!(f, "Closing Station"),
             StopReason::TrackInterrupted => write!(f, "Track Interrupted"),
             StopReason::TrackCompleted => write!(f, "Track Completed"),
-            StopReason::UserRequest => write!(f, "Stop"),
+            StopReason::UserRequest => write!(f, "User Request"),
         }
     }
 }
