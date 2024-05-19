@@ -646,7 +646,7 @@ impl Model {
                 self.player_length = Some(track.track_length);
                 self.dirty |= true;
 
-                self.publish_state(State::TrackStarting(track)).await?;
+                self.notify_playing().await?;
                 self.notify_next().await?;
             } else {
                 warn!("requested to start track, but no tracks are ready");
