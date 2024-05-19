@@ -282,6 +282,7 @@ impl Player {
                 info!("New track requested ({}) while track already playing ({}). Stopping current track...", track.title, active_track.title);
                 info!("Stopping current track...");
                 self.stop();
+                self.publish_request(Request::Stop(StopReason::UserRequest))?;
             }
         } else {
             info!("Starting new track {}", track.title);
@@ -322,6 +323,7 @@ impl Player {
         self.last_started = None;
         self.elapsed = Duration::default();
         self.duration = Duration::default();
+        self.active_track = None;
         self.dirty |= true;
     }
 
