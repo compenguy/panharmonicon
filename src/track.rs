@@ -44,7 +44,8 @@ impl std::convert::TryFrom<PlaylistTrack> for Track {
             &pl_track.song_name,
             &pl_track.artist_name,
             &pl_track.album_name,
-        )?;
+        )
+        .context("Failed to calculate a path to store a playlist track at")?;
         let track = Track {
             track_token: pl_track.track_token,
             music_id: pl_track.music_id,
@@ -70,30 +71,7 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
     type Error = anyhow::Error;
 
     fn try_from(pl_track: &PlaylistTrack) -> std::result::Result<Self, Self::Error> {
-        let cache_path = cache_file_path(
-            &pl_track.song_name,
-            &pl_track.artist_name,
-            &pl_track.album_name,
-        )?;
-        let track = Track {
-            track_token: pl_track.track_token.clone(),
-            music_id: pl_track.music_id.clone(),
-            station_id: pl_track.station_id.clone(),
-            audio_stream: pl_track.audio_url_map.high_quality.audio_url.clone(),
-            artist_name: pl_track.artist_name.clone(),
-            album_name: pl_track.album_name.clone(),
-            title: pl_track.song_name.clone(),
-            song_rating: pl_track.song_rating,
-            track_length: pl_track
-                .optional
-                .get("trackLength")
-                .and_then(|v| v.as_u64())
-                .map(Duration::from_secs)
-                .unwrap_or_default(),
-            cache_path,
-        };
-
-        Ok(track)
+        Self::try_from(pl_track.clone())
     }
 }
 
@@ -110,7 +88,10 @@ impl Track {
 
         match get_m4a_decoder(&self.cache_path) {
             Err(e) => {
-                error!("Failed read media file: {e:#}");
+                error!(
+                    "Failed reading media file at {}: {e:#}",
+                    self.cache_path.display()
+                );
                 self.remove_from_cache();
                 Err(e)
             }
@@ -127,14 +108,22 @@ impl Track {
         let req_builder = client.get(&self.audio_stream);
 
         if let Err(e) = download_to_cache(req_builder, &self.cache_path).await {
-            error!("Failed to download requested file: {e:#}");
+            // TODO: fill in the actual error type for Connection reset by peer
+            /*
+            if let Some(e) = e.source().and_then(|e| e.downcast_ref::<reqwest::Error>()) {
+                error!("reqwest error {e:?}");
+            }
+            */
+            error!("Failed to download requested file: {}", e.source().unwrap());
             self.remove_from_cache();
             Err(e)
         } else {
-            self.tag_cached_file()?;
+            self.tag_cached_file()
+                .context("Failed to apply metadata tags to playlist track")?;
             // Let's make sure the track is playable before we report success adding it to the
             // cache
-            self.get_m4a_decoder()?;
+            self.get_m4a_decoder()
+                .context("Failed while validating format of playlist track after downloading")?;
             Ok(())
         }
     }
@@ -187,7 +176,8 @@ async fn download_to_cache<P: AsRef<std::path::Path>>(
 ) -> Result<()> {
     let path = path.as_ref();
     if let Some(parent_dir) = path.parent() {
-        std::fs::create_dir_all(parent_dir)?;
+        std::fs::create_dir_all(parent_dir)
+            .context("Failed to create directory for caching playlist track")?;
     }
 
     let mut resp = req_builder
@@ -266,7 +256,10 @@ fn cache_file_path(title: &str, artist: &str, album: &str) -> Result<PathBuf> {
     let title = sanitize_filename(title);
     let album = sanitize_filename(album);
 
-    let mut path = app_cache_dir()?.join(&artist).join(album);
+    let mut path = app_cache_dir()
+        .context("Failed to determine the correct application cache directory for this platform")?
+        .join(&artist)
+        .join(album);
 
     let filename = format!("{artist} - {title}.{}", "m4a");
     path.push(filename);

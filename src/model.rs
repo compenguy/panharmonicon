@@ -389,8 +389,12 @@ impl Model {
     }
 
     pub(crate) async fn refill_playlist(&mut self) -> Result<()> {
-        if self.playlist_len() + self.pending_len() > (PLAYLIST_MAX_LEN - FETCHLIST_MAX_LEN) {
-            trace!("Enough tracks in playlist or in-flight already - not adding more tracks to playlist");
+        if self.pending_len() > FETCHLIST_MAX_LEN {
+            info!("Enough tracks in-flight already - not requesting more tracks for playlist");
+            return Ok(());
+        }
+        if self.playlist_len() > PLAYLIST_MAX_LEN {
+            info!("Enough tracks in playlist already - not requesting more tracks for playlist");
             return Ok(());
         }
         let station_id = self.tuned().ok_or_else(|| {
@@ -469,7 +473,7 @@ impl Model {
 
     pub(crate) async fn process_messages(&mut self) -> Result<()> {
         while let Ok(req) = self.request_receiver.try_recv() {
-            trace!("received request {req:?}");
+            debug!("received request {req:?}");
             self.handle_request(&req).await?;
         }
         // We have a copy of the broadcast state_receiver, and if we don't drain messages from our copy
@@ -478,11 +482,11 @@ impl Model {
 
         /*
         // Check the health of the outgoing message channel, as well
-        trace!(
+        info!(
             "Pending messages in notification channel: {}",
             self.state_sender.len()
         );
-        trace!(
+        info!(
             "Number of state_receivers for notification channel: {}",
             self.state_receiver.receiver_count()
         );

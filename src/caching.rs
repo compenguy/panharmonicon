@@ -1,4 +1,6 @@
-use anyhow::Result;
+use std::time::Instant;
+
+use anyhow::{Context, Result};
 use log::{debug, error, trace, warn};
 use tokio::task::JoinHandle;
 
@@ -6,12 +8,15 @@ use crate::messages::{Request, State};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
+const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
 #[derive(Debug)]
 pub(crate) struct FetchRequest {
     track: Track,
     completed: bool,
     failed: bool,
-    task_handle: Option<JoinHandle<Result<Track>>>,
+    task_handle: Option<(JoinHandle<Result<Track>>, Instant)>,
+    retry_count: u8,
 }
 
 impl From<Track> for FetchRequest {
@@ -22,6 +27,7 @@ impl From<Track> for FetchRequest {
             completed,
             failed: false,
             task_handle: None,
+            retry_count: 0,
         }
     }
 }
@@ -29,13 +35,13 @@ impl From<Track> for FetchRequest {
 impl FetchRequest {
     async fn update_state(&mut self) {
         // If transfer thread completed and we haven't checked the result yet:
-        if self
-            .task_handle
-            .as_ref()
-            .map(|th| th.is_finished())
-            .unwrap_or(false)
-        {
-            if let Some(ref mut th) = &mut self.task_handle {
+        if let Some((ref mut th, start_time)) = &mut self.task_handle {
+            trace!(
+                "task started {}s ago (up to a maximum of {}s)",
+                start_time.elapsed().as_secs(),
+                TASK_TIMEOUT.as_secs()
+            );
+            if th.is_finished() {
                 match th.await {
                     Err(e) if e.is_cancelled() => {
                         debug!("Track fetch task was cancelled");
@@ -67,22 +73,41 @@ impl FetchRequest {
                     Ok(Ok(_)) => {
                         self.completed = self.track.cached();
                         self.failed = !self.completed;
-                        debug!("In-flight request for track completed: {}", &self.completed);
+                        trace!("In-flight request for track completed: {}", &self.completed);
                     }
                 }
-            } else if !self.failed && !self.completed {
-                warn!("Unexpected condition: no track request in-flight, and it was neither failed nor completed");
-                // TODO: this seems like a retry-able condition
+                self.task_handle = None;
+            } else if start_time.elapsed() > TASK_TIMEOUT {
+                warn!(
+                    "Track fetch task {} exceeded time limit!  Cancelling...",
+                    self.track.cache_path.display()
+                );
+                th.abort();
                 self.failed = true;
+                self.completed = false;
+                self.track.remove_from_cache();
+                self.task_handle = None;
+                return;
+            } else {
+                trace!("Fetch task in progress");
             }
-            self.task_handle = None;
+        } else if !self.failed && !self.completed {
+            warn!("Unexpected condition: no track request in-flight, and it was neither failed nor completed");
+            // TODO: this seems like a retry-able condition
+            self.failed = true;
+        } else {
+            trace!(
+                "fetch task {} (completed: {} failed: {}) waiting to be reaped.",
+                self.track.cache_path.display(),
+                self.completed,
+                self.failed
+            );
         }
     }
 
     async fn cancel(&mut self) {
         self.update_state().await;
-
-        if let Some(th) = &self.task_handle {
+        if let Some((th, _)) = &self.task_handle {
             debug!(
                 "Aborting in-flight request for track being saved to {}",
                 &self.track.cache_path.display()
@@ -103,22 +128,36 @@ impl FetchRequest {
         self.task_handle.is_none() && self.failed
     }
 
+    fn retriable(&self) -> bool {
+        self.retry_count < 3
+    }
+
     async fn start(&mut self, client: reqwest::Client) {
         if self.task_handle.is_some() {
             warn!("Programming error: restarting an already started fetch task");
             return;
         }
         if self.track.cached() {
-            debug!("Cache hit!");
+            trace!("Cache hit!");
+            self.completed = true;
         } else {
-            debug!("Cache miss!");
+            trace!("Cache miss!");
             let track = self.track.clone();
             let th = tokio::spawn(async move {
-                debug!("Retrieving track {}...", &track.title);
+                //trace!("Retrieving track {}...", &track.title);
                 track.download_to_cache(&client).await?;
                 Ok(track)
             });
-            self.task_handle = Some(th);
+            self.task_handle = Some((th, Instant::now()));
+        }
+    }
+
+    async fn restart(&mut self, client: reqwest::Client) {
+        if self.retriable() {
+            self.cancel().await;
+            self.failed = false;
+            self.retry_count += 1;
+            self.start(client).await;
         }
     }
 }
@@ -146,16 +185,21 @@ impl TrackCacher {
     }
 
     fn publish_request(&mut self, request: Request) -> Result<()> {
-        self.request_sender.send(request)?;
+        self.request_sender
+            .send(request)
+            .context("Failed sending application update request")?;
         Ok(())
     }
 
     async fn fetch_track(&mut self, track: Track) -> Result<()> {
         if track.cached() {
-            debug!("Track {} in cache, not fetching.", &track.title);
-            self.publish_request(Request::AddTrack(Box::new(track)))?;
+            trace!("Track {} in cache, not fetching.", &track.title);
+            self.publish_request(Request::AddTrack(Box::new(track)))
+                .context(
+                "Failed sending application update request for a new track being ready for play",
+            )?;
         } else {
-            debug!("Track {} not in cache, fetching...", &track.title);
+            trace!("Track {} not in cache, fetching...", &track.title);
             let mut fetch_request = FetchRequest::from(track);
             fetch_request.start(self.client.clone()).await;
             self.requests.push(fetch_request);
@@ -172,9 +216,13 @@ impl TrackCacher {
     }
 
     async fn update_requests(&mut self) -> Result<()> {
+        trace!("updating cache requests");
         // Make sure each request's state is current
         for request in self.requests.iter_mut() {
-            debug!("Checking state of in-flight request {request:?}...");
+            trace!(
+                "Checking state of in-flight request {}...",
+                &request.track.title
+            );
             request.update_state().await;
         }
 
@@ -185,10 +233,19 @@ impl TrackCacher {
         // self, which is why we need to build two local lists from the data before moving on
         let mut completed_requests = Vec::new();
         let mut active_requests = Vec::new();
-        for request in self.requests.drain(..) {
-            if request.finished() || request.failed() {
+        for mut request in self.requests.drain(..) {
+            if request.finished() || (request.failed() && !request.retriable()) {
+                trace!("request completed: {}", &request.track.title);
                 completed_requests.push(request);
+            } else if request.failed() && request.retriable() {
+                warn!(
+                    "retrying failed fetch request for {} (retries {})",
+                    &request.track.title, request.retry_count
+                );
+                request.restart(self.client.clone()).await;
+                active_requests.push(request);
             } else {
+                trace!("request pending: {}", &request.track.title);
                 active_requests.push(request);
             }
         }
@@ -200,12 +257,15 @@ impl TrackCacher {
             if request.finished() {
                 self.dirty |= true;
                 if !request.failed() && track.cached() {
-                    self.publish_request(Request::AddTrack(Box::new(track)))?;
+                    trace!("completed request was successful: {}", &request.track.title);
+                    self.publish_request(Request::AddTrack(Box::new(track))).context("Failed sending application update request for a new track being ready for play")?;
                 } else {
-                    self.publish_request(Request::FetchFailed(Box::new(track)))?;
+                    debug!("completed request failed: {}", &request.track.title);
+                    self.publish_request(Request::FetchFailed(Box::new(track))).context("Failed sending application update request for a track failing to download correctly")?;
                 }
             } else if request.failed() {
-                self.publish_request(Request::FetchFailed(Box::new(track)))?;
+                debug!("request failed before completion: {}", &request.track.title);
+                self.publish_request(Request::FetchFailed(Box::new(track))).context("Failed sending application update request for a track failing to download correctly")?;
             }
         }
 
@@ -213,6 +273,7 @@ impl TrackCacher {
     }
 
     async fn process_messages(&mut self) -> Result<()> {
+        trace!("processing messages");
         while let Ok(message) = self.state_receiver.try_recv() {
             match message {
                 State::Tuned(new_s) => {
@@ -244,7 +305,9 @@ impl TrackCacher {
                         .unwrap_or(false)
                     {
                         trace!("Request to cache a track - adding to in-flight track list");
-                        self.fetch_track(t).await?;
+                        self.fetch_track(t)
+                            .await
+                            .context("Failed while attempting to fetch a track for playback")?;
                         self.dirty = true;
                     } else {
                         warn!("Request to cache track that's not from the current station (track station: {}, current station: {:?})", &t.station_id, &self.station_id);
@@ -257,8 +320,12 @@ impl TrackCacher {
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
-        self.process_messages().await?;
-        self.update_requests().await?;
+        self.process_messages()
+            .await
+            .context("Failure while processing requests for track fetching")?;
+        self.update_requests()
+            .await
+            .context("Failure while updating state of in-flight track fetch requests")?;
         let dirty = self.dirty;
         self.dirty = false;
         Ok(dirty)
