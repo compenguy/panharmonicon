@@ -1,4 +1,5 @@
 use std::time::Instant;
+use std::collections::VecDeque;
 
 use anyhow::{Context, Result};
 use log::{debug, error, trace, warn};
@@ -165,7 +166,8 @@ impl FetchRequest {
 #[derive(Debug)]
 pub(crate) struct TrackCacher {
     client: reqwest::Client,
-    requests: Vec<FetchRequest>,
+    active_requests: Vec<FetchRequest>,
+    pending_tracks: VecDeque<Track>,
     station_id: Option<String>,
     request_sender: RequestSender,
     state_receiver: StateReceiver,
@@ -176,7 +178,8 @@ impl TrackCacher {
     pub(crate) fn new(state_receiver: StateReceiver, request_sender: RequestSender) -> Self {
         TrackCacher {
             client: reqwest::Client::new(),
-            requests: Vec::with_capacity(8),
+            active_requests: Vec::with_capacity(2),
+            pending_tracks: VecDeque::with_capacity(8),
             station_id: None,
             request_sender,
             state_receiver,
@@ -191,7 +194,7 @@ impl TrackCacher {
         Ok(())
     }
 
-    async fn fetch_track(&mut self, track: Track) -> Result<()> {
+    async fn enqueue_track(&mut self, track: Track) -> Result<()> {
         if track.cached() {
             trace!("Track {} in cache, not fetching.", &track.title);
             self.publish_request(Request::AddTrack(Box::new(track)))
@@ -200,25 +203,25 @@ impl TrackCacher {
             )?;
         } else {
             trace!("Track {} not in cache, fetching...", &track.title);
-            let mut fetch_request = FetchRequest::from(track);
-            fetch_request.start(self.client.clone()).await;
-            self.requests.push(fetch_request);
+            self.pending_tracks.push_back(track);
         }
         self.dirty |= true;
         Ok(())
     }
 
     async fn cancel_requests(&mut self) {
-        for mut request in self.requests.drain(..) {
+        for mut request in self.active_requests.drain(..) {
             request.cancel().await;
             self.dirty |= true;
         }
+        self.active_requests.clear();
+        self.pending_tracks.clear();
     }
 
     async fn update_requests(&mut self) -> Result<()> {
         trace!("updating cache requests");
         // Make sure each request's state is current
-        for request in self.requests.iter_mut() {
+        for request in self.active_requests.iter_mut() {
             trace!(
                 "Checking state of in-flight request {}...",
                 &request.track.title
@@ -233,23 +236,27 @@ impl TrackCacher {
         // self, which is why we need to build two local lists from the data before moving on
         let mut completed_requests = Vec::new();
         let mut active_requests = Vec::new();
-        for mut request in self.requests.drain(..) {
-            if request.finished() || (request.failed() && !request.retriable()) {
+        for mut request in self.active_requests.drain(..) {
+            if request.failed() {
+                if request.retriable() {
+                    warn!(
+                        "retrying failed fetch request for {} (retries {})",
+                        &request.track.title, request.retry_count
+                    );
+                    request.restart(self.client.clone()).await;
+                    active_requests.push(request);
+                } else {
+                    error!("retrying failed fetch request for {} (no retries left)", &request.track.title);
+                }
+            } else if request.finished() {
                 trace!("request completed: {}", &request.track.title);
                 completed_requests.push(request);
-            } else if request.failed() && request.retriable() {
-                warn!(
-                    "retrying failed fetch request for {} (retries {})",
-                    &request.track.title, request.retry_count
-                );
-                request.restart(self.client.clone()).await;
-                active_requests.push(request);
             } else {
                 trace!("request pending: {}", &request.track.title);
                 active_requests.push(request);
             }
         }
-        self.requests = active_requests;
+        self.active_requests = active_requests;
 
         // Notify of all tracks removed from the fetchlist
         for request in completed_requests.into_iter() {
@@ -266,6 +273,17 @@ impl TrackCacher {
             } else if request.failed() {
                 debug!("request failed before completion: {}", &request.track.title);
                 self.publish_request(Request::FetchFailed(Box::new(track))).context("Failed sending application update request for a track failing to download correctly")?;
+            }
+        }
+
+        // Add new requests to the active list if it has fallen below the threshold
+        while self.active_requests.len() < 2 {
+            if let Some(track) = self.pending_tracks.pop_front() {
+                let mut fetch_request = FetchRequest::from(track);
+                fetch_request.start(self.client.clone()).await;
+                self.active_requests.push(fetch_request);
+            } else {
+                break;
             }
         }
 
@@ -305,7 +323,7 @@ impl TrackCacher {
                         .unwrap_or(false)
                     {
                         trace!("Request to cache a track - adding to in-flight track list");
-                        self.fetch_track(t)
+                        self.enqueue_track(t)
                             .await
                             .context("Failed while attempting to fetch a track for playback")?;
                         self.dirty = true;
