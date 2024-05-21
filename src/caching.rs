@@ -1,8 +1,8 @@
-use std::time::Instant;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
-use log::{debug, error, trace, warn};
+use log::{debug, error, info, trace, warn};
 use tokio::task::JoinHandle;
 
 use crate::messages::{Request, State};
@@ -10,6 +10,7 @@ use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
 const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+const MAX_ACTIVE_FETCHES: usize = 1;
 
 #[derive(Debug)]
 pub(crate) struct FetchRequest {
@@ -218,17 +219,7 @@ impl TrackCacher {
         self.pending_tracks.clear();
     }
 
-    async fn update_requests(&mut self) -> Result<()> {
-        trace!("updating cache requests");
-        // Make sure each request's state is current
-        for request in self.active_requests.iter_mut() {
-            trace!(
-                "Checking state of in-flight request {}...",
-                &request.track.title
-            );
-            request.update_state().await;
-        }
-
+    async fn preen_list(&mut self) -> Result<()> {
         // We have to be a little careful how we do this, because requests aren't clonable
         // and we want to remove the completed requests from the list and send notifications for
         // them
@@ -246,17 +237,22 @@ impl TrackCacher {
                     request.restart(self.client.clone()).await;
                     active_requests.push(request);
                 } else {
-                    error!("retrying failed fetch request for {} (no retries left)", &request.track.title);
+                    error!(
+                        "retrying failed fetch request for {} (no retries left)",
+                        &request.track.title
+                    );
+                    completed_requests.push(request);
                 }
             } else if request.finished() {
                 trace!("request completed: {}", &request.track.title);
                 completed_requests.push(request);
             } else {
-                trace!("request pending: {}", &request.track.title);
+                info!("request still pending: {}", &request.track.title);
                 active_requests.push(request);
             }
         }
         self.active_requests = active_requests;
+        info!("In-flight tracks: {}", self.active_requests.len());
 
         // Notify of all tracks removed from the fetchlist
         for request in completed_requests.into_iter() {
@@ -275,9 +271,30 @@ impl TrackCacher {
                 self.publish_request(Request::FetchFailed(Box::new(track))).context("Failed sending application update request for a track failing to download correctly")?;
             }
         }
+        Ok(())
+    }
+
+    async fn update_requests(&mut self) -> Result<()> {
+        trace!("updating cache requests");
+        // Make sure each request's state is current
+        let mut preen_list = false;
+        for request in self.active_requests.iter_mut() {
+            trace!(
+                "Checking state of in-flight request {}...",
+                &request.track.title
+            );
+            request.update_state().await;
+            if request.failed() || request.finished() {
+                preen_list |= true;
+            }
+        }
+
+        if preen_list {
+            self.preen_list().await?;
+        }
 
         // Add new requests to the active list if it has fallen below the threshold
-        while self.active_requests.len() < 2 {
+        while self.active_requests.len() < MAX_ACTIVE_FETCHES {
             if let Some(track) = self.pending_tracks.pop_front() {
                 let mut fetch_request = FetchRequest::from(track);
                 fetch_request.start(self.client.clone()).await;
