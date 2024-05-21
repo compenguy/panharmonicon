@@ -43,6 +43,10 @@ pub(crate) struct Model {
     player_track: Either<StopReason, Track>,
     player_progress: Option<Duration>,
     player_length: Option<Duration>,
+    // TODO: Session operations are great candidates for spawning a task to complete
+    // I think they're what makes some message processing loops take up to 1s to complete
+    // Instead implement these operations in pandora.rs, and convert it to being a standalone
+    // subsystem?
     pandora_session: Option<PandoraSession>,
     pandora_station: Option<(String, String)>,
     pandora_stations: HashMap<String, String>,

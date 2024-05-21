@@ -277,6 +277,8 @@ impl TrackCacher {
     async fn update_requests(&mut self) -> Result<()> {
         trace!("updating cache requests");
         // Make sure each request's state is current
+        // TODO: redo this whole process - updating state and preening, using `extract_if()` once
+        // it stabilizes
         let mut preen_list = false;
         for request in self.active_requests.iter_mut() {
             trace!(

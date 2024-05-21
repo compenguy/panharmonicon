@@ -132,6 +132,7 @@ async fn main() -> Result<()> {
     trace!("Starting app");
     let naptime = std::time::Duration::from_millis(100);
 
+    // TODO: spawn each subsystem, or at least the `Send` ones, as their own task?
     while !model.quitting() {
         trace!("Advancing application state...");
         /*
