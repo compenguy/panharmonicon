@@ -286,7 +286,7 @@ impl Terminal {
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: stopped");
-                v.set_title(reason.to_string());
+                v.set_title(format!("Stopped ({reason})"));
             });
         if self.siv.find_name::<EditView>("username").is_some() {
             debug!("Login prompt active, but we have a valid connection.");
