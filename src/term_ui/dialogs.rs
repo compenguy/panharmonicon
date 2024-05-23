@@ -13,7 +13,7 @@ use cursive::view::{Nameable, Resizable};
 use log::trace;
 
 use crate::config::{Config, Credentials};
-use crate::messages;
+use crate::messages::Request;
 use crate::term_ui::{callbacks, labels, TerminalContext};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,9 +54,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                     trace!("send request 'tune'");
                     s.with_user_data(|ctx: &mut TerminalContext| {
                         trace!("Tuning to station {}", item.clone());
-                        let _ = ctx
-                            .publisher
-                            .try_broadcast(messages::Request::Tune(item.clone()));
+                        let _ = ctx.publish_request(Request::Tune(item.clone()));
                     });
                 })
                 .with_name("stations")
@@ -103,9 +101,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                             );
                             trace!("send request 'volume'");
                             s.with_user_data(|ctx: &mut TerminalContext| {
-                                let _ = ctx
-                                    .publisher
-                                    .try_broadcast(messages::Request::Volume(new_volume));
+                                let _ = ctx.publish_request(Request::Volume(new_volume));
                             });
                         })
                         .with_name("volume"),
@@ -182,7 +178,7 @@ pub(crate) fn playing_view() -> LinearLayout {
         .child(HideableView::new(station_row).with_name("stations_hideable"))
 }
 
-pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
+pub(crate) fn login_dialog(config: Rc<RefCell<Config>>, message: Option<String>) -> Option<Dialog> {
     let credentials = config.borrow().login_credentials().clone();
     let username = credentials.username().unwrap_or_default();
     let password = credentials.password().ok().flatten().unwrap_or_default();
@@ -238,7 +234,8 @@ pub(crate) fn login_dialog(config: Rc<RefCell<Config>>) -> Option<Dialog> {
                             .selected(index)
                             .with_name("store"),
                     )),
-            ),
+            )
+            .child(TextView::new(message.unwrap_or_default())),
     )
     .button("Connect", crate::term_ui::callbacks::connect_button)
     .title("Pandora Login");

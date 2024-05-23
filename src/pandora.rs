@@ -196,12 +196,11 @@ impl PandoraSession {
 
     pub async fn add_feedback(
         &mut self,
-        station_token: &str,
-        track_token: &str,
+        track: &Track,
         is_positive: bool,
     ) -> Result<AddFeedbackResponse> {
         trace!("addFeedback()");
-        let request = AddFeedback::new(station_token, track_token, is_positive);
+        let request = AddFeedback::new(&track.station_id, &track.track_token, is_positive);
         // Catch request errors, reconnect, and retry
         match request.response(&mut self.inner).await {
             Err(_) => {
@@ -215,16 +214,12 @@ impl PandoraSession {
         .map_err(anyhow::Error::from)
     }
 
-    pub async fn delete_feedback_for_track(
-        &mut self,
-        station_id: &str,
-        track: &Track,
-    ) -> Result<()> {
+    pub async fn delete_feedback_for_track(&mut self, track: &Track) -> Result<()> {
         trace!("deleteFeedback() [delete_feedback_for_track]");
         trace!("Looking up musicToken for current track");
         let music_token = self.get_track(&track.music_id).await?.music_token;
         trace!("Getting station feedback...");
-        if let Some(feedback) = self.get_station(station_id, true).await?.feedback {
+        if let Some(feedback) = self.get_station(&track.station_id, true).await?.feedback {
             trace!("Looking through station feedback for feedback on this track.");
             let thumbs_up = feedback.thumbs_up.iter();
             let thumbs_down = feedback.thumbs_down.iter();
@@ -233,10 +228,10 @@ impl PandoraSession {
                 .find(|fb| fb.music_token == music_token)
                 .map(|fb| fb.feedback_id.clone())
             {
-                trace!("Deleting feedback for song {}", track.song_name);
+                trace!("Deleting feedback for song {}", track.title);
                 self.delete_feedback(&feedback_id).await?;
             } else {
-                trace!("No feedback for song {} to delete.", track.song_name);
+                trace!("No feedback for song {} to delete.", track.title);
             }
         } else {
             trace!("Request to remove feedback for track that is unrated");

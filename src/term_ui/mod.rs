@@ -8,8 +8,9 @@ use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
 use crate::config::Config;
+use crate::messages::{Request, State, StopReason};
+use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
-use crate::{messages, messages::StopReason};
 
 mod callbacks;
 mod dialogs;
@@ -32,33 +33,43 @@ mod labels {
 #[derive(Debug, Clone)]
 pub(crate) struct TerminalContext {
     config: Rc<RefCell<Config>>,
-    publisher: async_broadcast::Sender<messages::Request>,
+    request_sender: RequestSender,
+}
+
+impl TerminalContext {
+    fn publish_request(&mut self, request: Request) -> Result<()> {
+        self.request_sender.send(request)?;
+        Ok(())
+    }
 }
 
 pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
-    subscriber: async_broadcast::Receiver<messages::Notification>,
     context: TerminalContext,
-    last_redraw: std::time::Instant,
+    state_receiver: StateReceiver,
+    active_track: Option<Track>,
     dirty: bool,
 }
 
 impl Terminal {
     pub(crate) fn new(
         config: Rc<RefCell<Config>>,
-        subscriber: async_broadcast::Receiver<messages::Notification>,
-        publisher: async_broadcast::Sender<messages::Request>,
+        state_receiver: StateReceiver,
+        request_sender: RequestSender,
     ) -> Self {
         let mut siv = cursive::crossterm().into_runner();
-        let context = TerminalContext { config, publisher };
+        let context = TerminalContext {
+            config,
+            request_sender,
+        };
         siv.set_user_data(context.clone());
         siv.set_fps(5);
         siv.set_window_title("panharmonicon");
         let mut term = Self {
             siv,
-            subscriber,
             context,
-            last_redraw: std::time::Instant::now(),
+            state_receiver,
+            active_track: None,
             dirty: true,
         };
         term.initialize();
@@ -69,7 +80,7 @@ impl Terminal {
         self.init_key_mappings();
         self.init_theme();
         self.init_playback();
-        self.redraw();
+        self.drive_ui();
     }
 
     fn init_key_mappings(&mut self) {
@@ -142,6 +153,7 @@ impl Terminal {
                     v.add_item(name, id);
                 }
             });
+        self.dirty |= true;
     }
 
     fn tuned_station(&mut self, id: String) {
@@ -159,20 +171,22 @@ impl Terminal {
                     v.set_selection(0);
                 }
             });
+        self.dirty |= true;
     }
 
     fn playing_track(&mut self, track: Track) {
         trace!("Updating track info box...");
+        self.active_track = Some(track.clone());
         let Track {
-            song_name,
+            title,
             artist_name,
             album_name,
             song_rating,
             ..
         } = track;
         self.siv.call_on_name("title", |v: &mut TextView| {
-            debug!("Playing title {} ({})", song_name, song_rating);
-            let mut title = song_name.clone();
+            debug!("Playing title {} ({})", title, song_rating);
+            let mut title = title.clone();
             if song_rating > 0 {
                 title.push(' ');
                 title.push_str(labels::LABEL_THUMBS_UP);
@@ -187,52 +201,18 @@ impl Terminal {
             debug!("Playing album {}", album_name);
             v.set_content(album_name);
         });
-    }
-
-    fn rated_track(&mut self, rating: u32) {
-        trace!("Updating track rating...");
-        self.siv.call_on_name("title", |v: &mut TextView| {
-            let mut title = v
-                .get_content()
-                .source()
-                .trim_end_matches(labels::LABEL_THUMBS_UP)
-                .trim_end()
-                .to_string();
-
-            debug!("Rating title {}", title);
-
-            if rating > 0 {
-                title.push(' ');
-                title.push_str(labels::LABEL_THUMBS_UP);
-            }
-            v.set_content(title);
-        });
-    }
-
-    fn unrated_track(&mut self) {
-        trace!("Removing track rating...");
-        self.siv.call_on_name("title", |v: &mut TextView| {
-            let title = v
-                .get_content()
-                .source()
-                .trim_end_matches(labels::LABEL_THUMBS_UP)
-                .trim_end()
-                .to_string();
-
-            v.set_content(title);
-        });
+        self.update_playing(Duration::default(), false);
+        self.dirty |= true;
     }
 
     fn next_track(&mut self, track: Option<Track>) {
         trace!("Updating next track...");
         let styled_text = if let Some(Track {
-            song_name,
-            artist_name,
-            ..
+            title, artist_name, ..
         }) = &track
         {
             let mut styled = StyledString::new();
-            styled.append_plain(song_name);
+            styled.append_plain(title);
             styled.append_styled(" by ", ColorStyle::secondary());
             styled.append_plain(artist_name);
             styled
@@ -244,17 +224,22 @@ impl Terminal {
             debug!("Next up: {:?}", track);
             v.set_content(styled_text);
         });
+        self.dirty |= true;
     }
 
-    fn update_playing(&mut self, elapsed: Duration, duration: Duration, paused: bool) {
+    fn update_playing(&mut self, elapsed: Duration, paused: bool) {
         trace!("Updating track duration...");
+        let total_duration = self
+            .active_track
+            .as_ref()
+            .map(|t| t.track_length.as_secs())
+            .unwrap_or(0);
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 let playpause = if paused { "Paused" } else { "Play" };
                 let total_elapsed = elapsed.as_secs();
                 let elapsed_minutes = total_elapsed / 60;
                 let elapsed_seconds = total_elapsed % 60;
-                let total_duration = duration.as_secs();
                 let duration_minutes = total_duration / 60;
                 let duration_seconds = total_duration % 60;
                 let text = if total_duration > 0 {
@@ -269,9 +254,10 @@ impl Terminal {
                 trace!("Playing panel title: {}", text);
                 v.set_title(text);
             });
+        self.dirty |= true;
     }
 
-    fn update_state_disconnected(&mut self) {
+    fn update_state_disconnected(&mut self, message: Option<String>) {
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: disconnected");
@@ -288,23 +274,26 @@ impl Terminal {
         {
             trace!("Activating login dialog");
 
-            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone()) {
+            if let Some(dialog) = dialogs::login_dialog(self.context.config.clone(), message) {
                 self.siv.add_layer(dialog);
             }
         }
+        self.dirty |= true;
     }
 
     fn update_state_stopped(&mut self, reason: StopReason) {
+        self.active_track = None;
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: stopped");
-                v.set_title(reason.to_string());
+                v.set_title(format!("Stopped ({reason})"));
             });
         if self.siv.find_name::<EditView>("username").is_some() {
             debug!("Login prompt active, but we have a valid connection.");
             trace!("Deactivating login dialog");
             self.siv.pop_layer();
         }
+        self.dirty |= true;
     }
 
     fn update_volume(&mut self, volume: f32) {
@@ -318,56 +307,48 @@ impl Terminal {
             );
             v.set_value(volume_adj);
         });
+        self.dirty |= true;
     }
 
-    fn redraw_expired(&self) -> bool {
-        self.last_redraw.elapsed() > std::time::Duration::from_millis(150)
+    async fn process_messages(&mut self) -> Result<()> {
+        trace!("checking for player notifications...");
+        while let Ok(message) = self.state_receiver.try_recv() {
+            match message {
+                State::AuthFailed(r) => self.update_state_disconnected(Some(r.to_string())),
+                State::Connected => self.update_state_stopped(StopReason::Initializing),
+                State::Disconnected => self.update_state_disconnected(None),
+                State::AddStation(name, id) => self.added_station(name, id),
+                State::Tuned(name) => self.tuned_station(name),
+                State::TrackStarting(track) => self.playing_track(track),
+                State::Next(track) => self.next_track(track),
+                State::Playing(elapsed) => self.update_playing(elapsed, false),
+                State::Volume(v) => self.update_volume(v),
+                State::Paused(elapsed) => self.update_playing(elapsed, true),
+                State::Stopped(r) => self.update_state_stopped(r),
+                State::TrackCaching(_) => (),
+                State::Muted => (),
+                State::Unmuted => (),
+                State::Quit => (),
+            }
+        }
+        Ok(())
+    }
+
+    fn drive_ui(&mut self) -> bool {
+        self.dirty |= self.siv.step();
+        if self.dirty {
+            trace!("forcing ui update");
+            self.siv.refresh();
+            self.dirty = false;
+            true
+        } else {
+            false
+        }
     }
 
     pub(crate) async fn update(&mut self) -> Result<bool> {
-        trace!("checking for player notifications...");
-        while let Ok(message) = self.subscriber.try_recv() {
-            match message {
-                messages::Notification::Connected => {
-                    self.update_state_stopped(StopReason::Initializing)
-                }
-                messages::Notification::Disconnected => self.update_state_disconnected(),
-                messages::Notification::AddStation(name, id) => self.added_station(name, id),
-                messages::Notification::Tuned(name) => self.tuned_station(name),
-                messages::Notification::Starting(track) => self.playing_track(track),
-                messages::Notification::Rated(val) => self.rated_track(val),
-                messages::Notification::Unrated => self.unrated_track(),
-                messages::Notification::Next(track) => self.next_track(track),
-                messages::Notification::Playing(elapsed, duration) => {
-                    self.update_playing(elapsed, duration, false)
-                }
-                messages::Notification::Volume(v) => self.update_volume(v),
-                messages::Notification::Paused(elapsed, duration) => {
-                    self.update_playing(elapsed, duration, true)
-                }
-                messages::Notification::Stopped(r) => self.update_state_stopped(r),
-                messages::Notification::PreCaching(_) => (),
-                messages::Notification::Muted => (),
-                messages::Notification::Unmuted => (),
-                messages::Notification::Quit => (),
-            }
-            self.dirty = true;
-        }
-        log::trace!("subscriber len: {}", self.subscriber.len());
-        self.dirty |= self.siv.step();
-        log::trace!("dirty: {}", &self.dirty);
-        self.redraw();
-        log::trace!("dirty: {}", &self.dirty);
-        Ok(self.dirty)
-    }
-
-    fn redraw(&mut self) {
-        // rate-limit redraws to no more than 6-7 per second, and only if dirty
-        if self.dirty && self.redraw_expired() {
-            trace!("forcing ui update");
-            self.siv.refresh();
-            self.last_redraw = std::time::Instant::now();
-            self.dirty = false;
-        }
+        self.process_messages().await?;
+        let dirty = self.drive_ui();
+        Ok(dirty)
     }
 }

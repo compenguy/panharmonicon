@@ -3,7 +3,7 @@ use cursive::Cursive;
 use cursive::View;
 use log::{error, trace};
 
-use crate::messages;
+use crate::messages::{Request, StopReason};
 use crate::term_ui::dialogs::Store;
 use crate::term_ui::TerminalContext;
 
@@ -12,62 +12,62 @@ use crate::config::PartialConfig;
 pub(crate) fn quit(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'quit'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::Quit);
+        let _ = ctx.publish_request(Request::Quit);
     });
 }
 pub(crate) fn pause(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'pause'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::Pause);
+        let _ = ctx.publish_request(Request::Pause);
     });
 }
 pub(crate) fn unpause(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'unpause'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::Unpause);
+        let _ = ctx.publish_request(Request::Unpause);
     });
 }
 pub(crate) fn toggle_pause(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'toggle pause'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::TogglePause);
+        let _ = ctx.publish_request(Request::TogglePause);
     });
 }
 pub(crate) fn decrease_volume(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'volume down'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::VolumeDown);
+        let _ = ctx.publish_request(Request::VolumeDown);
     });
 }
 pub(crate) fn increase_volume(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'volume down'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::VolumeUp);
+        let _ = ctx.publish_request(Request::VolumeUp);
     });
 }
 pub(crate) fn stop(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'stop'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::Stop);
+        let _ = ctx.publish_request(Request::Stop(StopReason::UserRequest));
     });
 }
 pub(crate) fn rate_track_up(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'rate up'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::RateUp);
+        let _ = ctx.publish_request(Request::RateUp);
     });
 }
 pub(crate) fn rate_track_down(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'rate down and stop'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::RateDown);
-        let _ = ctx.publisher.try_broadcast(messages::Request::Stop);
+        let _ = ctx.publish_request(Request::RateDown);
+        let _ = ctx.publish_request(Request::Stop(StopReason::UserRequest));
     });
 }
 pub(crate) fn clear_rating(s: &mut Cursive) {
     s.with_user_data(|ctx: &mut TerminalContext| {
         trace!("send request 'unrate'");
-        let _ = ctx.publisher.try_broadcast(messages::Request::UnRate);
+        let _ = ctx.publish_request(Request::UnRate);
     });
 }
 
@@ -104,7 +104,7 @@ pub(crate) fn connect_button(s: &mut Cursive) {
                     .borrow_mut()
                     .update_from(&PartialConfig::default().login(c));
                 trace!("send request 'connect'");
-                let _ = ctx.publisher.try_broadcast(messages::Request::Connect);
+                let _ = ctx.publish_request(Request::Connect);
             }
             Err(e) => {
                 error!("Failed while updating password: {:?}", e);

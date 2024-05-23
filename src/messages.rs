@@ -2,14 +2,14 @@ use crate::track::Track;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Request {
-    FetchPending(usize),
     Connect,
     Tune(String),
     #[allow(dead_code)]
     Untune,
+    FetchFailed(Box<Track>),
     AddTrack(Box<Track>),
-    Quit,
-    Stop,
+    Stop(StopReason),
+    UpdateTrackProgress(std::time::Duration),
     RateUp,
     RateDown,
     UnRate,
@@ -23,6 +23,7 @@ pub(crate) enum Request {
     Volume(f32),
     VolumeDown,
     VolumeUp,
+    Quit,
 }
 
 impl PartialEq<Request> for Request {
@@ -32,7 +33,7 @@ impl PartialEq<Request> for Request {
             (Request::Untune, Request::Untune) => true,
             (Request::Tune(a), Request::Tune(b)) => a == b,
             (Request::Quit, Request::Quit) => true,
-            (Request::Stop, Request::Stop) => true,
+            (Request::Stop(a), Request::Stop(b)) => a == b,
             (Request::RateUp, Request::RateUp) => true,
             (Request::RateDown, Request::RateDown) => true,
             (Request::UnRate, Request::UnRate) => true,
@@ -51,14 +52,13 @@ impl PartialEq<Request> for Request {
 
 impl Eq for Request {}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum StopReason {
     Initializing,
     Untuning,
     TrackInterrupted,
     TrackCompleted,
     UserRequest,
-    SessionTimedOut,
 }
 
 impl std::fmt::Display for StopReason {
@@ -68,61 +68,51 @@ impl std::fmt::Display for StopReason {
             StopReason::Untuning => write!(f, "Closing Station"),
             StopReason::TrackInterrupted => write!(f, "Track Interrupted"),
             StopReason::TrackCompleted => write!(f, "Track Completed"),
-            StopReason::UserRequest => write!(f, "Stop"),
-            StopReason::SessionTimedOut => write!(f, "Session Timed Out"),
+            StopReason::UserRequest => write!(f, "User Request"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum Notification {
+pub(crate) enum State {
+    AuthFailed(String),
     Connected,
     Disconnected,
     AddStation(String, String),
     Tuned(String),
-    PreCaching(Track),
-    Starting(Track),
+    TrackCaching(Track),
+    TrackStarting(Track),
     #[allow(dead_code)]
     Next(Option<Track>),
-    Rated(u32),
-    Unrated,
     Volume(f32),
     Muted,
     Unmuted,
-    Playing(std::time::Duration, std::time::Duration),
-    Paused(std::time::Duration, std::time::Duration),
+    Playing(std::time::Duration),
+    Paused(std::time::Duration),
     Stopped(StopReason),
     Quit,
 }
 
-impl PartialEq<Notification> for Notification {
-    fn eq(&self, other: &Notification) -> bool {
+impl PartialEq<State> for State {
+    fn eq(&self, other: &State) -> bool {
         match (self, other) {
-            (Notification::Connected, Notification::Connected) => true,
-            (Notification::Disconnected, Notification::Disconnected) => true,
-            (Notification::AddStation(a, x), Notification::AddStation(b, y)) => a == b && x == y,
-            (Notification::Tuned(a), Notification::Tuned(b)) => a == b,
-            (Notification::Starting(t), Notification::Starting(u)) => {
-                t.track_token == u.track_token
-            }
-            (Notification::Next(Some(t)), Notification::Next(Some(u))) => {
-                t.track_token == u.track_token
-            }
-            (Notification::Next(None), Notification::Next(None)) => true,
-            (Notification::Rated(a), Notification::Rated(b)) => a == b,
-            (Notification::Unrated, Notification::Unrated) => true,
-            (Notification::Volume(a), Notification::Volume(b)) => {
-                (a * 100.0) as u8 == (b * 100.0) as u8
-            }
-            (Notification::Muted, Notification::Muted) => true,
-            (Notification::Unmuted, Notification::Unmuted) => true,
-            (Notification::Playing(a, x), Notification::Playing(b, y)) => a == x && b == y,
-            (Notification::Paused(a, x), Notification::Paused(b, y)) => a == x && b == y,
-            (Notification::Stopped(_), Notification::Stopped(_)) => true,
-            (Notification::Quit, Notification::Quit) => true,
+            (State::Connected, State::Connected) => true,
+            (State::Disconnected, State::Disconnected) => true,
+            (State::AddStation(a, x), State::AddStation(b, y)) => a == b && x == y,
+            (State::Tuned(a), State::Tuned(b)) => a == b,
+            (State::TrackStarting(t), State::TrackStarting(u)) => t.track_token == u.track_token,
+            (State::Next(Some(t)), State::Next(Some(u))) => t.track_token == u.track_token,
+            (State::Next(None), State::Next(None)) => true,
+            (State::Volume(a), State::Volume(b)) => (a * 100.0) as u8 == (b * 100.0) as u8,
+            (State::Muted, State::Muted) => true,
+            (State::Unmuted, State::Unmuted) => true,
+            (State::Playing(a), State::Playing(b)) => a == b,
+            (State::Paused(a), State::Paused(b)) => a == b,
+            (State::Stopped(_), State::Stopped(_)) => true,
+            (State::Quit, State::Quit) => true,
             _ => false,
         }
     }
 }
 
-impl Eq for Notification {}
+impl Eq for State {}
