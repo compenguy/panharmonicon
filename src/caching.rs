@@ -9,8 +9,8 @@ use crate::messages::{Request, State};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
-const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
-const MAX_ACTIVE_FETCHES: usize = 1;
+const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const MAX_ACTIVE_FETCHES: usize = 4;
 
 #[derive(Debug)]
 pub(crate) struct FetchRequest {
@@ -179,7 +179,7 @@ impl TrackCacher {
     pub(crate) fn new(state_receiver: StateReceiver, request_sender: RequestSender) -> Self {
         TrackCacher {
             client: reqwest::Client::new(),
-            active_requests: Vec::with_capacity(2),
+            active_requests: Vec::with_capacity(MAX_ACTIVE_FETCHES),
             pending_tracks: VecDeque::with_capacity(8),
             station_id: None,
             request_sender,
