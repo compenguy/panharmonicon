@@ -296,6 +296,28 @@ impl Terminal {
         self.dirty |= true;
     }
 
+    fn update_state_buffering(&mut self) {
+        self.active_track = None;
+        self.siv
+            .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
+                trace!("Playing panel title: buffering");
+                v.set_title("Buffering...");
+            });
+        self.siv.call_on_name("title", |v: &mut TextView| {
+            debug!("No track, clearing title");
+            v.set_content(String::default());
+        });
+        self.siv.call_on_name("artist", |v: &mut TextView| {
+            debug!("No track, clearing artist");
+            v.set_content(String::default());
+        });
+        self.siv.call_on_name("album", |v: &mut TextView| {
+            debug!("No track, clearing album");
+            v.set_content(String::default());
+        });
+        self.dirty |= true;
+    }
+
     fn update_volume(&mut self, volume: f32) {
         trace!("Updating volume...");
         self.siv.call_on_name("volume", |v: &mut SliderView| {
@@ -325,6 +347,7 @@ impl Terminal {
                 State::Volume(v) => self.update_volume(v),
                 State::Paused(elapsed) => self.update_playing(elapsed, true),
                 State::Stopped(r) => self.update_state_stopped(r),
+                State::Buffering => self.update_state_buffering(),
                 State::TrackCaching(_) => (),
                 State::Muted => (),
                 State::Unmuted => (),

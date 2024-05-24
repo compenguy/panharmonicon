@@ -394,11 +394,11 @@ impl Model {
 
     pub(crate) async fn refill_playlist(&mut self) -> Result<()> {
         if self.pending_len() > FETCHLIST_MAX_LEN {
-            info!("Enough tracks in-flight already - not requesting more tracks for playlist");
+            debug!("Enough tracks in-flight already - not requesting more tracks for playlist");
             return Ok(());
         }
         if self.playlist_len() > PLAYLIST_MAX_LEN {
-            info!("Enough tracks in playlist already - not requesting more tracks for playlist");
+            debug!("Enough tracks in playlist already - not requesting more tracks for playlist");
             return Ok(());
         }
         let station_id = self.tuned().ok_or_else(|| {
@@ -642,7 +642,7 @@ impl Model {
             debug!("Track already started.");
         } else {
             debug!("No tracks started yet. Starting next track.");
-            info!(
+            debug!(
                 "playlist length: {} + {} pending",
                 self.playlist_len(),
                 self.pending_len()
@@ -657,7 +657,9 @@ impl Model {
                 self.notify_playing().await?;
                 self.notify_next().await?;
             } else {
-                warn!("requested to start track, but no tracks are ready");
+                debug!("requested to start track, but no tracks are ready");
+                self.publish_state(State::Buffering)
+                    .await?;
             }
         }
         Ok(())

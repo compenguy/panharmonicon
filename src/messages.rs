@@ -80,6 +80,7 @@ pub(crate) enum State {
     Disconnected,
     AddStation(String, String),
     Tuned(String),
+    Buffering,
     TrackCaching(Track),
     TrackStarting(Track),
     #[allow(dead_code)]
