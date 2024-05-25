@@ -1,7 +1,7 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * Apache_License_2.0 (241)
+    * Apache_License_2.0 (243)
     * MIT_License (64)
     * BSD_3-Clause_"New"_or_"Revised"_License (3)
     * Mozilla_Public_License_2.0 (2)
@@ -3657,11 +3657,13 @@ This page lists the licenses of the projects used in panharmonicon.
       *** Used by: ***
           o futures-channel_0.3.30
           o futures-core_0.3.30
+          o futures-executor_0.3.30
           o futures-io_0.3.30
           o futures-macro_0.3.30
           o futures-sink_0.3.30
           o futures-task_0.3.30
           o futures-util_0.3.30
+          o futures_0.3.30
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
