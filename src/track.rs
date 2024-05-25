@@ -1,8 +1,8 @@
+use futures::StreamExt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
 
 use anyhow::{Context, Result};
 use log::{debug, error, info, trace};
@@ -180,31 +180,31 @@ async fn download_to_cache<P: AsRef<std::path::Path>>(
             .context("Failed to create directory for caching playlist track")?;
     }
 
-    let mut resp = req_builder
+    let resp = req_builder
         .send()
         .await
         .map_err(Error::from)
         .with_context(|| format!("Error completing fetch request to file {}", path.display()))?;
-    let mut file = tokio::fs::File::create(&path)
+    let file = tokio::fs::File::create(&path)
         .await
         .with_context(|| format!("Failed creating file on disk as {}", path.display()))?;
+    let mut file = tokio::io::BufWriter::new(file);
 
+    /*
     while let Some(chunk) = resp.chunk().await? {
         file.write(&chunk)
             .await
             .with_context(|| format!("Error writing fetched track to file {}", path.display()))?;
     }
+    */
 
-    /*
-    tokio::io::copy(&mut resp.bytes_stream(), &mut file)
-        .await
-        .with_context(|| {
-            format!(
-                "Error writing fetched track to file {}",
-                path.as_ref().display()
-            )
-        })?;
-        */
+    let mut bytes_stream = resp.bytes_stream();
+    while let Some(chunk) = bytes_stream.next().await {
+        tokio::io::copy(&mut chunk?.as_ref(), &mut file)
+            .await
+            .with_context(|| format!("Error writing fetched track to file {}", path.display()))?;
+    }
+
     debug!("Track data streamed to file successfully.");
     Ok(())
 }

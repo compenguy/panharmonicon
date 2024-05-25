@@ -26,7 +26,8 @@ serde_derive = "1"
 serde_json = "1"
 keyring = "2"
 pandora-api = "0.6"
-tokio = { version = "1", default-features = false, features = ["fs", "io-util", "time", "rt", "macros"] }
+futures = "0.3"
+tokio = { version = "1", default-features = false, features = ["fs", "io-util", "macros", "rt", "time"] }
 reqwest = { version = "0.12", features = ["stream"] }
 async-broadcast = "0.7"
 rodio = { version = "0.17", default-features = false }
