@@ -20,7 +20,7 @@ pub(crate) type StateReceiver = async_broadcast::Receiver<State>;
 pub(crate) type RequestSender = mpsc::Sender<Request>;
 pub(crate) type RequestReceiver = mpsc::Receiver<Request>;
 
-const FETCHLIST_MAX_LEN: usize = 4;
+const FETCHLIST_MAX_LEN: usize = 8;
 const PLAYLIST_MAX_LEN: usize = 12;
 
 // player/volume: f32
@@ -658,8 +658,7 @@ impl Model {
                 self.notify_next().await?;
             } else {
                 debug!("requested to start track, but no tracks are ready");
-                self.publish_state(State::Buffering)
-                    .await?;
+                self.publish_state(State::Buffering).await?;
             }
         }
         Ok(())

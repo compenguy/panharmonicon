@@ -9,8 +9,8 @@ use crate::messages::{Request, State};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
-const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-const MAX_ACTIVE_FETCHES: usize = 4;
+const TASK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const MAX_ACTIVE_FETCHES: usize = 8;
 
 #[derive(Debug)]
 pub(crate) struct FetchRequest {
@@ -38,26 +38,26 @@ impl FetchRequest {
     async fn update_state(&mut self) {
         // If transfer thread completed and we haven't checked the result yet:
         if let Some((ref mut th, start_time)) = &mut self.task_handle {
+            let task_elapsed_secs = start_time.elapsed().as_secs();
             trace!(
-                "task started {}s ago (up to a maximum of {}s)",
-                start_time.elapsed().as_secs(),
+                "task started {task_elapsed_secs}s ago (up to a maximum of {}s)",
                 TASK_TIMEOUT.as_secs()
             );
             if th.is_finished() {
                 match th.await {
                     Err(e) if e.is_cancelled() => {
-                        debug!("Track fetch task was cancelled");
+                        debug!("Track fetch task was cancelled after {task_elapsed_secs}s");
                         self.failed = true;
                         self.completed = false;
                     }
                     Err(e) if e.is_panic() => {
-                        warn!("Track fetch task panicked");
+                        warn!("Track fetch task panicked after {task_elapsed_secs}s");
                         self.failed = true;
                         self.completed = false;
                         // TODO: trigger a retry?
                     }
                     Err(e) => {
-                        error!("Unhandled track fetch task error: {e:#}");
+                        error!("Unhandled track fetch task error {e:#} after {task_elapsed_secs}s");
                         self.failed = true;
                         self.completed = false;
                         // TODO: trigger a retry?
@@ -70,12 +70,12 @@ impl FetchRequest {
                         }
                         self.failed = true;
                         self.completed = false;
-                        error!("Error during in-flight request for track {e:#}");
+                        error!("Error during in-flight request for track {e:#} after {task_elapsed_secs}s");
                     }
                     Ok(Ok(_)) => {
                         self.completed = self.track.cached();
                         self.failed = !self.completed;
-                        trace!("In-flight request for track completed: {}", &self.completed);
+                        info!("In-flight request for track completed (successful: {} retries: {}) after {task_elapsed_secs}s", &self.completed, &self.retry_count);
                     }
                 }
                 self.task_handle = None;
@@ -91,7 +91,7 @@ impl FetchRequest {
                 self.task_handle = None;
                 return;
             } else {
-                trace!("Fetch task in progress");
+                trace!("Fetch task in progress for {task_elapsed_secs}s");
             }
         } else if !self.failed && !self.completed {
             warn!("Unexpected condition: no track request in-flight, and it was neither failed nor completed");
@@ -140,10 +140,10 @@ impl FetchRequest {
             return;
         }
         if self.track.cached() {
-            trace!("Cache hit!");
+            info!("Cache hit {}", &self.track.title);
             self.completed = true;
         } else {
-            trace!("Cache miss!");
+            info!("Cache miss {}", &self.track.title);
             let track = self.track.clone();
             let th = tokio::spawn(async move {
                 //trace!("Retrieving track {}...", &track.title);
