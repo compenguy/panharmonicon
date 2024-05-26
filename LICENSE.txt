@@ -8177,7 +8177,7 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
           o dasp_sample_0.11.0
           o enum-map-derive_0.17.0
           o enum-map_2.7.3
@@ -8643,7 +8643,7 @@ This page lists the licenses of the projects used in panharmonicon.
       ~~~~
     * **** BSD 2-Clause "Simplified" License ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
       Copyright (c) <year> <owner>
 
       Redistribution and use in source and binary forms, with or without modification,
@@ -8700,7 +8700,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     * **** BSD 3-Clause "New" or "Revised" License ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
       Copyright (c) <year> <owner>.
 
       Redistribution and use in source and binary forms, with or without modification,
@@ -8758,7 +8758,7 @@ This page lists the licenses of the projects used in panharmonicon.
       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     * **** Creative Commons Zero v1.0 Universal ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
       Creative Commons Legal Code
 
       CC0 1.0 Universal
@@ -9565,7 +9565,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
           o cursive_0.20.0
           o fdk-aac-sys_0.5.0
           o http-body-util_0.1.1
@@ -9927,7 +9927,7 @@ This page lists the licenses of the projects used in panharmonicon.
       You may use this code under the terms of either license.
     * **** Mozilla Public License 2.0 ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
           o option-ext_0.2.0
       Mozilla Public License Version 2.0
       &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;
@@ -10373,7 +10373,7 @@ This page lists the licenses of the projects used in panharmonicon.
         0. You just DO WHAT THE FUCK YOU WANT TO.
     * **** zlib License ****
       *** Used by: ***
-          o panharmonicon_0.7.0
+          o panharmonicon_0.7.1
       zlib License
 
       This software is provided &#x27;as-is&#x27;, without any express or implied
