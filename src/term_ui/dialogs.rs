@@ -93,7 +93,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                 .child(
                     SliderView::horizontal(11)
                         .on_change(|s, v| {
-                            let new_volume: f32 = ((v as f32) / 10.0).min(1.0f32).max(0.0f32);
+                            let new_volume: f32 = ((v as f32) / 10.0).clamp(0.0f32, 1.0f32);
                             trace!(
                                 "Submitting updated volume from slider: {} ({:.2})",
                                 v,

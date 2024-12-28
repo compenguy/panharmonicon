@@ -419,7 +419,7 @@ impl Config {
         }
 
         if let Some(volume) = other.volume {
-            if (self.volume - volume).abs() > std::f32::EPSILON {
+            if (self.volume - volume).abs() > f32::EPSILON {
                 self.dirty |= true;
                 self.volume = volume;
             }

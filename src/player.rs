@@ -20,14 +20,14 @@ enum Volume {
 impl Volume {
     fn volume(self) -> f32 {
         if let Self::Unmuted(v) = self {
-            v.min(1.0f32).max(0.0f32)
+            v.clamp(0.0f32, 1.0f32)
         } else {
             0.0f32
         }
     }
 
     fn set_volume(&mut self, new_volume: f32) {
-        *self = Self::Unmuted(new_volume.min(1.0f32).max(0.0f32));
+        *self = Self::Unmuted(new_volume.clamp(0.0f32, 1.0f32));
     }
 
     fn mute(&mut self) {

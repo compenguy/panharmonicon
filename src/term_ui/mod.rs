@@ -321,7 +321,7 @@ impl Terminal {
     fn update_volume(&mut self, volume: f32) {
         trace!("Updating volume...");
         self.siv.call_on_name("volume", |v: &mut SliderView| {
-            let volume_adj = ((volume * 10.0).round() as usize).min(10).max(0);
+            let volume_adj = ((volume * 10.0).round() as usize).clamp(0, 10);
             trace!(
                 "Converted model volume from {:.2} to {}",
                 volume,
