@@ -1,10 +1,11 @@
 accepted = [
     "Apache-2.0",
-    "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "CC0-1.0",
+    "MIT",
     "MPL-2.0",
+    "Unicode-3.0",
     "Unicode-DFS-2016",
     "WTFPL",
     "Zlib",
