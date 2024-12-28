@@ -1,24 +1,22 @@
 ****** Third Party Licenses ******
 This page lists the licenses of the projects used in panharmonicon.
 ***** Overview of licenses: *****
-    * Apache_License_2.0 (243)
+    * Apache_License_2.0 (246)
     * MIT_License (64)
+    * Unicode_License_v3 (20)
     * BSD_3-Clause_"New"_or_"Revised"_License (3)
     * Mozilla_Public_License_2.0 (2)
     * BSD_2-Clause_"Simplified"_License (1)
     * Creative_Commons_Zero_v1.0_Universal (1)
-    * Unicode_License_Agreement_-_Data_Files_and_Software_(2016) (1)
     * Do_What_The_F*ck_You_Want_To_Public_License (1)
     * zlib_License (1)
 ***** All license text: *****
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o alsa_0.9.0
-          o miniz_oxide_0.7.3
-          o pin-project-internal_1.1.5
-          o pin-project-lite_0.2.14
-          o pin-project_1.1.5
-          o sync_wrapper_0.1.2
+          o alsa_0.9.1
+          o miniz_oxide_0.8.2
+          o pin-project-lite_0.2.15
+          o sync_wrapper_1.0.2
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1014,7 +1012,7 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o time_0.3.36
+          o time_0.3.37
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1218,8 +1216,11 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o encoding_rs_0.8.34
+          o encoding_rs_0.8.35
           o static_assertions_1.1.0
+          o utf16_iter_1.0.5
+          o utf8_iter_1.0.4
+          o write16_1.0.0
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1423,7 +1424,11 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o tinyvec_1.6.0
+          o io-lifetimes_1.0.11
+          o linux-raw-sys_0.3.8
+          o linux-raw-sys_0.4.14
+          o rustix_0.37.27
+          o rustix_0.38.42
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1625,20 +1630,41 @@ This page lists the licenses of the projects used in panharmonicon.
          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
          See the License for the specific language governing permissions and
          limitations under the License.
+
+
+      --- LLVM Exceptions to the Apache 2.0 License ----
+
+      As an exception, if, as a result of your compiling your source code, portions
+      of this Software are embedded into an Object form of such source code, you
+      may redistribute such embedded portions in such Object form without complying
+      with the conditions of Sections 4(a), 4(b) and 4(d) of the License.
+
+      In addition, if you combine or link compiled forms of this Software with
+      software that is licensed under the GPLv2 ("Combined Software") and if a
+      court of competent jurisdiction determines that the patent provision (Section
+      3), the indemnity provision (Section 9) or other Section of the License
+      conflicts with the conditions of the GPLv2, you may retroactively and
+      prospectively choose to deem waived or otherwise exclude such Section(s) of
+      the License, but only in their entirety and only with respect to the Combined
+      Software.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o windows-core_0.52.0
           o windows-core_0.54.0
-          o windows-result_0.1.1
+          o windows-registry_0.2.0
+          o windows-result_0.1.2
+          o windows-result_0.2.0
+          o windows-strings_0.1.0
           o windows-sys_0.48.0
           o windows-sys_0.52.0
+          o windows-sys_0.59.0
           o windows-targets_0.48.5
-          o windows-targets_0.52.5
+          o windows-targets_0.52.6
           o windows_0.54.0
           o windows_x86_64_gnu_0.48.5
-          o windows_x86_64_gnu_0.52.5
+          o windows_x86_64_gnu_0.52.6
           o windows_x86_64_msvc_0.48.5
-          o windows_x86_64_msvc_0.52.5
+          o windows_x86_64_msvc_0.52.6
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -1842,211 +1868,8 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o tinyvec_macros_0.1.1
-                                       Apache License
-                                 Version 2.0, January 2004
-                              http://www.apache.org/licenses/
-
-         TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-         1. Definitions.
-
-            "License" shall mean the terms and conditions for use, reproduction,
-            and distribution as defined by Sections 1 through 9 of this document.
-
-            "Licensor" shall mean the copyright owner or entity authorized by
-            the copyright owner that is granting the License.
-
-            "Legal Entity" shall mean the union of the acting entity and all
-            other entities that control, are controlled by, or are under common
-            control with that entity. For the purposes of this definition,
-            "control" means (i) the power, direct or indirect, to cause the
-            direction or management of such entity, whether by contract or
-            otherwise, or (ii) ownership of fifty percent (50%) or more of the
-            outstanding shares, or (iii) beneficial ownership of such entity.
-
-            "You" (or "Your") shall mean an individual or Legal Entity
-            exercising permissions granted by this License.
-
-            "Source" form shall mean the preferred form for making modifications,
-            including but not limited to software source code, documentation
-            source, and configuration files.
-
-            "Object" form shall mean any form resulting from mechanical
-            transformation or translation of a Source form, including but
-            not limited to compiled object code, generated documentation,
-            and conversions to other media types.
-
-            "Work" shall mean the work of authorship, whether in Source or
-            Object form, made available under the License, as indicated by a
-            copyright notice that is included in or attached to the work
-            (an example is provided in the Appendix below).
-
-            "Derivative Works" shall mean any work, whether in Source or Object
-            form, that is based on (or derived from) the Work and for which the
-            editorial revisions, annotations, elaborations, or other modifications
-            represent, as a whole, an original work of authorship. For the purposes
-            of this License, Derivative Works shall not include works that remain
-            separable from, or merely link (or bind by name) to the interfaces of,
-            the Work and Derivative Works thereof.
-
-            "Contribution" shall mean any work of authorship, including
-            the original version of the Work and any modifications or additions
-            to that Work or Derivative Works thereof, that is intentionally
-            submitted to Licensor for inclusion in the Work by the copyright owner
-            or by an individual or Legal Entity authorized to submit on behalf of
-            the copyright owner. For the purposes of this definition, "submitted"
-            means any form of electronic, verbal, or written communication sent
-            to the Licensor or its representatives, including but not limited to
-            communication on electronic mailing lists, source code control systems,
-            and issue tracking systems that are managed by, or on behalf of, the
-            Licensor for the purpose of discussing and improving the Work, but
-            excluding communication that is conspicuously marked or otherwise
-            designated in writing by the copyright owner as "Not a Contribution."
-
-            "Contributor" shall mean Licensor and any individual or Legal Entity
-            on behalf of whom a Contribution has been received by Licensor and
-            subsequently incorporated within the Work.
-
-         2. Grant of Copyright License. Subject to the terms and conditions of
-            this License, each Contributor hereby grants to You a perpetual,
-            worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-            copyright license to reproduce, prepare Derivative Works of,
-            publicly display, publicly perform, sublicense, and distribute the
-            Work and such Derivative Works in Source or Object form.
-
-         3. Grant of Patent License. Subject to the terms and conditions of
-            this License, each Contributor hereby grants to You a perpetual,
-            worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-            (except as stated in this section) patent license to make, have made,
-            use, offer to sell, sell, import, and otherwise transfer the Work,
-            where such license applies only to those patent claims licensable
-            by such Contributor that are necessarily infringed by their
-            Contribution(s) alone or by combination of their Contribution(s)
-            with the Work to which such Contribution(s) was submitted. If You
-            institute patent litigation against any entity (including a
-            cross-claim or counterclaim in a lawsuit) alleging that the Work
-            or a Contribution incorporated within the Work constitutes direct
-            or contributory patent infringement, then any patent licenses
-            granted to You under this License for that Work shall terminate
-            as of the date such litigation is filed.
-
-         4. Redistribution. You may reproduce and distribute copies of the
-            Work or Derivative Works thereof in any medium, with or without
-            modifications, and in Source or Object form, provided that You
-            meet the following conditions:
-
-            (a) You must give any other recipients of the Work or
-                Derivative Works a copy of this License; and
-
-            (b) You must cause any modified files to carry prominent notices
-                stating that You changed the files; and
-
-            (c) You must retain, in the Source form of any Derivative Works
-                that You distribute, all copyright, patent, trademark, and
-                attribution notices from the Source form of the Work,
-                excluding those notices that do not pertain to any part of
-                the Derivative Works; and
-
-            (d) If the Work includes a "NOTICE" text file as part of its
-                distribution, then any Derivative Works that You distribute must
-                include a readable copy of the attribution notices contained
-                within such NOTICE file, excluding those notices that do not
-                pertain to any part of the Derivative Works, in at least one
-                of the following places: within a NOTICE text file distributed
-                as part of the Derivative Works; within the Source form or
-                documentation, if provided along with the Derivative Works; or,
-                within a display generated by the Derivative Works, if and
-                wherever such third-party notices normally appear. The contents
-                of the NOTICE file are for informational purposes only and
-                do not modify the License. You may add Your own attribution
-                notices within Derivative Works that You distribute, alongside
-                or as an addendum to the NOTICE text from the Work, provided
-                that such additional attribution notices cannot be construed
-                as modifying the License.
-
-            You may add Your own copyright statement to Your modifications and
-            may provide additional or different license terms and conditions
-            for use, reproduction, or distribution of Your modifications, or
-            for any such Derivative Works as a whole, provided Your use,
-            reproduction, and distribution of the Work otherwise complies with
-            the conditions stated in this License.
-
-         5. Submission of Contributions. Unless You explicitly state otherwise,
-            any Contribution intentionally submitted for inclusion in the Work
-            by You to the Licensor shall be under the terms and conditions of
-            this License, without any additional terms or conditions.
-            Notwithstanding the above, nothing herein shall supersede or modify
-            the terms of any separate license agreement you may have executed
-            with Licensor regarding such Contributions.
-
-         6. Trademarks. This License does not grant permission to use the trade
-            names, trademarks, service marks, or product names of the Licensor,
-            except as required for reasonable and customary use in describing the
-            origin of the Work and reproducing the content of the NOTICE file.
-
-         7. Disclaimer of Warranty. Unless required by applicable law or
-            agreed to in writing, Licensor provides the Work (and each
-            Contributor provides its Contributions) on an "AS IS" BASIS,
-            WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-            implied, including, without limitation, any warranties or conditions
-            of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-            PARTICULAR PURPOSE. You are solely responsible for determining the
-            appropriateness of using or redistributing the Work and assume any
-            risks associated with Your exercise of permissions under this License.
-
-         8. Limitation of Liability. In no event and under no legal theory,
-            whether in tort (including negligence), contract, or otherwise,
-            unless required by applicable law (such as deliberate and grossly
-            negligent acts) or agreed to in writing, shall any Contributor be
-            liable to You for damages, including any direct, indirect, special,
-            incidental, or consequential damages of any character arising as a
-            result of this License or out of the use or inability to use the
-            Work (including but not limited to damages for loss of goodwill,
-            work stoppage, computer failure or malfunction, or any and all
-            other commercial damages or losses), even if such Contributor
-            has been advised of the possibility of such damages.
-
-         9. Accepting Warranty or Additional Liability. While redistributing
-            the Work or Derivative Works thereof, You may choose to offer,
-            and charge a fee for, acceptance of support, warranty, indemnity,
-            or other liability obligations and/or rights consistent with this
-            License. However, in accepting such obligations, You may act only
-            on Your own behalf and on Your sole responsibility, not on behalf
-            of any other Contributor, and only if You agree to indemnify,
-            defend, and hold each Contributor harmless for any liability
-            incurred by, or claims asserted against, such Contributor by reason
-            of your accepting any such warranty or additional liability.
-
-         END OF TERMS AND CONDITIONS
-
-         APPENDIX: How to apply the Apache License to your work.
-
-            To apply the Apache License to your work, attach the following
-            boilerplate notice, with the fields enclosed by brackets "[]"
-            replaced with your own identifying information. (Don&#x27;t include
-            the brackets!)  The text should be enclosed in the appropriate
-            comment syntax for the file format. We also recommend that a
-            file or class name and description of purpose be included on the
-            same "printed page" as the copyright notice for easier
-            identification within third-party archives.
-
-         Copyright 2020 Tomasz "Soveu" Marx
-
-         Licensed under the Apache License, Version 2.0 (the "License");
-         you may not use this file except in compliance with the License.
-         You may obtain a copy of the License at
-
-             http://www.apache.org/licenses/LICENSE-2.0
-
-         Unless required by applicable law or agreed to in writing, software
-         distributed under the License is distributed on an "AS IS" BASIS,
-         WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-         See the License for the specific language governing permissions and
-         limitations under the License.
-    * **** Apache License 2.0 ****
-      *** Used by: ***
-          o zerocopy_0.7.34
+          o zerocopy-derive_0.7.35
+          o zerocopy_0.7.35
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -2250,8 +2073,8 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o clap_builder_4.5.2
-          o clap_lex_0.7.0
+          o clap_builder_4.5.23
+          o clap_lex_0.7.4
           o cpal_0.15.3
                                        Apache License
                                  Version 2.0, January 2004
@@ -2456,7 +2279,7 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o ipnet_2.9.0
+          o ipnet_2.10.1
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -2660,7 +2483,7 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o anstyle-parse_0.2.4
+          o anstyle-parse_0.2.6
           o winapi_0.3.9
                                        Apache License
                                  Version 2.0, January 2004
@@ -2865,24 +2688,24 @@ This page lists the licenses of the projects used in panharmonicon.
          limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o anstream_0.6.14
-          o anstyle-query_1.0.3
-          o anstyle-wincon_3.0.3
-          o anstyle_1.0.7
-          o clap_4.5.4
-          o colorchoice_1.0.1
+          o anstream_0.6.18
+          o anstyle-query_1.1.2
+          o anstyle-wincon_3.0.6
+          o anstyle_1.0.10
+          o clap_4.5.23
+          o colorchoice_1.0.3
           o foreign-types-shared_0.1.1
           o foreign-types_0.3.2
           o hex_0.4.3
-          o human-panic_2.0.0
-          o is_terminal_polyfill_1.70.0
-          o native-tls_0.2.11
+          o human-panic_2.0.2
+          o is_terminal_polyfill_1.70.1
+          o native-tls_0.2.12
           o openssl-macros_0.1.1
-          o serde_spanned_0.6.6
-          o toml_0.8.13
-          o toml_datetime_0.6.6
+          o serde_spanned_0.6.8
+          o toml_0.8.19
+          o toml_datetime_0.6.8
           o toml_edit_0.19.15
-          o toml_edit_0.22.13
+          o toml_edit_0.22.22
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -3087,7 +2910,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o async-broadcast_0.5.1
-          o async-broadcast_0.7.0
+          o async-broadcast_0.7.2
                                        Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -3458,25 +3281,18 @@ This page lists the licenses of the projects used in panharmonicon.
          of your accepting any such warranty or additional liability.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o anyhow_1.0.86
-          o async-trait_0.1.80
-          o itoa_1.0.11
-          o libc_0.2.155
+          o itoa_1.0.14
+          o libc_0.2.169
           o mach2_0.4.2
-          o proc-macro2_1.0.83
-          o quote_1.0.36
+          o proc-macro2_1.0.92
           o ryu_1.0.18
-          o serde_1.0.202
-          o serde_derive_1.0.202
-          o serde_json_1.0.117
           o serde_repr_0.1.19
           o serde_urlencoded_0.7.1
-          o syn_2.0.65
-          o thiserror-impl_1.0.61
-          o thiserror_1.0.61
-          o unicode-ident_1.0.12
-          o utf8parse_0.2.1
-          o zerocopy_0.7.34
+          o thiserror-impl_1.0.69
+          o thiserror_1.0.69
+          o unicode-ident_1.0.14
+          o utf8parse_0.2.2
+          o zerocopy_0.7.35
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -3655,15 +3471,15 @@ This page lists the licenses of the projects used in panharmonicon.
       END OF TERMS AND CONDITIONS
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o futures-channel_0.3.30
-          o futures-core_0.3.30
-          o futures-executor_0.3.30
-          o futures-io_0.3.30
-          o futures-macro_0.3.30
-          o futures-sink_0.3.30
-          o futures-task_0.3.30
-          o futures-util_0.3.30
-          o futures_0.3.30
+          o futures-channel_0.3.31
+          o futures-core_0.3.31
+          o futures-executor_0.3.31
+          o futures-io_0.3.31
+          o futures-macro_0.3.31
+          o futures-sink_0.3.31
+          o futures-task_0.3.31
+          o futures-util_0.3.31
+          o futures_0.3.31
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4072,7 +3888,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o reqwest_0.12.4
+          o reqwest_0.12.11
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4276,7 +4092,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o http_1.1.0
+          o http_1.2.0
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4684,7 +4500,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o ppv-lite86_0.2.17
+          o ppv-lite86_0.2.20
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -4888,7 +4704,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o iana-time-zone_0.1.60
+          o iana-time-zone_0.1.61
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -5092,7 +4908,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o rustls-pki-types_1.7.0
+          o rustls-pki-types_1.10.1
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -5501,7 +5317,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o async-recursion_1.1.1
-          o flexi_logger_0.28.0
+          o flexi_logger_0.28.5
                                     Apache License
                               Version 2.0, January 2004
                            http://www.apache.org/licenses/
@@ -5705,108 +5521,108 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o addr2line_0.21.0
+          o addr2line_0.24.2
           o ahash_0.8.11
           o async-channel_2.3.1
-          o async-executor_1.11.0
+          o async-executor_1.13.1
           o async-fs_1.6.0
           o async-io_1.13.0
-          o async-io_2.3.2
+          o async-io_2.4.0
           o async-lock_2.8.0
-          o async-lock_3.3.0
+          o async-lock_3.4.0
           o async-process_1.8.1
-          o async-signal_0.2.6
+          o async-signal_0.2.10
           o async-task_4.7.1
           o atomic-waker_1.1.2
-          o backtrace_0.3.71
+          o backtrace_0.3.74
           o base64_0.22.1
           o bitflags_1.3.2
-          o bitflags_2.5.0
-          o blocking_1.6.0
+          o bitflags_2.6.0
+          o blocking_1.6.1
           o cfg-if_1.0.0
           o concurrent-queue_2.5.0
-          o core-foundation-sys_0.8.6
+          o core-foundation-sys_0.8.7
           o core-foundation_0.9.4
           o coreaudio-rs_0.11.3
-          o crossbeam-channel_0.5.13
-          o crossbeam-utils_0.8.20
+          o crossbeam-channel_0.5.14
+          o crossbeam-utils_0.8.21
           o derivative_2.2.0
-          o either_1.12.0
-          o enumset_1.1.3
-          o enumset_derive_0.8.1
+          o displaydoc_0.2.5
+          o either_1.13.0
+          o enumset_1.1.5
+          o enumset_derive_0.10.0
           o equivalent_1.0.1
-          o errno_0.3.9
-          o event-listener-strategy_0.4.0
-          o event-listener-strategy_0.5.2
+          o errno_0.3.10
+          o event-listener-strategy_0.5.3
           o event-listener_2.5.3
           o event-listener_3.1.0
-          o event-listener_4.0.3
-          o event-listener_5.3.0
+          o event-listener_5.3.1
           o fastrand_1.9.0
-          o fastrand_2.1.0
+          o fastrand_2.3.0
           o fnv_1.0.7
           o form_urlencoded_1.2.1
           o futures-lite_1.13.0
-          o futures-lite_2.3.0
-          o gimli_0.28.1
+          o futures-lite_2.5.0
+          o gimli_0.31.1
           o glob_0.3.1
-          o hashbrown_0.14.5
+          o hashbrown_0.15.2
           o heck_0.5.0
-          o httparse_1.8.0
+          o httparse_1.9.5
           o hyper-tls_0.6.0
-          o idna_0.5.0
-          o indexmap_2.2.6
+          o idna_1.0.3
+          o idna_adapter_1.2.0
+          o indexmap_2.7.0
           o io-lifetimes_1.0.11
-          o lazy_static_1.4.0
+          o lazy_static_1.5.0
           o linux-raw-sys_0.3.8
           o linux-raw-sys_0.4.14
           o lock_api_0.4.12
-          o log_0.4.21
+          o log_0.4.22
           o mime_0.3.17
-          o num-bigint_0.4.5
+          o num-bigint_0.4.6
           o num-complex_0.4.6
           o num-integer_0.1.46
           o num-iter_0.1.45
           o num-rational_0.4.2
           o num-traits_0.2.19
           o num_0.4.3
-          o object_0.32.2
-          o once_cell_1.19.0
+          o object_0.36.7
+          o once_cell_1.20.2
           o openssl-probe_0.1.5
           o ordered-stream_0.2.0
-          o parking_2.2.0
-          o parking_lot_0.12.2
+          o parking_2.2.1
+          o parking_lot_0.12.3
           o parking_lot_core_0.9.10
           o percent-encoding_2.3.1
-          o piper_0.2.2
-          o polling_3.7.0
-          o regex-automata_0.4.6
-          o regex-syntax_0.8.3
-          o regex_1.10.4
+          o piper_0.2.4
+          o polling_3.7.4
+          o regex-automata_0.4.9
+          o regex-syntax_0.8.5
+          o regex_1.11.1
           o rustc-demangle_0.1.24
           o rustix_0.37.27
-          o rustix_0.38.34
-          o rustls-pemfile_2.1.2
+          o rustix_0.38.42
+          o rustls-pemfile_2.2.0
           o scopeguard_1.2.0
-          o secret-service_3.0.1
-          o security-framework-sys_2.11.0
-          o security-framework_2.11.0
-          o signal-hook-mio_0.2.3
+          o secret-service_3.1.0
+          o security-framework-sys_2.13.0
+          o security-framework_2.11.1
+          o signal-hook-mio_0.2.4
           o signal-hook-registry_1.4.2
           o signal-hook_0.3.17
           o smallvec_1.13.2
           o socket2_0.4.10
-          o socket2_0.5.7
+          o socket2_0.5.8
           o stable_deref_trait_1.2.0
           o syn_1.0.109
-          o tempfile_3.10.1
+          o system-configuration-sys_0.6.0
+          o system-configuration_0.6.1
+          o tempfile_3.14.0
           o toml_0.5.11
-          o unicode-bidi_0.3.15
-          o unicode-normalization_0.1.23
-          o unicode-segmentation_1.11.0
-          o unicode-width_0.1.12
-          o url_2.5.0
-          o uuid_1.8.0
+          o unicode-segmentation_1.12.0
+          o unicode-width_0.1.14
+          o url_2.5.4
+          o uuid_1.11.0
           o waker-fn_1.2.0
                                     Apache License
                               Version 2.0, January 2004
@@ -6215,20 +6031,17 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o aes_0.7.5
+          o aes_0.8.4
           o block-buffer_0.10.4
-          o block-modes_0.8.1
-          o block-padding_0.2.1
           o block-padding_0.3.3
           o blowfish_0.9.1
-          o cipher_0.3.0
+          o cbc_0.1.2
           o cipher_0.4.4
-          o cpufeatures_0.2.12
+          o cpufeatures_0.2.16
           o crypto-common_0.1.6
           o digest_0.10.7
           o hmac_0.12.1
           o inout_0.1.3
-          o opaque-debug_0.3.1
           o sha1_0.10.6
           o sha2_0.10.8
                                     Apache License
@@ -7212,7 +7025,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o adler_1.0.2
+          o adler2_2.0.0
           o proc-macro-crate_1.3.1
                                     Apache License
                               Version 2.0, January 2004
@@ -7631,7 +7444,7 @@ This page lists the licenses of the projects used in panharmonicon.
       // except according to those terms.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o enumflags2_0.7.9
+          o enumflags2_0.7.10
       Apache License
 
       Version 2.0, January 2004
@@ -7802,7 +7615,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o enumflags2_derive_0.7.9
+          o enumflags2_derive_0.7.10
       Apache License
 
       Version 2.0, January 2004
@@ -7973,7 +7786,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o rodio_0.17.3
+          o rodio_0.18.1
       Apache License
                                  Version 2.0, January 2004
                               http://www.apache.org/licenses/
@@ -8178,14 +7991,19 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** Apache License 2.0 ****
       *** Used by: ***
           o panharmonicon_0.7.1
+          o anyhow_1.0.95
+          o async-trait_0.1.83
           o dasp_sample_0.11.0
           o enum-map-derive_0.17.0
           o enum-map_2.7.3
           o ident_case_1.0.1
           o linux-keyutils_0.2.4
           o mp4ameta_proc_0.6.0
-          o system-configuration-sys_0.5.0
-          o system-configuration_0.5.1
+          o quote_1.0.38
+          o serde_1.0.217
+          o serde_derive_1.0.217
+          o serde_json_1.0.134
+          o syn_2.0.92
           o xi-unicode_0.3.0
       Apache License
       Version 2.0, January 2004
@@ -8367,7 +8185,7 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o openssl_0.10.64
+          o openssl_0.10.68
       Copyright 2011-2017 Google Inc.
                 2013 Jack Lloyd
                 2013-2014 Steven Fackler
@@ -8385,9 +8203,8 @@ This page lists the licenses of the projects used in panharmonicon.
       limitations under the License.
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o unicode-normalization_0.1.23
-          o unicode-segmentation_1.11.0
-          o unicode-width_0.1.12
+          o unicode-segmentation_1.12.0
+          o unicode-width_0.1.14
       Licensed under the Apache License, Version 2.0
       <LICENSE-APACHE or
       http://www.apache.org/licenses/LICENSE-2.0> or the MIT
@@ -8401,7 +8218,7 @@ This page lists the licenses of the projects used in panharmonicon.
       MIT OR Apache-2.0
     * **** Apache License 2.0 ****
       *** Used by: ***
-          o chrono_0.4.38
+          o chrono_0.4.39
       Rust-chrono is dual-licensed under The MIT License [1] and
       Apache 2.0 License [2]. Copyright (c) 2014--2017, Kang Seonghoon and
       contributors.
@@ -8668,9 +8485,10 @@ This page lists the licenses of the projects used in panharmonicon.
       POSSIBILITY OF SUCH DAMAGE.
     * **** BSD 3-Clause "New" or "Revised" License ****
       *** Used by: ***
-          o subtle_2.5.0
+          o subtle_2.6.1
       Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights
       reserved.
+      Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved.
 
       Redistribution and use in source and binary forms, with or without
       modification, are permitted provided that the following conditions are
@@ -8729,7 +8547,7 @@ This page lists the licenses of the projects used in panharmonicon.
       POSSIBILITY OF SUCH DAMAGE.
     * **** BSD 3-Clause "New" or "Revised" License ****
       *** Used by: ***
-          o encoding_rs_0.8.34
+          o encoding_rs_0.8.35
       Copyright © WHATWG (Apple, Google, Mozilla, Microsoft).
 
       Redistribution and use in source and binary forms, with or without
@@ -8906,7 +8724,7 @@ This page lists the licenses of the projects used in panharmonicon.
           SOFTWARE
     * **** MIT License ****
       *** Used by: ***
-          o openssl-sys_0.9.102
+          o openssl-sys_0.9.104
       Copyright (c) 2014 Alex Crichton
 
       Permission is hereby granted, free of charge, to any
@@ -8935,6 +8753,7 @@ This page lists the licenses of the projects used in panharmonicon.
     * **** MIT License ****
       *** Used by: ***
           o mio_0.8.11
+          o mio_1.0.3
       Copyright (c) 2014 Carl Lerche and other MIO contributors
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -8956,7 +8775,7 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o hyper_1.3.1
+          o hyper_1.5.2
       Copyright (c) 2014-2021 Sean McArthur
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -8978,7 +8797,7 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o coreaudio-sys_0.2.15
+          o coreaudio-sys_0.2.16
       Copyright (c) 2015
 
       Permission is hereby granted, free of charge, to any
@@ -9027,29 +8846,7 @@ This page lists the licenses of the projects used in panharmonicon.
       WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o winreg_0.52.0
-      Copyright (c) 2015 Igor Shaula
-
-      Permission is hereby granted, free of charge, to any person obtaining a copy
-      of this software and associated documentation files (the "Software"), to deal
-      in the Software without restriction, including without limitation the rights
-      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-      copies of the Software, and to permit persons to whom the Software is
-      furnished to do so, subject to the following conditions:
-
-      The above copyright notice and this permission notice shall be included in
-      all copies or substantial portions of the Software.
-
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-      THE SOFTWARE.
-    * **** MIT License ****
-      *** Used by: ***
-          o schannel_0.1.23
+          o schannel_0.1.27
       Copyright (c) 2015 steffengy
 
       Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -9068,45 +8865,6 @@ This page lists the licenses of the projects used in panharmonicon.
       COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
       AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
       WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-    * **** MIT License ****
-      *** Used by: ***
-          o pandora-api_0.6.2
-      Copyright (c) 2017 Daniel Rivas
-      Copyright 2020 Will Page <compenguy@gmail.com>. All rights reserved.
-
-      Permission is hereby granted, free of charge, to any person obtaining a copy of
-      this software and associated documentation files (the "Software"), to deal in
-      the Software without restriction, including without limitation the rights to
-      use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-      of the Software, and to permit persons to whom the Software is furnished to do
-      so, subject to the following conditions:
-
-      The above copyright notice and this permission notice shall be included in all
-      copies or substantial portions of the Software.
-
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-      SOFTWARE.
-
-                  DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-                          Version 2, December 2004
-
-       Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
-
-       Everyone is permitted to copy and distribute verbatim or modified
-       copies of this license document, and changing it is allowed as long
-       as the name is changed.
-
-                  DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-         TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-
-        0. You just DO WHAT THE FUCK YOU WANT TO.
-
-
     * **** MIT License ****
       *** Used by: ***
           o memoffset_0.7.1
@@ -9132,7 +8890,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o h2_0.4.5
+          o h2_0.4.7
       Copyright (c) 2017 h2 authors
 
       Permission is hereby granted, free of charge, to any
@@ -9160,7 +8918,7 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o bytes_1.6.0
+          o bytes_1.9.0
       Copyright (c) 2018 Carl Lerche
 
       Permission is hereby granted, free of charge, to any
@@ -9261,10 +9019,38 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
+          o http-body-util_0.1.2
+      Copyright (c) 2019 Hyper Contributors
+
+      Permission is hereby granted, free of charge, to any
+      person obtaining a copy of this software and associated
+      documentation files (the "Software"), to deal in the
+      Software without restriction, including without
+      limitation the rights to use, copy, modify, merge,
+      publish, distribute, sublicense, and/or sell copies of
+      the Software, and to permit persons to whom the Software
+      is furnished to do so, subject to the following
+      conditions:
+
+      The above copyright notice and this permission notice
+      shall be included in all copies or substantial portions
+      of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
           o tokio-native-tls_0.3.1
-          o tracing-attributes_0.1.27
-          o tracing-core_0.1.32
-          o tracing_0.1.40
+          o tracing-attributes_0.1.28
+          o tracing-core_0.1.33
+          o tracing_0.1.41
       Copyright (c) 2019 Tokio Contributors
 
       Permission is hereby granted, free of charge, to any
@@ -9292,9 +9078,9 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o tower-layer_0.3.2
-          o tower-service_0.3.2
-          o tower_0.4.13
+          o tower-layer_0.3.3
+          o tower-service_0.3.3
+          o tower_0.5.2
       Copyright (c) 2019 Tower Contributors
 
       Permission is hereby granted, free of charge, to any
@@ -9322,7 +9108,35 @@ This page lists the licenses of the projects used in panharmonicon.
       DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o hyper-util_0.1.3
+          o http-body_1.0.1
+      Copyright (c) 2019-2024 Sean McArthur & Hyper Contributors
+
+      Permission is hereby granted, free of charge, to any
+      person obtaining a copy of this software and associated
+      documentation files (the "Software"), to deal in the
+      Software without restriction, including without
+      limitation the rights to use, copy, modify, merge,
+      publish, distribute, sublicense, and/or sell copies of
+      the Software, and to permit persons to whom the Software
+      is furnished to do so, subject to the following
+      conditions:
+
+      The above copyright notice and this permission notice
+      shall be included in all copies or substantial portions
+      of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
+          o hyper-util_0.1.10
       Copyright (c) 2023 Sean McArthur
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9344,83 +9158,25 @@ This page lists the licenses of the projects used in panharmonicon.
       THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o tokio-util_0.7.11
-          o tokio_1.37.0
-      Copyright (c) 2023 Tokio Contributors
+          o synstructure_0.13.1
+      Copyright 2016 Nika Layzell
 
-      Permission is hereby granted, free of charge, to any
-      person obtaining a copy of this software and associated
-      documentation files (the "Software"), to deal in the
-      Software without restriction, including without
-      limitation the rights to use, copy, modify, merge,
-      publish, distribute, sublicense, and/or sell copies of
-      the Software, and to permit persons to whom the Software
-      is furnished to do so, subject to the following
-      conditions:
-
-      The above copyright notice and this permission notice
-      shall be included in all copies or substantial portions
-      of the Software.
-
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-      DEALINGS IN THE SOFTWARE.
-    * **** MIT License ****
-      *** Used by: ***
-          o tokio-macros_2.2.0
-      Copyright (c) 2023 Tokio Contributors
-
-      Permission is hereby granted, free of charge, to any
-      person obtaining a copy of this software and associated
-      documentation files (the "Software"), to deal in the
-      Software without restriction, including without
-      limitation the rights to use, copy, modify, merge,
-      publish, distribute, sublicense, and/or sell copies of
-      the Software, and to permit persons to whom the Software
-      is furnished to do so, subject to the following
-      conditions:
-
-      The above copyright notice and this permission notice
-      shall be included in all copies or substantial portions
-      of the Software.
-
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-      ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-      TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-      PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-      SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-      OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-      IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-      DEALINGS IN THE SOFTWARE.
-
-      The MIT License (MIT)
-
-      Copyright (c) 2019 Yoshua Wuyts
-
-      Permission is hereby granted, free of charge, to any person obtaining a copy
-      of this software and associated documentation files (the "Software"), to deal
-      in the Software without restriction, including without limitation the rights
-      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-      copies of the Software, and to permit persons to whom the Software is
-      furnished to do so, subject to the following conditions:
+      Permission is hereby granted, free of charge, to any person obtaining a copy of
+      this software and associated documentation files (the "Software"), to deal in the
+      Software without restriction, including without limitation the rights to use,
+      copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+      Software, and to permit persons to whom the Software is furnished to do so,
+      subject to the following conditions:
 
       The above copyright notice and this permission notice shall be included in all
       copies or substantial portions of the Software.
 
       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-      SOFTWARE.
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+      FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+      COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+      AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+      WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
           o pandora-api-derive_0.1.3
@@ -9445,7 +9201,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o fdk-aac_0.6.0
+          o fdk-aac_0.7.0
       Copyright 2021 Hailey Somerville
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -9467,9 +9223,9 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o darling_0.20.9
-          o darling_core_0.20.9
-          o darling_macro_0.20.9
+          o darling_0.20.10
+          o darling_core_0.20.10
+          o darling_macro_0.20.10
       MIT License
 
       Copyright (c) 2017 Ted Driggs
@@ -9497,6 +9253,31 @@ This page lists the licenses of the projects used in panharmonicon.
       MIT License
 
       Copyright (c) 2018 diwic
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
+          o tokio-macros_2.4.0
+      MIT License
+
+      Copyright (c) 2019 Yoshua Wuyts
+      Copyright (c) Tokio Contributors
 
       Permission is hereby granted, free of charge, to any person obtaining a copy
       of this software and associated documentation files (the "Software"), to deal
@@ -9568,8 +9349,7 @@ This page lists the licenses of the projects used in panharmonicon.
           o panharmonicon_0.7.1
           o cursive_0.20.0
           o fdk-aac-sys_0.5.0
-          o http-body-util_0.1.1
-          o http-body_1.0.0
+          o pandora-api_0.6.2
       MIT License
 
       Copyright (c) <year> <copyright holders>
@@ -9590,6 +9370,31 @@ This page lists the licenses of the projects used in panharmonicon.
       COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
       AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
       WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    * **** MIT License ****
+      *** Used by: ***
+          o tokio-util_0.7.13
+          o tokio_1.42.0
+      MIT License
+
+      Copyright (c) Tokio Contributors
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
           o crossterm_0.25.0
@@ -9617,8 +9422,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o xdg-home_1.1.0
-          o xdg-home_1.1.0
+          o xdg-home_1.3.0
           o zbus_3.15.2
           o zbus_macros_3.15.2
           o zbus_names_2.6.1
@@ -9671,7 +9475,7 @@ This page lists the licenses of the projects used in panharmonicon.
       WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o tracing-core_0.1.32
+          o tracing-core_0.1.33
       The MIT License (MIT)
 
       Copyright (c) 2014 Mathijs van de Nes
@@ -9697,7 +9501,7 @@ This page lists the licenses of the projects used in panharmonicon.
       *** Used by: ***
           o aho-corasick_1.1.3
           o byteorder_1.5.0
-          o memchr_2.7.2
+          o memchr_2.7.4
       The MIT License (MIT)
 
       Copyright (c) 2015 Andrew Gallant
@@ -9795,7 +9599,7 @@ This page lists the licenses of the projects used in panharmonicon.
       SOFTWARE.
     * **** MIT License ****
       *** Used by: ***
-          o os_info_3.8.2
+          o os_info_3.9.1
       The MIT License (MIT)
 
       Copyright (c) 2017 Stanislav Tkach
@@ -9921,7 +9725,7 @@ This page lists the licenses of the projects used in panharmonicon.
       *** Used by: ***
           o aho-corasick_1.1.3
           o byteorder_1.5.0
-          o memchr_2.7.2
+          o memchr_2.7.4
       This project is dual-licensed under the Unlicense and MIT licenses.
 
       You may use this code under the terms of either license.
@@ -10302,60 +10106,67 @@ This page lists the licenses of the projects used in panharmonicon.
 
         This Source Code Form is "Incompatible With Secondary Licenses", as
         defined by the Mozilla Public License, v. 2.0.
-    * **** Unicode License Agreement - Data Files and Software (2016) ****
+    * **** Unicode License v3 ****
       *** Used by: ***
-          o unicode-ident_1.0.12
-      UNICODE, INC. LICENSE AGREEMENT - DATA FILES AND SOFTWARE
-
-      Unicode Data Files include all data files under the directories http://
-      www.unicode.org/Public/, http://www.unicode.org/reports/, http://www.unicode.org/
-      cldr/data/, http://source.icu-project.org/repos/icu/, and http://www.unicode.org/
-      utility/trac/browser/.
-
-      Unicode Data Files do not include PDF online code charts under the directory http:
-      //www.unicode.org/Public/.
-
-      Software includes any source code published in the Unicode Standard or under the
-      directories http://www.unicode.org/Public/, http://www.unicode.org/reports/, http:
-      //www.unicode.org/cldr/data/, http://source.icu-project.org/repos/icu/, and http:/
-      /www.unicode.org/utility/trac/browser/.
-
-      NOTICE TO USER: Carefully read the following legal agreement. BY DOWNLOADING,
-      INSTALLING, COPYING OR OTHERWISE USING UNICODE INC.&#x27;S DATA FILES ("DATA
-      FILES"), AND/OR SOFTWARE ("SOFTWARE"), YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE
-      BOUND BY, ALL OF THE TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE,
-      DO NOT DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+          o icu_collections_1.5.0
+          o icu_locid_1.5.0
+          o icu_locid_transform_1.5.0
+          o icu_locid_transform_data_1.5.0
+          o icu_normalizer_1.5.0
+          o icu_normalizer_data_1.5.0
+          o icu_properties_1.5.1
+          o icu_properties_data_1.5.0
+          o icu_provider_1.5.0
+          o icu_provider_macros_1.5.0
+          o litemap_0.7.4
+          o tinystr_0.7.6
+          o unicode-ident_1.0.14
+          o writeable_0.5.5
+          o yoke-derive_0.7.5
+          o yoke_0.7.5
+          o zerofrom-derive_0.1.5
+          o zerofrom_0.1.5
+          o zerovec-derive_0.10.3
+          o zerovec_0.10.4
+      UNICODE LICENSE V3
 
       COPYRIGHT AND PERMISSION NOTICE
 
-      Copyright © 1991-2016 Unicode, Inc. All rights reserved. Distributed under the
-      Terms of Use in http://www.unicode.org/copyright.html.
+      Copyright © 1991-2023 Unicode, Inc.
 
-      Permission is hereby granted, free of charge, to any person obtaining a copy of
-      the Unicode data files and any associated documentation (the "Data Files") or
-      Unicode software and any associated documentation (the "Software") to deal in the
-      Data Files or Software without restriction, including without limitation the
-      rights to use, copy, modify, merge, publish, distribute, and/or sell copies of the
-      Data Files or Software, and to permit persons to whom the Data Files or Software
-      are furnished to do so, provided that either
+      NOTICE TO USER: Carefully read the following legal agreement. BY
+      DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+      SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+      TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+      DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
 
-           (a) this copyright and permission notice appear with all copies of the Data
-      Files or Software, or
-           (b) this copyright and permission notice appear in associated Documentation.
+      Permission is hereby granted, free of charge, to any person obtaining a
+      copy of data files and any associated documentation (the "Data Files") or
+      software and any associated documentation (the "Software") to deal in the
+      Data Files or Software without restriction, including without limitation
+      the rights to use, copy, modify, merge, publish, distribute, and/or sell
+      copies of the Data Files or Software, and to permit persons to whom the
+      Data Files or Software are furnished to do so, provided that either (a)
+      this copyright and permission notice appear with all copies of the Data
+      Files or Software, or (b) this copyright and permission notice appear in
+      associated Documentation.
 
-      THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-      EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-      MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD
-      PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS
-      NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
-      OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
-      AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
-      CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA FILES OR SOFTWARE.
+      THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+      KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+      THIRD PARTY RIGHTS.
 
-      Except as contained in this notice, the name of a copyright holder shall not be
-      used in advertising or otherwise to promote the sale, use or other dealings in
-      these Data Files or Software without prior written authorization of the copyright
-      holder.
+      IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+      BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+      OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+      WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+      ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+      FILES OR SOFTWARE.
+
+      Except as contained in this notice, the name of a copyright holder shall
+      not be used in advertising or otherwise to promote the sale, use or other
+      dealings in these Data Files or Software without prior written
+      authorization of the copyright holder.
     * **** Do What The F*ck You Want To Public License ****
       *** Used by: ***
           o pandora-api_0.6.2
