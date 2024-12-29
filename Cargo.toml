@@ -9,6 +9,7 @@ repository = "https://github.com/compenguy/panharmonicon"
 
 [features]
 default = ["emoji_labels"]
+mpris_server = ["dep:mpris-server"]
 emoji_labels = []
 
 [dependencies]
@@ -33,6 +34,8 @@ async-broadcast = "0.7"
 redlux = { version = "0.7", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.13"
 cursive = { version = "0.21", default-features = false, features = ["crossterm-backend", "toml"] }
+mpris-server = { version = "0.8", optional = true }
+rand = "0.8"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

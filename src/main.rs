@@ -13,6 +13,8 @@ use crate::config::Config;
 mod caching;
 mod messages;
 mod model;
+#[cfg(feature = "mpris_server")]
+mod mpris_ui;
 mod pandora;
 mod player;
 mod term_ui;
@@ -123,8 +125,15 @@ async fn main() -> Result<()> {
     trace!("Initializing track fetcher");
     let mut fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
 
+    #[cfg(feature = "mpris_server")]
+    trace!("Initializing mpris interface");
+    #[cfg(feature = "mpris_server")]
+    let mut mpris_ui =
+        mpris_ui::MprisPlayer::new(model.updates_channel(), model.request_channel()).await?;
+
     trace!("Initializing terminal interface");
-    let mut ui = term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
+    let mut term_ui =
+        term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
 
     trace!("Initializing player interface");
     let mut player = player::Player::new(model.updates_channel(), model.request_channel());
@@ -166,21 +175,40 @@ async fn main() -> Result<()> {
             std::thread::sleep(naptime);
         }
         */
-        let step_result = tokio::try_join!(
-            model.update(),
-            player.update(),
-            ui.update(),
-            fetcher.update()
-        );
-        match step_result {
-            Err(e) => error!("Error updating application state: {:#}", e),
-            Ok((false, false, false, false)) => std::thread::sleep(naptime),
-            Ok((_, _, _, _)) => (),
+
+        #[cfg(not(feature = "mpris_server"))]
+        {
+            let step_result = tokio::try_join!(
+                model.update(),
+                player.update(),
+                term_ui.update(),
+                fetcher.update()
+            );
+            match step_result {
+                Err(e) => error!("Error updating application state: {:#}", e),
+                Ok((false, false, false, false)) => std::thread::sleep(naptime),
+                Ok((_, _, _, _)) => (),
+            }
+        }
+        #[cfg(feature = "mpris_server")]
+        {
+            let step_result = tokio::try_join!(
+                model.update(),
+                player.update(),
+                term_ui.update(),
+                mpris_ui.update(),
+                fetcher.update()
+            );
+            match step_result {
+                Err(e) => error!("Error updating application state: {:#}", e),
+                Ok((false, false, false, false, false)) => std::thread::sleep(naptime),
+                Ok((_, _, _, _, _)) => (),
+            }
         }
     }
     debug!("Application quit request acknowledged.");
-    // Explicitly drop the UI to force it to write changed settings out
-    drop(ui);
+    // Explicitly drop the model to force it to write changed settings out
+    drop(model);
     debug!("Application interface terminated.");
 
     Ok(())
