@@ -3,115 +3,80 @@ use std::time::Duration;
 use anyhow::Result;
 use log::trace;
 
-use crate::messages::{Request, State, StopReason};
+use crate::messages::State;
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
-use mpris_server::{Metadata, Player, Time};
+use mpris_server::{Metadata, Property, Signal, Time};
+mod mpris_intf;
+use mpris_intf::MprisInterface;
 
 #[derive(Debug)]
-pub(crate) struct MprisPlayer {
-    player: Player,
-    _local_rt: tokio::task::LocalSet,
+pub(crate) struct MprisUi {
+    server: mpris_server::Server<MprisInterface>,
     state_receiver: StateReceiver,
 }
 
-impl MprisPlayer {
+impl MprisUi {
     pub(crate) async fn new(
         state_receiver: StateReceiver,
         request_sender: RequestSender,
     ) -> Result<Self> {
-        let player = Player::builder("com.github.compenguy.panharmonicon")
-            .identity("panharmonicon")
-            .can_quit(true)
-            .has_track_list(true)
-            .can_go_next(true)
-            .can_go_previous(false)
-            .can_play(true)
-            .can_pause(true)
-            .can_control(true)
-            .build()
-            .await?;
+        let mpris_intf = MprisInterface::new(state_receiver.clone(), request_sender);
 
-        let _local_rt = tokio::task::LocalSet::new();
-        _local_rt.spawn_local(player.run());
-
-        let cb_sender = request_sender.clone();
-        player.connect_next(move |_| {
-            let _ = cb_sender.send(Request::Stop(StopReason::UserRequest));
-        });
-
-        let cb_sender = request_sender.clone();
-        player.connect_quit(move |_| {
-            let _ = cb_sender.send(Request::Quit);
-        });
-
-        let cb_sender = request_sender.clone();
-        player.connect_pause(move |_| {
-            let _ = cb_sender.send(Request::Pause);
-        });
-
-        let cb_sender = request_sender.clone();
-        player.connect_play(move |_| {
-            let _ = cb_sender.send(Request::Unpause);
-        });
-
-        let cb_sender = request_sender.clone();
-        player.connect_play_pause(move |_| {
-            let _ = cb_sender.send(Request::TogglePause);
-        });
-
-        let cb_sender = request_sender.clone();
-        player.connect_set_volume(move |_, v| {
-            let _ = cb_sender.send(Request::Volume(v as f32));
-        });
+        let server = mpris_server::Server::new_with_all(clap::crate_name!(), mpris_intf).await?;
 
         Ok(Self {
-            player,
-            _local_rt,
+            server,
             state_receiver,
         })
     }
 
     async fn update_state_stopped(&mut self) -> Result<()> {
-        self.player
-            .set_playback_status(mpris_server::PlaybackStatus::Stopped)
+        self.server
+            .properties_changed([Property::PlaybackStatus(
+                mpris_server::PlaybackStatus::Playing,
+            )])
             .await?;
         Ok(())
     }
 
     async fn playing_track(&mut self, track: Track) -> Result<()> {
-        self.player
-            .set_playback_status(mpris_server::PlaybackStatus::Playing)
-            .await?;
         let metadata = Metadata::builder()
             .length(Time::from_millis(track.track_length.as_millis() as i64))
             .album(track.album_name.clone())
             .artist([track.artist_name.clone()])
             .title(track.title.clone())
             .build();
-        self.player.set_metadata(metadata).await?;
+        self.server
+            .properties_changed([
+                Property::Metadata(metadata),
+                Property::PlaybackStatus(mpris_server::PlaybackStatus::Playing),
+            ])
+            .await?;
         Ok(())
     }
 
     async fn update_playing(&mut self, elapsed: Duration, paused: bool) -> Result<()> {
-        self.player
-            .seeked(Time::from_millis(elapsed.as_millis() as i64))
+        let playback_status = match paused {
+            true => mpris_server::PlaybackStatus::Paused,
+            false => mpris_server::PlaybackStatus::Playing,
+        };
+        self.server
+            .properties_changed([Property::PlaybackStatus(playback_status)])
             .await?;
-        if paused {
-            self.player
-                .set_playback_status(mpris_server::PlaybackStatus::Paused)
-                .await?;
-        } else {
-            self.player
-                .set_playback_status(mpris_server::PlaybackStatus::Playing)
-                .await?;
-        }
+        self.server
+            .emit(Signal::Seeked {
+                position: Time::from_millis(elapsed.as_millis() as i64),
+            })
+            .await?;
         Ok(())
     }
 
     async fn update_volume(&mut self, volume: f32) -> Result<()> {
-        self.player.set_volume(volume as f64).await?;
+        self.server
+            .properties_changed([Property::Volume(volume as f64)])
+            .await?;
         Ok(())
     }
 

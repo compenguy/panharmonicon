@@ -75,6 +75,23 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
     }
 }
 
+#[cfg(feature = "mpris_server")]
+use std::convert::TryFrom;
+#[cfg(feature = "mpris_server")]
+impl std::convert::From<&Track> for mpris_server::Metadata {
+    fn from(track: &Track) -> mpris_server::Metadata {
+        mpris_server::Metadata::builder()
+            .length(mpris_server::Time::from_millis(
+                track.track_length.as_millis() as i64,
+            ))
+            .trackid(mpris_server::TrackId::try_from(track.track_token.as_str()).expect("Failed to convert track token to TrackId"))
+            .album(track.album_name.clone())
+            .artist([track.artist_name.clone()])
+            .title(track.title.clone())
+            .build()
+    }
+}
+
 impl Track {
     pub(crate) fn cached(&self) -> bool {
         // Ensure that the track in the cache is playable, it will be deleted if it isn't

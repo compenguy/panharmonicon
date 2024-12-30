@@ -129,7 +129,7 @@ async fn main() -> Result<()> {
     trace!("Initializing mpris interface");
     #[cfg(feature = "mpris_server")]
     let mut mpris_ui =
-        mpris_ui::MprisPlayer::new(model.updates_channel(), model.request_channel()).await?;
+        mpris_ui::MprisUi::new(model.updates_channel(), model.request_channel()).await?;
 
     trace!("Initializing terminal interface");
     let mut term_ui =
