@@ -214,11 +214,12 @@ fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &s
     debug!("Reading tags from m4a");
     let mut tag = match mp4ameta::Tag::read_from_path(path) {
         Ok(tag) => tag,
-        Err(mp4ameta::Error {
-            kind: mp4ameta::ErrorKind::NoTag,
-            ..
-        }) => mp4ameta::Tag::default(),
-        err => err.with_context(|| format!("Failed reading m4a file at {}", path.display()))?,
+        Err(e) if matches!(e.kind, mp4ameta::ErrorKind::AtomNotFound(_)) => {
+            mp4ameta::Tag::default()
+        }
+        Err(e) => {
+            Err(e).with_context(|| format!("Failed reading m4a file at {}", path.display()))?
+        }
     };
 
     debug!("Updating tags with pandora metadata");
@@ -243,7 +244,7 @@ fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &s
         debug!("Writing tags back to file");
         tag.write_to_path(path).with_context(|| {
             format!(
-                "Failed while writing updated MP3 tags back to {}",
+                "Failed while writing updated M4A tags back to {}",
                 path.display()
             )
         })?;

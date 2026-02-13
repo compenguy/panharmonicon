@@ -291,7 +291,6 @@ impl PandoraSession {
         }
         .map_err(anyhow::Error::from)
         .map(|_: DeleteMusicResponse| ())
-        .map_err(anyhow::Error::from)
     }
 
     pub async fn create_station_from_track_song(
