@@ -41,7 +41,7 @@ impl MprisInterface {
 
     fn publish_zrequest(&self, request: Request) -> zbus::Result<()> {
         self.request_sender
-            .send(request)
+            .try_send(request)
             .map_err(|e| zbus::Error::Failure(e.to_string()))?;
         Ok(())
     }

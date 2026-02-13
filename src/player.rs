@@ -270,7 +270,9 @@ impl Player {
     }
 
     fn publish_request(&mut self, request: Request) -> Result<()> {
-        self.request_sender.send(request)?;
+        self.request_sender
+            .try_send(request)
+            .map_err(anyhow::Error::from)?;
         Ok(())
     }
 

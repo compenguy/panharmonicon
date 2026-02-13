@@ -132,8 +132,12 @@ fn main() -> Result<()> {
     debug!("Configuration settings: {:?}", &conf);
     let shared_config: SharedConfig = Arc::new(RwLock::new(conf));
 
+    trace!("Initializing Pandora API task");
+    let (pandora_cmd_tx, pandora_cmd_rx) = tokio::sync::mpsc::channel(32);
+    let (pandora_result_tx, pandora_result_rx) = tokio::sync::mpsc::channel(32);
+
     trace!("Initializing application core");
-    let model = model::Model::new(shared_config.clone());
+    let model = model::Model::new(shared_config.clone(), pandora_cmd_tx, pandora_result_rx);
 
     trace!("Initializing track fetcher");
     let mut fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
@@ -146,7 +150,8 @@ fn main() -> Result<()> {
     trace!("Initializing player interface");
     let mut player = player::Player::new(model.updates_channel(), model.request_channel());
 
-    let naptime = Duration::from_millis(100);
+    // Polling interval for main loop and worker tasks. ~50ms keeps UI/control latency low without extra CPU.
+    let naptime = Duration::from_millis(50);
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
@@ -155,6 +160,12 @@ fn main() -> Result<()> {
         .context("Failed to build tokio runtime")?;
 
     rt.block_on(async move {
+        let pandora_handle = tokio::spawn(pandora::run_pandora_task(
+            shared_config.clone(),
+            pandora_cmd_rx,
+            pandora_result_tx,
+        ));
+
         let mut state_receiver_main = model.updates_channel();
         let mut state_receiver_fetcher = model.updates_channel();
         #[cfg(feature = "mpris_server")]
@@ -175,59 +186,78 @@ fn main() -> Result<()> {
             None
         };
 
-        // Model runs on its own thread (via tokio worker); exits when it processes Request::Quit.
+        // Model: event-driven; wake on request or on timer; exits when it processes Request::Quit.
         let model_handle = tokio::spawn(async move {
             let mut model = model;
-            while !model.quitting() {
-                if let Err(e) = model.update().await {
-                    error!("Error updating model state: {e:#}");
-                }
-                tokio::time::sleep(naptime).await;
+            if let Err(e) = model.run_until_quit(naptime).await {
+                error!("Error in model: {e:#}");
             }
             drop(model);
         });
 
-        // Fetcher runs on its own thread; exits when it receives State::Quit from the broadcast.
+        // Fetcher: event-driven; wake on state (Quit) or timer for update.
         let fetcher_handle = tokio::spawn(async move {
             loop {
-                while let Ok(msg) = state_receiver_fetcher.try_recv() {
-                    if matches!(msg, State::Quit) {
-                        return;
+                tokio::select! {
+                    biased;
+                    result = state_receiver_fetcher.recv() => {
+                        if let Ok(msg) = result {
+                            if matches!(msg, State::Quit) {
+                                return;
+                            }
+                        }
+                        while let Ok(msg) = state_receiver_fetcher.try_recv() {
+                            if matches!(msg, State::Quit) {
+                                return;
+                            }
+                        }
+                    }
+                    _ = tokio::time::sleep(naptime) => {
+                        if let Err(e) = fetcher.update().await {
+                            error!("Error updating fetcher state: {e:#}");
+                        }
                     }
                 }
-                if let Err(e) = fetcher.update().await {
-                    error!("Error updating fetcher state: {e:#}");
-                }
-                tokio::time::sleep(naptime).await;
             }
         });
 
         #[cfg(feature = "mpris_server")]
         let mpris_handle = tokio::spawn(async move {
             loop {
-                while let Ok(msg) = state_receiver_mpris.try_recv() {
-                    if matches!(msg, State::Quit) {
-                        return;
+                tokio::select! {
+                    biased;
+                    result = state_receiver_mpris.recv() => {
+                        if let Ok(msg) = result {
+                            if matches!(msg, State::Quit) {
+                                return;
+                            }
+                        }
+                        while let Ok(msg) = state_receiver_mpris.try_recv() {
+                            if matches!(msg, State::Quit) {
+                                return;
+                            }
+                        }
+                    }
+                    _ = tokio::time::sleep(naptime) => {
+                        if let Err(e) = mpris_ui.update().await {
+                            error!("Error updating mpris state: {e:#}");
+                        }
                     }
                 }
-                if let Err(e) = mpris_ui.update().await {
-                    error!("Error updating mpris state: {e:#}");
-                }
-                tokio::time::sleep(naptime).await;
             }
         });
 
-        // Player and term_ui (cursive) are !Send, so they stay on the main thread. Exit on State::Quit.
+        // Player and term_ui (cursive) stay on the main thread. Poll every naptime so the UI
+        // always gets to run and process input; drain state first to see Quit promptly.
         trace!("Starting app (player and term_ui on main thread)");
         let mut quitting = false;
         while !quitting {
-            // pump the message queue to see if we've been told to quit
             while let Ok(msg) = state_receiver_main.try_recv() {
                 if matches!(msg, State::Quit) {
                     quitting = true;
+                    continue;
                 }
             }
-            // now run the application state components that are running in this thread
             if let Some(term_ui) = term_ui_opt.as_mut() {
                 let _ = tokio::try_join!(player.update(), term_ui.update())
                     .map_err(|e| error!("Error updating application state: {e:#}"));
@@ -242,6 +272,7 @@ fn main() -> Result<()> {
         let _ = fetcher_handle.await;
         #[cfg(feature = "mpris_server")]
         let _ = mpris_handle.await;
+        let _ = pandora_handle.await;
     });
 
     debug!("Application quit request acknowledged.");

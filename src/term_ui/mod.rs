@@ -37,7 +37,9 @@ pub(crate) struct TerminalContext {
 
 impl TerminalContext {
     fn publish_request(&mut self, request: Request) -> Result<()> {
-        self.request_sender.send(request)?;
+        self.request_sender
+            .try_send(request)
+            .map_err(anyhow::Error::from)?;
         Ok(())
     }
 }
@@ -62,7 +64,7 @@ impl Terminal {
             request_sender,
         };
         siv.set_user_data(context.clone());
-        siv.set_fps(5);
+        siv.set_fps(10);
         siv.set_window_title("panharmonicon");
         let mut term = Self {
             siv,
