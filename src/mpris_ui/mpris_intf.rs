@@ -120,7 +120,7 @@ impl PlayerInterface for MprisInterface {
     }
 
     async fn stop(&self) -> zbus::fdo::Result<()> {
-        self.publish_zrequest(Request::Stop(StopReason::UserRequest))?;
+        self.publish_zrequest(Request::Pause)?;
         Ok(())
     }
 
