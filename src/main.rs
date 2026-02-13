@@ -17,6 +17,7 @@ mod model;
 mod mpris_ui;
 mod pandora;
 mod player;
+#[cfg(feature = "term_ui")]
 mod term_ui;
 mod track;
 
@@ -131,7 +132,9 @@ async fn main() -> Result<()> {
     let mut mpris_ui =
         mpris_ui::MprisUi::new(model.updates_channel(), model.request_channel()).await?;
 
+    #[cfg(feature = "term_ui")]
     trace!("Initializing terminal interface");
+    #[cfg(feature = "term_ui")]
     let mut term_ui =
         term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
 
@@ -176,7 +179,16 @@ async fn main() -> Result<()> {
         }
         */
 
-        #[cfg(not(feature = "mpris_server"))]
+        #[cfg(all(not(feature = "mpris_server"), not(feature = "term_ui")))]
+        {
+            let step_result = tokio::try_join!(model.update(), player.update(), fetcher.update());
+            match step_result {
+                Err(e) => error!("Error updating application state: {e:#}"),
+                Ok((false, false, false)) => std::thread::sleep(naptime),
+                Ok((_, _, _)) => (),
+            }
+        }
+        #[cfg(all(not(feature = "mpris_server"), feature = "term_ui"))]
         {
             let step_result = tokio::try_join!(
                 model.update(),
@@ -190,7 +202,21 @@ async fn main() -> Result<()> {
                 Ok((_, _, _, _)) => (),
             }
         }
-        #[cfg(feature = "mpris_server")]
+        #[cfg(all(feature = "mpris_server", not(feature = "term_ui")))]
+        {
+            let step_result = tokio::try_join!(
+                model.update(),
+                player.update(),
+                mpris_ui.update(),
+                fetcher.update()
+            );
+            match step_result {
+                Err(e) => error!("Error updating application state: {e:#}"),
+                Ok((false, false, false, false)) => std::thread::sleep(naptime),
+                Ok((_, _, _, _)) => (),
+            }
+        }
+        #[cfg(all(feature = "mpris_server", feature = "term_ui"))]
         {
             let step_result = tokio::try_join!(
                 model.update(),
