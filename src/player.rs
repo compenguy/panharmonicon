@@ -270,7 +270,9 @@ impl Player {
     }
 
     fn publish_request(&mut self, request: Request) -> Result<()> {
-        self.request_sender.send(request)?;
+        self.request_sender
+            .try_send(request)
+            .map_err(anyhow::Error::from)?;
         Ok(())
     }
 
@@ -427,7 +429,7 @@ impl Player {
                 State::Muted => self.mute(),
                 State::Unmuted => self.unmute(),
                 State::Stopped(reason) => {
-                    info!("Stopping track playback: {:?}", reason);
+                    info!("Stopping track playback: {reason:?}");
                     self.stop()
                 }
                 State::Quit => self.stop(),

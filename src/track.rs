@@ -75,6 +75,26 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
     }
 }
 
+#[cfg(feature = "mpris_server")]
+use std::convert::TryFrom;
+#[cfg(feature = "mpris_server")]
+impl std::convert::From<&Track> for mpris_server::Metadata {
+    fn from(track: &Track) -> mpris_server::Metadata {
+        mpris_server::Metadata::builder()
+            .length(mpris_server::Time::from_millis(
+                track.track_length.as_millis() as i64,
+            ))
+            .trackid(
+                mpris_server::TrackId::try_from(track.track_token.as_str())
+                    .expect("Failed to convert track token to TrackId"),
+            )
+            .album(track.album_name.clone())
+            .artist([track.artist_name.clone()])
+            .title(track.title.clone())
+            .build()
+    }
+}
+
 impl Track {
     pub(crate) fn cached(&self) -> bool {
         // Ensure that the track in the cache is playable, it will be deleted if it isn't
@@ -108,13 +128,7 @@ impl Track {
         let req_builder = client.get(&self.audio_stream);
 
         if let Err(e) = download_to_cache(req_builder, &self.cache_path).await {
-            // TODO: fill in the actual error type for Connection reset by peer
-            /*
-            if let Some(e) = e.source().and_then(|e| e.downcast_ref::<reqwest::Error>()) {
-                error!("reqwest error {e:?}");
-            }
-            */
-            error!("Failed to download requested file: {}", e.source().unwrap());
+            error!("Failed to download track to cache: {e:#}");
             self.remove_from_cache();
             Err(e)
         } else {
@@ -139,7 +153,7 @@ impl Track {
             &self.artist_name,
             &self.album_name,
         ) {
-            error!("Failed to download requested file: {e:#}");
+            error!("Failed to tag cached file: {e:#}");
             self.remove_from_cache();
             Err(e)
         } else {
@@ -170,7 +184,7 @@ fn get_m4a_decoder<P: AsRef<Path>>(path: P) -> Result<redlux::Decoder<BufReader<
     redlux::Decoder::new_mpeg4(reader, metadata.len()).context("Failed initializing media decoder")
 }
 
-async fn download_to_cache<P: AsRef<std::path::Path>>(
+async fn download_to_cache<P: AsRef<Path>>(
     req_builder: reqwest::RequestBuilder,
     path: P,
 ) -> Result<()> {
@@ -214,11 +228,13 @@ fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &s
     debug!("Reading tags from m4a");
     let mut tag = match mp4ameta::Tag::read_from_path(path) {
         Ok(tag) => tag,
-        Err(mp4ameta::Error {
-            kind: mp4ameta::ErrorKind::NoTag,
-            ..
-        }) => mp4ameta::Tag::default(),
-        err => err.with_context(|| format!("Failed reading m4a file at {}", path.display()))?,
+        Err(e) if matches!(e.kind, mp4ameta::ErrorKind::AtomNotFound(_)) => {
+            // File has no metadata atoms (replaces former NoTag in mp4ameta 0.13)
+            mp4ameta::Tag::default()
+        }
+        Err(e) => {
+            Err(e).with_context(|| format!("Failed reading m4a file at {}", path.display()))?
+        }
     };
 
     debug!("Updating tags with pandora metadata");
@@ -243,7 +259,7 @@ fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &s
         debug!("Writing tags back to file");
         tag.write_to_path(path).with_context(|| {
             format!(
-                "Failed while writing updated MP3 tags back to {}",
+                "Failed while writing updated M4A tags back to {}",
                 path.display()
             )
         })?;
@@ -261,7 +277,7 @@ fn cache_file_path(title: &str, artist: &str, album: &str) -> Result<PathBuf> {
         .join(&artist)
         .join(album);
 
-    let filename = format!("{artist} - {title}.{}", "m4a");
+    let filename = format!("{artist} - {title}.m4a");
     path.push(filename);
     Ok(path)
 }

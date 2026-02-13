@@ -190,7 +190,7 @@ impl TrackCacher {
 
     fn publish_request(&mut self, request: Request) -> Result<()> {
         self.request_sender
-            .send(request)
+            .try_send(request)
             .context("Failed sending application update request")?;
         Ok(())
     }

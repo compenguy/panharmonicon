@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{Context, Result};
 use log::trace;
@@ -11,7 +10,7 @@ use pandora_api::json::track::*;
 use pandora_api::json::user::*;
 use pandora_api::json::{PandoraJsonApiRequest, ToEncryptionTokens};
 
-use crate::config::Config;
+use crate::config::SharedConfig;
 use crate::errors::Error;
 use crate::track::Track;
 
@@ -49,7 +48,7 @@ const ANDROID_ENDPOINT: &str = "https://tuner.pandora.com/services/json";
 /// pandora_api::json::PandoraSession, which we wrap here.
 #[derive(Debug, Clone)]
 pub(crate) struct PandoraSession {
-    config: Rc<RefCell<Config>>,
+    config: SharedConfig,
     inner: pandora_api::json::PandoraSession,
 }
 
@@ -57,7 +56,7 @@ pub(crate) struct PandoraSession {
 // no longer valid, re-create session and retry?
 impl PandoraSession {
     /// Instantiate a new PandoraSession.
-    pub fn new(config: Rc<RefCell<Config>>) -> Self {
+    pub fn new(config: SharedConfig) -> Self {
         let inner: pandora_api::json::PandoraSession = pandora_api::json::PandoraSession::new(
             None,
             &PartnerKeys::new_android(),
@@ -146,10 +145,20 @@ impl PandoraSession {
         }
 
         trace!("User login");
-        let username_opt = self.config.borrow().login.username();
+        let username_opt = self
+            .config
+            .read()
+            .expect("config read for user_login username")
+            .login
+            .username();
         let username = username_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
 
-        let password_opt = self.config.borrow().login.password()?;
+        let password_opt = self
+            .config
+            .read()
+            .expect("config read for user_login password")
+            .login
+            .password()?;
         let password = password_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
 
         UserLogin::new(&username, &password)
@@ -291,7 +300,6 @@ impl PandoraSession {
         }
         .map_err(anyhow::Error::from)
         .map(|_: DeleteMusicResponse| ())
-        .map_err(anyhow::Error::from)
     }
 
     pub async fn create_station_from_track_song(
