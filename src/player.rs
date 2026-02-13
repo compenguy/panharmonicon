@@ -427,7 +427,7 @@ impl Player {
                 State::Muted => self.mute(),
                 State::Unmuted => self.unmute(),
                 State::Stopped(reason) => {
-                    info!("Stopping track playback: {:?}", reason);
+                    info!("Stopping track playback: {reason:?}");
                     self.stop()
                 }
                 State::Quit => self.stop(),

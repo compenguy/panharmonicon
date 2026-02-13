@@ -107,7 +107,7 @@ pub(crate) fn connect_button(s: &mut Cursive) {
                 let _ = ctx.publish_request(Request::Connect);
             }
             Err(e) => {
-                error!("Failed while updating password: {:?}", e);
+                error!("Failed while updating password: {e:?}");
             }
         }
     });

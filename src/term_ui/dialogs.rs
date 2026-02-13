@@ -94,11 +94,7 @@ pub(crate) fn playing_view() -> LinearLayout {
                     SliderView::horizontal(11)
                         .on_change(|s, v| {
                             let new_volume: f32 = ((v as f32) / 10.0).clamp(0.0f32, 1.0f32);
-                            trace!(
-                                "Submitting updated volume from slider: {} ({:.2})",
-                                v,
-                                new_volume
-                            );
+                            trace!("Submitting updated volume from slider: {v} ({new_volume:.2})");
                             trace!("send request 'volume'");
                             s.with_user_data(|ctx: &mut TerminalContext| {
                                 let _ = ctx.publish_request(Request::Volume(new_volume));

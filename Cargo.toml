@@ -8,7 +8,7 @@ license = "Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND 
 repository = "https://github.com/compenguy/panharmonicon"
 
 [features]
-default = ["emoji_labels"]
+default = ["emoji_labels", "mpris_server"]
 mpris_server = ["dep:mpris-server"]
 emoji_labels = []
 
@@ -33,7 +33,7 @@ reqwest = { version = "0.13", features = ["stream"] }
 async-broadcast = "0.7"
 redlux = { version = "0.7", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.13"
-cursive = { version = "0.21", default-features = false, features = ["crossterm-backend", "toml"] }
+cursive = { version = "0.20", default-features = false, features = ["crossterm-backend", "toml"] }
 mpris-server = { version = "0.9", optional = true }
 rand = "0.10"
 

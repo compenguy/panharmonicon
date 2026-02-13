@@ -599,7 +599,7 @@ impl Model {
 
     async fn notify_next(&mut self) -> Result<()> {
         let next_track = self.get_next().cloned();
-        trace!("send notification 'Next({:?})'", next_track);
+        trace!("send notification 'Next({next_track:?})'");
         self.publish_state(State::Next(next_track)).await?;
         Ok(())
     }
@@ -749,7 +749,7 @@ impl Drop for Model {
         // If there have been any configuration changes, commit them to disk
         trace!("Flushing config file to disk...");
         if let Err(e) = self.config.borrow_mut().flush() {
-            error!("Failed commiting configuration changes to file: {:?}", e);
+            error!("Failed commiting configuration changes to file: {e:?}");
         }
         trace!("Application data model has been dropped");
     }

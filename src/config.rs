@@ -388,8 +388,8 @@ impl Config {
     }
 
     pub(crate) fn update_from(&mut self, other: &PartialConfig) {
-        debug!("Settings before update: {:?}", self);
-        debug!("Settings being applied: {:?}", other);
+        debug!("Settings before update: {self:?}");
+        debug!("Settings being applied: {other:?}");
         if let Some(login) = &other.login {
             if self.login != *login {
                 self.dirty |= true;
@@ -424,7 +424,7 @@ impl Config {
                 self.volume = volume;
             }
         }
-        debug!("Settings after update: {:?}", self);
+        debug!("Settings after update: {self:?}");
     }
 
     pub(crate) fn login_credentials(&self) -> &Credentials {

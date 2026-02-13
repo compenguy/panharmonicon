@@ -185,7 +185,7 @@ async fn main() -> Result<()> {
                 fetcher.update()
             );
             match step_result {
-                Err(e) => error!("Error updating application state: {:#}", e),
+                Err(e) => error!("Error updating application state: {e:#}"),
                 Ok((false, false, false, false)) => std::thread::sleep(naptime),
                 Ok((_, _, _, _)) => (),
             }
@@ -200,7 +200,7 @@ async fn main() -> Result<()> {
                 fetcher.update()
             );
             match step_result {
-                Err(e) => error!("Error updating application state: {:#}", e),
+                Err(e) => error!("Error updating application state: {e:#}"),
                 Ok((false, false, false, false, false)) => std::thread::sleep(naptime),
                 Ok((_, _, _, _, _)) => (),
             }

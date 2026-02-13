@@ -117,7 +117,7 @@ impl Terminal {
     }
 
     fn added_station(&mut self, name: String, id: String) {
-        trace!("Adding station {}[{}] to list...", name, id);
+        trace!("Adding station {name}[{id}] to list...");
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
                 // If we were disconnected, the station list contains one entry: "No Stations"
@@ -157,7 +157,7 @@ impl Terminal {
     }
 
     fn tuned_station(&mut self, id: String) {
-        trace!("Tuning station {}...", id);
+        trace!("Tuning station {id}...");
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
                 let opt_idx = v
@@ -185,7 +185,7 @@ impl Terminal {
             ..
         } = track;
         self.siv.call_on_name("title", |v: &mut TextView| {
-            debug!("Playing title {} ({})", title, song_rating);
+            debug!("Playing title {title} ({song_rating})");
             let mut title = title.clone();
             if song_rating > 0 {
                 title.push(' ');
@@ -194,11 +194,11 @@ impl Terminal {
             v.set_content(title);
         });
         self.siv.call_on_name("artist", |v: &mut TextView| {
-            debug!("Playing artist {}", artist_name);
+            debug!("Playing artist {artist_name}");
             v.set_content(artist_name);
         });
         self.siv.call_on_name("album", |v: &mut TextView| {
-            debug!("Playing album {}", album_name);
+            debug!("Playing album {album_name}");
             v.set_content(album_name);
         });
         self.update_playing(Duration::default(), false);
@@ -221,7 +221,7 @@ impl Terminal {
         };
 
         self.siv.call_on_name("next_up", |v: &mut TextView| {
-            debug!("Next up: {:?}", track);
+            debug!("Next up: {track:?}");
             v.set_content(styled_text);
         });
         self.dirty |= true;
@@ -251,7 +251,7 @@ impl Terminal {
                         "{playpause:<6} [{elapsed_minutes:>2}:{elapsed_seconds:02}]"
                     )
                 };
-                trace!("Playing panel title: {}", text);
+                trace!("Playing panel title: {text}");
                 v.set_title(text);
             });
         self.dirty |= true;
@@ -322,11 +322,7 @@ impl Terminal {
         trace!("Updating volume...");
         self.siv.call_on_name("volume", |v: &mut SliderView| {
             let volume_adj = ((volume * 10.0).round() as usize).clamp(0, 10);
-            trace!(
-                "Converted model volume from {:.2} to {}",
-                volume,
-                volume_adj
-            );
+            trace!("Converted model volume from {volume:.2} to {volume_adj}");
             v.set_value(volume_adj);
         });
         self.dirty |= true;
