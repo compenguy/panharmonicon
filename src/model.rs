@@ -1,15 +1,14 @@
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
+use std::sync::mpsc;
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 //use cpal::traits::{DeviceTrait, HostTrait};
 use either::Either;
 use log::{debug, error, info, trace, warn};
-use std::sync::mpsc;
 
-use crate::config::{Config, PartialConfig};
+use crate::config::{PartialConfig, SharedConfig};
 use crate::errors::Error;
 use crate::messages::{Request, State, StopReason};
 use crate::pandora::PandoraSession;
@@ -57,15 +56,15 @@ pub(crate) struct Model {
     request_receiver: RequestReceiver,
     state_sender: StateSender,
     state_receiver: StateReceiver,
-    config: Rc<RefCell<Config>>,
+    config: SharedConfig,
     dirty: bool,
 }
 
 impl Model {
-    pub(crate) fn new(config: Rc<RefCell<Config>>) -> Self {
+    pub(crate) fn new(config: SharedConfig) -> Self {
         let (request_sender, request_receiver) = mpsc::channel();
         let (state_sender, state_receiver) = async_broadcast::broadcast(64);
-        let volume = config.borrow().volume();
+        let volume = config.read().expect("config read for volume").volume();
         Self {
             player_volume: volume,
             player_muted: false,
@@ -213,7 +212,8 @@ impl Model {
                     .await?;
                 trace!("Updating station in config");
                 self.config
-                    .borrow_mut()
+                    .write()
+                    .expect("config write for station")
                     .update_from(&PartialConfig::default().station(Some(station_id.to_string())));
                 self.stop(StopReason::Untuning).await?;
             } else {
@@ -229,7 +229,8 @@ impl Model {
         self.pandora_station = None;
         self.dirty |= true;
         self.config
-            .borrow_mut()
+            .write()
+            .expect("config write for untune")
             .update_from(&PartialConfig::default().station(None));
 
         self.clear_playlist();
@@ -525,7 +526,14 @@ impl Model {
         //   Notify UI of player progress
         //   Check if track is completed
         if !self.connected() {
-            if self.config.borrow().login_credentials().get().is_some() {
+            if self
+                .config
+                .read()
+                .expect("config read for login check")
+                .login_credentials()
+                .get()
+                .is_some()
+            {
                 self.connect().await?;
             } else {
                 self.disconnect().await?;
@@ -534,7 +542,11 @@ impl Model {
             if self.pandora_stations.is_empty() {
                 self.fill_station_list().await?;
             }
-            let opt_station_id = self.config.borrow().station_id();
+            let opt_station_id = self
+                .config
+                .read()
+                .expect("config read for station_id")
+                .station_id();
             if let Some(station_id) = opt_station_id {
                 // We're not tuned to a station, so if one is saved in the config, go ahead and start
                 // tuning to that
@@ -607,7 +619,13 @@ impl Model {
     async fn stop(&mut self, reason: StopReason) -> Result<()> {
         if self.get_playing().is_some() {
             info!("Stopping track: {reason}");
-            if self.config.borrow().cache_policy().evict_completed() {
+            if self
+                .config
+                .read()
+                .expect("config read for cache_policy")
+                .cache_policy()
+                .evict_completed()
+            {
                 debug!("Checking for track to evict...");
                 if let Some(track) = self.get_playing() {
                     trace!("Eviction policy requires evicting track");
@@ -708,7 +726,8 @@ impl Model {
             self.player_volume = new_volume;
             self.dirty |= true;
             self.config
-                .borrow_mut()
+                .write()
+                .expect("config write for volume")
                 .update_from(&PartialConfig::default().volume(new_volume));
             trace!("send notification 'volume'");
             self.publish_state(State::Volume(new_volume)).await?;
@@ -748,7 +767,7 @@ impl Drop for Model {
     fn drop(&mut self) {
         // If there have been any configuration changes, commit them to disk
         trace!("Flushing config file to disk...");
-        if let Err(e) = self.config.borrow_mut().flush() {
+        if let Err(e) = self.config.write().expect("config write for flush").flush() {
             error!("Failed commiting configuration changes to file: {e:?}");
         }
         trace!("Application data model has been dropped");

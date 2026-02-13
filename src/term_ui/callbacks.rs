@@ -85,12 +85,23 @@ pub(crate) fn connect_button(s: &mut Cursive) {
         let new_cred = match store.unwrap_or_default() {
             Store::Keyring => ctx
                 .config
-                .borrow()
+                .read()
+                .expect("config read for password store as_keyring")
                 .login_credentials()
                 .as_keyring()
                 .expect("Error updating keyring with password"),
-            Store::ConfigFile => ctx.config.borrow().login_credentials().as_configfile(),
-            Store::Session => ctx.config.borrow().login_credentials().as_session(),
+            Store::ConfigFile => ctx
+                .config
+                .read()
+                .expect("config read for password as_configfile")
+                .login_credentials()
+                .as_configfile(),
+            Store::Session => ctx
+                .config
+                .read()
+                .expect("config read for password as_session")
+                .login_credentials()
+                .as_session(),
         };
         let new_cred = username
             .map(|u| new_cred.update_username(&u))
@@ -101,7 +112,8 @@ pub(crate) fn connect_button(s: &mut Cursive) {
         match new_cred {
             Ok(c) => {
                 ctx.config
-                    .borrow_mut()
+                    .write()
+                    .expect("config write for password update")
                     .update_from(&PartialConfig::default().login(c));
                 trace!("send request 'connect'");
                 let _ = ctx.publish_request(Request::Connect);

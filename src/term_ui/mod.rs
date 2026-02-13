@@ -1,5 +1,4 @@
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
@@ -7,7 +6,7 @@ use cursive::{theme::ColorStyle, utils::markup::StyledString};
 use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
-use crate::config::Config;
+use crate::config::SharedConfig;
 use crate::messages::{Request, State, StopReason};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
@@ -32,7 +31,7 @@ mod labels {
 
 #[derive(Debug, Clone)]
 pub(crate) struct TerminalContext {
-    config: Rc<RefCell<Config>>,
+    config: SharedConfig,
     request_sender: RequestSender,
 }
 
@@ -53,7 +52,7 @@ pub(crate) struct Terminal {
 
 impl Terminal {
     pub(crate) fn new(
-        config: Rc<RefCell<Config>>,
+        config: SharedConfig,
         state_receiver: StateReceiver,
         request_sender: RequestSender,
     ) -> Self {
@@ -267,7 +266,8 @@ impl Terminal {
             && self
                 .context
                 .config
-                .borrow()
+                .read()
+                .expect("config read for login dialog check")
                 .login_credentials()
                 .get()
                 .is_none()

@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use cursive::views::{
     Button, Dialog, DummyView, EditView, HideableView, LinearLayout, PaddedView, Panel, SelectView,
     SliderView, TextView,
@@ -12,7 +10,7 @@ use cursive::view::{Nameable, Resizable};
 
 use log::trace;
 
-use crate::config::{Config, Credentials};
+use crate::config::{Credentials, SharedConfig};
 use crate::messages::Request;
 use crate::term_ui::{callbacks, labels, TerminalContext};
 
@@ -174,8 +172,12 @@ pub(crate) fn playing_view() -> LinearLayout {
         .child(HideableView::new(station_row).with_name("stations_hideable"))
 }
 
-pub(crate) fn login_dialog(config: Rc<RefCell<Config>>, message: Option<String>) -> Option<Dialog> {
-    let credentials = config.borrow().login_credentials().clone();
+pub(crate) fn login_dialog(config: SharedConfig, message: Option<String>) -> Option<Dialog> {
+    let credentials = config
+        .read()
+        .expect("config read for login_dialog credentials")
+        .login_credentials()
+        .clone();
     let username = credentials.username().unwrap_or_default();
     let password = credentials.password().ok().flatten().unwrap_or_default();
     let index = match Store::from(credentials) {

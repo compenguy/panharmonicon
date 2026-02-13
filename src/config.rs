@@ -1,6 +1,7 @@
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
@@ -8,6 +9,9 @@ use log::{debug, trace};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
+
+/// Thread-safe shared config for use across model, term_ui, and pandora threads.
+pub(crate) type SharedConfig = Arc<RwLock<Config>>;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum CachePolicy {
