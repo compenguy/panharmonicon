@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
         .ok_or(Error::AppDirNotFound)?
         .join(clap::crate_name!())
         .join("config.json");
-    let matches = clap::command!("")
+    let mut app = clap::command!("")
         .arg(
             clap::Arg::new("gen-config")
                 .short('c')
@@ -55,8 +55,18 @@ async fn main() -> Result<()> {
                 .action(clap::ArgAction::SetTrue)
                 .hide(true)
                 .help("Whether to write a debug log file."),
-        )
-        .get_matches();
+        );
+    #[cfg(feature = "term_ui")]
+    {
+        app = app.arg(
+            clap::Arg::new("terminal")
+                .short('t')
+                .long("terminal")
+                .action(clap::ArgAction::SetTrue)
+                .help("Run with the terminal UI (only applies when MPRIS is also available)."),
+        );
+    }
+    let matches = app.get_matches();
 
     let crate_log_level = match matches.get_count("debug") {
         0 => log::LevelFilter::Off,
@@ -132,11 +142,30 @@ async fn main() -> Result<()> {
     let mut mpris_ui =
         mpris_ui::MprisUi::new(model.updates_channel(), model.request_channel()).await?;
 
-    #[cfg(feature = "term_ui")]
+    // When both term_ui and mpris_server are enabled, only run the terminal UI if --terminal was passed.
+    #[cfg(all(feature = "term_ui", feature = "mpris_server"))]
+    let use_terminal_ui = matches.get_flag("terminal");
+    #[cfg(all(feature = "term_ui", not(feature = "mpris_server")))]
+    let use_terminal_ui = true;
+
+    #[cfg(all(feature = "term_ui", not(feature = "mpris_server")))]
     trace!("Initializing terminal interface");
-    #[cfg(feature = "term_ui")]
+    #[cfg(all(feature = "term_ui", not(feature = "mpris_server")))]
     let mut term_ui =
         term_ui::Terminal::new(conf_ref, model.updates_channel(), model.request_channel());
+
+    #[cfg(all(feature = "term_ui", feature = "mpris_server"))]
+    let mut term_ui_opt = if use_terminal_ui {
+        trace!("Initializing terminal interface");
+        Some(term_ui::Terminal::new(
+            conf_ref,
+            model.updates_channel(),
+            model.request_channel(),
+        ))
+    } else {
+        let _ = conf_ref;
+        None
+    };
 
     trace!("Initializing player interface");
     let mut player = player::Player::new(model.updates_channel(), model.request_channel());
@@ -218,17 +247,31 @@ async fn main() -> Result<()> {
         }
         #[cfg(all(feature = "mpris_server", feature = "term_ui"))]
         {
-            let step_result = tokio::try_join!(
-                model.update(),
-                player.update(),
-                term_ui.update(),
-                mpris_ui.update(),
-                fetcher.update()
-            );
-            match step_result {
-                Err(e) => error!("Error updating application state: {e:#}"),
-                Ok((false, false, false, false, false)) => std::thread::sleep(naptime),
-                Ok((_, _, _, _, _)) => (),
+            if use_terminal_ui {
+                let step_result = tokio::try_join!(
+                    model.update(),
+                    player.update(),
+                    term_ui_opt.as_mut().unwrap().update(),
+                    mpris_ui.update(),
+                    fetcher.update()
+                );
+                match step_result {
+                    Err(e) => error!("Error updating application state: {e:#}"),
+                    Ok((false, false, false, false, false)) => std::thread::sleep(naptime),
+                    Ok((_, _, _, _, _)) => (),
+                }
+            } else {
+                let step_result = tokio::try_join!(
+                    model.update(),
+                    player.update(),
+                    mpris_ui.update(),
+                    fetcher.update()
+                );
+                match step_result {
+                    Err(e) => error!("Error updating application state: {e:#}"),
+                    Ok((false, false, false, false)) => std::thread::sleep(naptime),
+                    Ok((_, _, _, _)) => (),
+                }
             }
         }
     }
