@@ -84,7 +84,10 @@ impl std::convert::From<&Track> for mpris_server::Metadata {
             .length(mpris_server::Time::from_millis(
                 track.track_length.as_millis() as i64,
             ))
-            .trackid(mpris_server::TrackId::try_from(track.track_token.as_str()).expect("Failed to convert track token to TrackId"))
+            .trackid(
+                mpris_server::TrackId::try_from(track.track_token.as_str())
+                    .expect("Failed to convert track token to TrackId"),
+            )
             .album(track.album_name.clone())
             .artist([track.artist_name.clone()])
             .title(track.title.clone())
@@ -232,6 +235,7 @@ fn tag_cached_file<P: AsRef<Path>>(path: P, title: &str, artist: &str, album: &s
     let mut tag = match mp4ameta::Tag::read_from_path(path) {
         Ok(tag) => tag,
         Err(e) if matches!(e.kind, mp4ameta::ErrorKind::AtomNotFound(_)) => {
+            // File has no metadata atoms (replaces former NoTag in mp4ameta 0.13)
             mp4ameta::Tag::default()
         }
         Err(e) => {

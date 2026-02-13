@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::time::Duration;
 use std::convert::TryFrom;
+use std::time::Duration;
 
 use anyhow::Result;
 use log::trace;
@@ -112,7 +112,9 @@ impl MprisInterface {
     }
 
     pub(crate) async fn update(&mut self) -> zbus::Result<()> {
-        self.process_messages().await.map_err(|e| zbus::Error::Failure(e.to_string()))?;
+        self.process_messages()
+            .await
+            .map_err(|e| zbus::Error::Failure(e.to_string()))?;
         Ok(())
     }
 }
@@ -376,12 +378,11 @@ impl PlaylistsInterface for MprisInterface {
         let mut playlists: Vec<Playlist> = self
             .playlists
             .iter()
-            .map(|p| {
-                Playlist {
-                    id: PlaylistId::try_from(p.0.as_str()) .expect("Failed to convert playlist id to PlaylistId"),
-                    name: p.1.to_string(),
-                    icon: Uri::new(),
-                }
+            .map(|p| Playlist {
+                id: PlaylistId::try_from(p.0.as_str())
+                    .expect("Failed to convert playlist id to PlaylistId"),
+                name: p.1.to_string(),
+                icon: Uri::new(),
             })
             .collect();
         playlists.truncate(max_count as usize);
