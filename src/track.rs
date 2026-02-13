@@ -128,13 +128,7 @@ impl Track {
         let req_builder = client.get(&self.audio_stream);
 
         if let Err(e) = download_to_cache(req_builder, &self.cache_path).await {
-            // TODO: fill in the actual error type for Connection reset by peer
-            /*
-            if let Some(e) = e.source().and_then(|e| e.downcast_ref::<reqwest::Error>()) {
-                error!("reqwest error {e:?}");
-            }
-            */
-            error!("Failed to download requested file: {}", e.source().unwrap());
+            error!("Failed to download track to cache: {e:#}");
             self.remove_from_cache();
             Err(e)
         } else {
@@ -159,7 +153,7 @@ impl Track {
             &self.artist_name,
             &self.album_name,
         ) {
-            error!("Failed to download requested file: {e:#}");
+            error!("Failed to tag cached file: {e:#}");
             self.remove_from_cache();
             Err(e)
         } else {
@@ -190,7 +184,7 @@ fn get_m4a_decoder<P: AsRef<Path>>(path: P) -> Result<redlux::Decoder<BufReader<
     redlux::Decoder::new_mpeg4(reader, metadata.len()).context("Failed initializing media decoder")
 }
 
-async fn download_to_cache<P: AsRef<std::path::Path>>(
+async fn download_to_cache<P: AsRef<Path>>(
     req_builder: reqwest::RequestBuilder,
     path: P,
 ) -> Result<()> {
@@ -283,7 +277,7 @@ fn cache_file_path(title: &str, artist: &str, album: &str) -> Result<PathBuf> {
         .join(&artist)
         .join(album);
 
-    let filename = format!("{artist} - {title}.{}", "m4a");
+    let filename = format!("{artist} - {title}.m4a");
     path.push(filename);
     Ok(path)
 }
