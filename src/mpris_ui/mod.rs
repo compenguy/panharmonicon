@@ -142,6 +142,7 @@ impl MprisUi {
                 State::Paused(elapsed) => self.update_playing(elapsed, true).await?,
                 State::Stopped(_) => self.update_state_stopped().await?,
                 State::Buffering => self.update_state_stopped().await?,
+                State::StationSeeds(_) => (),
                 State::TrackCaching(_) => (),
                 State::Muted => (),
                 State::Unmuted => (),

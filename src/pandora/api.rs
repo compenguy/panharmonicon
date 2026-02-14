@@ -448,6 +448,84 @@ impl PandoraSession {
         .map_err(anyhow::Error::from)
     }
 
+    /// Get seeds (artists, songs, genres) for a station. Uses extended station attributes.
+    pub async fn get_station_seeds(
+        &mut self,
+        station_token: &str,
+    ) -> Result<crate::pandora::StationSeedsData> {
+        use crate::pandora::{ArtistSeedInfo, SongSeedInfo, StationSeedsData};
+        let resp = self.get_station(station_token, true).await?;
+        let music = resp.music.unwrap_or(StationSeeds {
+            songs: vec![],
+            artists: vec![],
+            genres: vec![],
+        });
+        let artist_seeds = music
+            .artists
+            .into_iter()
+            .map(|a| ArtistSeedInfo {
+                seed_id: a.seed_id,
+                music_token: a.music_token,
+                artist_name: a.artist_name,
+            })
+            .collect();
+        let song_seeds = music
+            .songs
+            .into_iter()
+            .map(|s| SongSeedInfo {
+                seed_id: s.seed_id,
+                music_token: s.music_token,
+                song_name: s.song_name,
+                artist_name: s.artist_name,
+            })
+            .collect();
+        Ok(StationSeedsData {
+            artist_seeds,
+            song_seeds,
+        })
+    }
+
+    /// Get rated tracks (thumbs up / thumbs down) for a station. Uses extended station attributes.
+    pub async fn get_station_rated_tracks(
+        &mut self,
+        station_token: &str,
+    ) -> Result<crate::pandora::StationRatedTracksData> {
+        use crate::pandora::{RatedTrackInfo, StationRatedTracksData};
+        let resp = self.get_station(station_token, true).await?;
+        let feedback = resp.feedback.unwrap_or(StationFeedback {
+            thumbs_up: vec![],
+            total_thumbs_up: 0,
+            thumbs_down: vec![],
+            total_thumbs_down: 0,
+        });
+        let thumbs_up = feedback
+            .thumbs_up
+            .into_iter()
+            .map(|t| RatedTrackInfo {
+                feedback_id: t.feedback_id,
+                music_token: t.music_token,
+                song_name: t.song_name,
+                artist_name: t.artist_name,
+                is_positive: t.is_positive,
+            })
+            .collect();
+        let thumbs_down = feedback
+            .thumbs_down
+            .into_iter()
+            .map(|t| RatedTrackInfo {
+                feedback_id: t.feedback_id,
+                music_token: t.music_token,
+                song_name: t.song_name,
+                artist_name: t.artist_name,
+                is_positive: t.is_positive,
+            })
+            .collect();
+        Ok(StationRatedTracksData {
+            thumbs_up,
+            thumbs_down,
+        })
+    }
+
     pub async fn rename_station(&mut self, station_token: &str, station_name: &str) -> Result<()> {
         trace!("renameStation()");
         let request = RenameStation::new(station_token, station_name);

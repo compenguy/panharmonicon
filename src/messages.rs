@@ -23,6 +23,12 @@ pub(crate) enum Request {
     Volume(f32),
     VolumeDown,
     VolumeUp,
+    /// Add the currently playing track as a station seed (song).
+    AddTrackSeed,
+    /// Add the currently playing artist as a station seed.
+    AddArtistSeed,
+    /// Remove a seed by id (from station seeds; UI looks up id for current track/artist).
+    RemoveSeed(String),
     Quit,
 }
 
@@ -45,6 +51,9 @@ impl PartialEq<Request> for Request {
             (Request::Volume(a), Request::Volume(b)) => (a * 100.0) as u8 == (b * 100.0) as u8,
             (Request::VolumeUp, Request::VolumeUp) => true,
             (Request::VolumeDown, Request::VolumeDown) => true,
+            (Request::AddTrackSeed, Request::AddTrackSeed) => true,
+            (Request::AddArtistSeed, Request::AddArtistSeed) => true,
+            (Request::RemoveSeed(a), Request::RemoveSeed(b)) => a == b,
             _ => false,
         }
     }
@@ -73,6 +82,20 @@ impl std::fmt::Display for StopReason {
     }
 }
 
+/// Minimal station seed info for UI to show "is seed" indicator and to remove seeds by id.
+#[derive(Debug, Clone)]
+pub(crate) struct StationSeedsForUi {
+    pub station_id: String,
+    /// For "is seed" display and add-track: music_tokens of song seeds.
+    pub song_music_tokens: Vec<String>,
+    /// For "is seed" display and add-artist: artist names of artist seeds.
+    pub artist_names: Vec<String>,
+    /// (music_token, seed_id) for removing a song seed.
+    pub song_seeds: Vec<(String, String)>,
+    /// (artist_name, seed_id) for removing an artist seed.
+    pub artist_seeds: Vec<(String, String)>,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum State {
     AuthFailed(String),
@@ -80,6 +103,8 @@ pub(crate) enum State {
     Disconnected,
     AddStation(String, String),
     Tuned(String),
+    /// Seeds for a station (song music_tokens and artist names) so UI can show seed indicator.
+    StationSeeds(StationSeedsForUi),
     Buffering,
     TrackCaching(Track),
     TrackStarting(Track),
@@ -101,6 +126,7 @@ impl PartialEq<State> for State {
             (State::Disconnected, State::Disconnected) => true,
             (State::AddStation(a, x), State::AddStation(b, y)) => a == b && x == y,
             (State::Tuned(a), State::Tuned(b)) => a == b,
+            (State::StationSeeds(a), State::StationSeeds(b)) => a.station_id == b.station_id,
             (State::TrackStarting(t), State::TrackStarting(u)) => t.track_token == u.track_token,
             (State::Next(Some(t)), State::Next(Some(u))) => t.track_token == u.track_token,
             (State::Next(None), State::Next(None)) => true,

@@ -7,7 +7,7 @@ use cursive::{CursiveRunnable, CursiveRunner};
 use log::{debug, trace};
 
 use crate::config::SharedConfig;
-use crate::messages::{Request, State, StopReason};
+use crate::messages::{Request, State, StationSeedsForUi, StopReason};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
@@ -20,6 +20,7 @@ mod labels {
     pub(crate) const LABEL_SKIP: &str = "⏩";
     pub(crate) const LABEL_THUMBS_UP: &str = "👍";
     pub(crate) const LABEL_THUMBS_DOWN: &str = "👎";
+    pub(crate) const LABEL_SEED: &str = " 🌱";
 }
 #[cfg(not(feature = "emoji_labels"))]
 mod labels {
@@ -27,12 +28,17 @@ mod labels {
     pub(crate) const LABEL_SKIP: &str = "Skip";
     pub(crate) const LABEL_THUMBS_UP: &str = "|+|";
     pub(crate) const LABEL_THUMBS_DOWN: &str = "|-|";
+    pub(crate) const LABEL_SEED: &str = " |S|";
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct TerminalContext {
     config: SharedConfig,
     request_sender: RequestSender,
+    /// Currently playing track (for seed add/remove callbacks).
+    pub(crate) active_track: Option<Track>,
+    /// Seeds for current station (for seed indicator and remove callbacks).
+    pub(crate) station_seeds: Option<StationSeedsForUi>,
 }
 
 impl TerminalContext {
@@ -49,6 +55,8 @@ pub(crate) struct Terminal {
     context: TerminalContext,
     state_receiver: StateReceiver,
     active_track: Option<Track>,
+    /// Seeds for the current station (song music_tokens, artist names) for seed indicator.
+    station_seeds: Option<StationSeedsForUi>,
     dirty: bool,
 }
 
@@ -62,6 +70,8 @@ impl Terminal {
         let context = TerminalContext {
             config,
             request_sender,
+            active_track: None,
+            station_seeds: None,
         };
         siv.set_user_data(context.clone());
         siv.set_fps(10);
@@ -71,6 +81,7 @@ impl Terminal {
             context,
             state_receiver,
             active_track: None,
+            station_seeds: None,
             dirty: true,
         };
         term.initialize();
@@ -98,6 +109,10 @@ impl Terminal {
         self.siv.add_global_callback('+', callbacks::rate_track_up);
         self.siv
             .add_global_callback('-', callbacks::rate_track_down);
+        self.siv.add_global_callback('a', callbacks::add_artist_seed);
+        self.siv.add_global_callback('A', callbacks::remove_artist_seed);
+        self.siv.add_global_callback('t', callbacks::add_track_seed);
+        self.siv.add_global_callback('T', callbacks::remove_track_seed);
         self.siv.add_global_callback('=', callbacks::clear_rating);
     }
 
@@ -159,6 +174,8 @@ impl Terminal {
 
     fn tuned_station(&mut self, id: String) {
         trace!("Tuning station {id}...");
+        self.station_seeds = None;
+        self.sync_context_to_ui();
         self.siv
             .call_on_name("stations", |v: &mut SelectView<String>| {
                 let opt_idx = v
@@ -175,32 +192,67 @@ impl Terminal {
         self.dirty |= true;
     }
 
+    fn station_seeds(&mut self, seeds: StationSeedsForUi) {
+        let station_id = seeds.station_id.clone();
+        self.station_seeds = Some(seeds);
+        self.sync_context_to_ui();
+        let to_update = self
+            .active_track
+            .as_ref()
+            .filter(|t| t.station_id == station_id)
+            .map(|t| (t.title.clone(), t.song_rating, self.track_is_seed(t)));
+        if let Some((title, song_rating, is_seed)) = to_update {
+            self.set_title_with_seed_and_rating(&title, song_rating, is_seed);
+        }
+        self.dirty |= true;
+    }
+
+    /// True if the track or its artist is a seed for its station.
+    fn track_is_seed(&self, track: &Track) -> bool {
+        let Some(seeds) = &self.station_seeds else {
+            return false;
+        };
+        if seeds.station_id != track.station_id {
+            return false;
+        }
+        seeds.song_music_tokens.contains(&track.music_id)
+            || seeds.artist_names.iter().any(|a| a == &track.artist_name)
+    }
+
+    fn set_title_with_seed_and_rating(&mut self, title: &str, song_rating: u32, is_seed: bool) {
+        let mut content = title.to_string();
+        if song_rating > 0 {
+            content.push(' ');
+            content.push_str(labels::LABEL_THUMBS_UP);
+        }
+        if is_seed {
+            content.push_str(labels::LABEL_SEED);
+        }
+        self.siv.call_on_name("title", |v: &mut TextView| {
+            v.set_content(content);
+        });
+    }
+
     fn playing_track(&mut self, track: Track) {
         trace!("Updating track info box...");
         self.active_track = Some(track.clone());
+        self.sync_context_to_ui();
+        let is_seed = self.track_is_seed(&track);
         let Track {
             title,
             artist_name,
             album_name,
             song_rating,
             ..
-        } = track;
-        self.siv.call_on_name("title", |v: &mut TextView| {
-            debug!("Playing title {title} ({song_rating})");
-            let mut title = title.clone();
-            if song_rating > 0 {
-                title.push(' ');
-                title.push_str(labels::LABEL_THUMBS_UP);
-            }
-            v.set_content(title);
-        });
+        } = &track;
+        self.set_title_with_seed_and_rating(&title, *song_rating, is_seed);
         self.siv.call_on_name("artist", |v: &mut TextView| {
             debug!("Playing artist {artist_name}");
-            v.set_content(artist_name);
+            v.set_content(artist_name.clone());
         });
         self.siv.call_on_name("album", |v: &mut TextView| {
             debug!("Playing album {album_name}");
-            v.set_content(album_name);
+            v.set_content(album_name.clone());
         });
         self.update_playing(Duration::default(), false);
         self.dirty |= true;
@@ -285,6 +337,7 @@ impl Terminal {
 
     fn update_state_stopped(&mut self, reason: StopReason) {
         self.active_track = None;
+        self.sync_context_to_ui();
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: stopped");
@@ -300,6 +353,7 @@ impl Terminal {
 
     fn update_state_buffering(&mut self) {
         self.active_track = None;
+        self.sync_context_to_ui();
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: buffering");
@@ -339,6 +393,7 @@ impl Terminal {
                 State::Disconnected => self.update_state_disconnected(None),
                 State::AddStation(name, id) => self.added_station(name, id),
                 State::Tuned(name) => self.tuned_station(name),
+                State::StationSeeds(seeds) => self.station_seeds(seeds),
                 State::TrackStarting(track) => self.playing_track(track),
                 State::Next(track) => self.next_track(track),
                 State::Playing(elapsed) => self.update_playing(elapsed, false),
@@ -353,6 +408,13 @@ impl Terminal {
             }
         }
         Ok(())
+    }
+
+    /// Sync context (active_track, station_seeds) to Cursive user_data for callbacks.
+    fn sync_context_to_ui(&mut self) {
+        self.context.active_track = self.active_track.clone();
+        self.context.station_seeds = self.station_seeds.clone();
+        self.siv.set_user_data(self.context.clone());
     }
 
     fn drive_ui(&mut self) -> bool {

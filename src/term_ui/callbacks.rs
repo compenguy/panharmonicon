@@ -71,6 +71,62 @@ pub(crate) fn clear_rating(s: &mut Cursive) {
     });
 }
 
+pub(crate) fn add_track_seed(s: &mut Cursive) {
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'add track seed'");
+        let _ = ctx.publish_request(Request::AddTrackSeed);
+    });
+}
+
+pub(crate) fn add_artist_seed(s: &mut Cursive) {
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        trace!("send request 'add artist seed'");
+        let _ = ctx.publish_request(Request::AddArtistSeed);
+    });
+}
+
+pub(crate) fn remove_track_seed(s: &mut Cursive) {
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        let seed_id = ctx
+            .active_track
+            .as_ref()
+            .and_then(|_track| ctx.station_seeds.as_ref())
+            .filter(|seeds| seeds.station_id == ctx.active_track.as_ref().unwrap().station_id)
+            .and_then(|seeds| {
+                seeds
+                    .song_seeds
+                    .iter()
+                    .find(|(token, _)| token == &ctx.active_track.as_ref().unwrap().music_id)
+                    .map(|(_, id)| id.clone())
+            });
+        if let Some(id) = seed_id {
+            trace!("send request 'remove track seed'");
+            let _ = ctx.publish_request(Request::RemoveSeed(id));
+        }
+    });
+}
+
+pub(crate) fn remove_artist_seed(s: &mut Cursive) {
+    s.with_user_data(|ctx: &mut TerminalContext| {
+        let seed_id = ctx
+            .active_track
+            .as_ref()
+            .and_then(|_track| ctx.station_seeds.as_ref())
+            .filter(|seeds| seeds.station_id == ctx.active_track.as_ref().unwrap().station_id)
+            .and_then(|seeds| {
+                seeds
+                    .artist_seeds
+                    .iter()
+                    .find(|(name, _)| name == &ctx.active_track.as_ref().unwrap().artist_name)
+                    .map(|(_, id)| id.clone())
+            });
+        if let Some(id) = seed_id {
+            trace!("send request 'remove artist seed'");
+            let _ = ctx.publish_request(Request::RemoveSeed(id));
+        }
+    });
+}
+
 pub(crate) fn connect_button(s: &mut Cursive) {
     let username: Option<String> =
         s.call_on_name("username", |v: &mut EditView| v.get_content().to_string());

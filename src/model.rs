@@ -166,6 +166,10 @@ impl Model {
                 trace!("send notification 'tuned'");
                 self.publish_state(State::Tuned(station_id.to_string()))
                     .await?;
+                let _ = self
+                    .pandora_cmd_tx
+                    .send(PandoraCommand::ListSeeds(station_id.to_string()))
+                    .await;
                 trace!("Updating station in config");
                 self.config
                     .write()
@@ -300,6 +304,75 @@ impl Model {
         Ok(())
     }
 
+    async fn add_track_seed(&mut self) -> Result<()> {
+        let track = self.get_playing().cloned().ok_or_else(|| {
+            anyhow::anyhow!(Error::invalid_operation_for_state("add_track_seed", "No track playing"))
+        })?;
+        let station_id = self.tuned().ok_or_else(|| {
+            anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_track_seed",
+                "Not tuned to a station"
+            ))
+        })?;
+        if !self.connected() {
+            return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_track_seed",
+                "Disconnected"
+            )));
+        }
+        let _ = self
+            .pandora_cmd_tx
+            .send(PandoraCommand::AddSeed {
+                station_id,
+                music_token: track.music_id,
+            })
+            .await;
+        Ok(())
+    }
+
+    async fn add_artist_seed(&mut self) -> Result<()> {
+        let track = self.get_playing().cloned().ok_or_else(|| {
+            anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_artist_seed",
+                "No track playing"
+            ))
+        })?;
+        let station_id = self.tuned().ok_or_else(|| {
+            anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_artist_seed",
+                "Not tuned to a station"
+            ))
+        })?;
+        if !self.connected() {
+            return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_artist_seed",
+                "Disconnected"
+            )));
+        }
+        let _ = self
+            .pandora_cmd_tx
+            .send(PandoraCommand::AddArtistSeed {
+                station_id,
+                artist_name: track.artist_name,
+            })
+            .await;
+        Ok(())
+    }
+
+    async fn remove_seed(&mut self, seed_id: &str) -> Result<()> {
+        if !self.connected() {
+            return Err(anyhow::anyhow!(Error::invalid_operation_for_state(
+                "remove_seed",
+                "Disconnected"
+            )));
+        }
+        let _ = self
+            .pandora_cmd_tx
+            .send(PandoraCommand::RemoveSeed(seed_id.to_string()))
+            .await;
+        Ok(())
+    }
+
     async fn add_station(&mut self, station_id: String, station_name: String) -> Result<()> {
         if !self.pandora_stations.contains_key(&station_id) {
             self.pandora_stations
@@ -407,6 +480,9 @@ impl Model {
             Request::RateUp => self.rate_track(Some(true)).await?,
             Request::RateDown => self.rate_track(Some(false)).await?,
             Request::UnRate => self.rate_track(None).await?,
+            Request::AddTrackSeed => self.add_track_seed().await?,
+            Request::AddArtistSeed => self.add_artist_seed().await?,
+            Request::RemoveSeed(seed_id) => self.remove_seed(seed_id).await?,
             Request::Quit => self.quit().await?,
         }
         self.dirty |= true;
@@ -546,6 +622,71 @@ impl Model {
                     track.song_rating = new_value;
                     self.dirty |= true;
                     self.notify_playing().await?;
+                }
+            }
+            PandoraResult::Seeds(station_id, data) => {
+                use crate::messages::StationSeedsForUi;
+                let for_ui = StationSeedsForUi {
+                    station_id: station_id.clone(),
+                    song_music_tokens: data.song_seeds.iter().map(|s| s.music_token.clone()).collect(),
+                    artist_names: data.artist_seeds.iter().map(|a| a.artist_name.clone()).collect(),
+                    song_seeds: data
+                        .song_seeds
+                        .iter()
+                        .map(|s| (s.music_token.clone(), s.seed_id.clone()))
+                        .collect(),
+                    artist_seeds: data
+                        .artist_seeds
+                        .iter()
+                        .map(|a| (a.artist_name.clone(), a.seed_id.clone()))
+                        .collect(),
+                };
+                trace!("received station seeds for {station_id}");
+                self.publish_state(State::StationSeeds(for_ui)).await?;
+            }
+            PandoraResult::RatedTracks(_) => {
+                // Rated tracks (loved/banned) for a station; consumed by UI when listing feedback.
+                trace!("received station rated tracks");
+            }
+            PandoraResult::StationCreated {
+                station_token,
+                station_name: _,
+            } => {
+                // New station created; refresh station list so UI sees it.
+                trace!("station created: {station_token}");
+                self.pending_station_list = false;
+                let _ = self
+                    .pandora_cmd_tx
+                    .send(PandoraCommand::GetStationList)
+                    .await;
+                self.pending_station_list = true;
+            }
+            PandoraResult::StationDeleted => {
+                trace!("station deleted");
+                self.pending_station_list = false;
+                let _ = self
+                    .pandora_cmd_tx
+                    .send(PandoraCommand::GetStationList)
+                    .await;
+                self.pending_station_list = true;
+            }
+            PandoraResult::SeedAdded { seed_id, .. } => {
+                trace!("seed added: {seed_id}");
+                if let Some(station_id) = self.tuned() {
+                    self.pending_station_list = false;
+                    let _ = self
+                        .pandora_cmd_tx
+                        .send(PandoraCommand::ListSeeds(station_id))
+                        .await;
+                }
+            }
+            PandoraResult::SeedRemoved => {
+                trace!("seed removed");
+                if let Some(station_id) = self.tuned() {
+                    let _ = self
+                        .pandora_cmd_tx
+                        .send(PandoraCommand::ListSeeds(station_id))
+                        .await;
                 }
             }
             PandoraResult::Error(msg) => {
