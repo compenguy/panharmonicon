@@ -16,11 +16,11 @@ mod dialogs;
 
 #[cfg(feature = "emoji_labels")]
 mod labels {
-    pub(crate) const LABEL_PLAY_PAUSE: &str = "⏯️ ";
-    pub(crate) const LABEL_SKIP: &str = "⏩";
-    pub(crate) const LABEL_THUMBS_UP: &str = "👍";
-    pub(crate) const LABEL_THUMBS_DOWN: &str = "👎";
-    pub(crate) const LABEL_SEED: &str = " 🌱";
+    pub(crate) const LABEL_PLAY_PAUSE: &str = " ▸⏸︎ ";
+    pub(crate) const LABEL_SKIP: &str = " ▸▸ ";
+    pub(crate) const LABEL_THUMBS_UP: &str = " 👍 ";
+    pub(crate) const LABEL_THUMBS_DOWN: &str = " 👎 ";
+    pub(crate) const LABEL_SEED: &str = "🌱";
 }
 #[cfg(not(feature = "emoji_labels"))]
 mod labels {
@@ -28,7 +28,7 @@ mod labels {
     pub(crate) const LABEL_SKIP: &str = "Skip";
     pub(crate) const LABEL_THUMBS_UP: &str = "|+|";
     pub(crate) const LABEL_THUMBS_DOWN: &str = "|-|";
-    pub(crate) const LABEL_SEED: &str = " |S|";
+    pub(crate) const LABEL_SEED: &str = "|S|";
 }
 
 #[derive(Debug, Clone)]
@@ -109,10 +109,13 @@ impl Terminal {
         self.siv.add_global_callback('+', callbacks::rate_track_up);
         self.siv
             .add_global_callback('-', callbacks::rate_track_down);
-        self.siv.add_global_callback('a', callbacks::add_artist_seed);
-        self.siv.add_global_callback('A', callbacks::remove_artist_seed);
+        self.siv
+            .add_global_callback('a', callbacks::add_artist_seed);
+        self.siv
+            .add_global_callback('A', callbacks::remove_artist_seed);
         self.siv.add_global_callback('t', callbacks::add_track_seed);
-        self.siv.add_global_callback('T', callbacks::remove_track_seed);
+        self.siv
+            .add_global_callback('T', callbacks::remove_track_seed);
         self.siv.add_global_callback('=', callbacks::clear_rating);
     }
 
@@ -200,14 +203,34 @@ impl Terminal {
             .active_track
             .as_ref()
             .filter(|t| t.station_id == station_id)
-            .map(|t| (t.title.clone(), t.song_rating, self.track_is_seed(t)));
-        if let Some((title, song_rating, is_seed)) = to_update {
-            self.set_title_with_seed_and_rating(&title, song_rating, is_seed);
+            .map(|t| {
+                (
+                    t.title.clone(),
+                    t.artist_name.clone(),
+                    t.song_rating,
+                    self.track_is_seed(t),
+                    self.artist_is_seed(t),
+                )
+            });
+        if let Some((title, artist_name, song_rating, is_track_seed, is_artist_seed)) = to_update {
+            self.set_title_with_seed_and_rating(&title, song_rating, is_track_seed);
+            self.set_artist_with_seed(&artist_name, is_artist_seed);
         }
         self.dirty |= true;
     }
 
-    /// True if the track or its artist is a seed for its station.
+    /// True if the artist is a seed for its station.
+    fn artist_is_seed(&self, track: &Track) -> bool {
+        let Some(seeds) = &self.station_seeds else {
+            return false;
+        };
+        if seeds.station_id != track.station_id {
+            return false;
+        }
+        seeds.artist_names.iter().any(|a| a == &track.artist_name)
+    }
+
+    /// True if the track is a seed for its station.
     fn track_is_seed(&self, track: &Track) -> bool {
         let Some(seeds) = &self.station_seeds else {
             return false;
@@ -216,7 +239,6 @@ impl Terminal {
             return false;
         }
         seeds.song_music_tokens.contains(&track.music_id)
-            || seeds.artist_names.iter().any(|a| a == &track.artist_name)
     }
 
     fn set_title_with_seed_and_rating(&mut self, title: &str, song_rating: u32, is_seed: bool) {
@@ -226,9 +248,21 @@ impl Terminal {
             content.push_str(labels::LABEL_THUMBS_UP);
         }
         if is_seed {
+            content.push(' ');
             content.push_str(labels::LABEL_SEED);
         }
         self.siv.call_on_name("title", |v: &mut TextView| {
+            v.set_content(content);
+        });
+    }
+
+    fn set_artist_with_seed(&mut self, artist: &str, is_seed: bool) {
+        let mut content = artist.to_string();
+        if is_seed {
+            content.push(' ');
+            content.push_str(labels::LABEL_SEED);
+        }
+        self.siv.call_on_name("artist", |v: &mut TextView| {
             v.set_content(content);
         });
     }
@@ -237,7 +271,8 @@ impl Terminal {
         trace!("Updating track info box...");
         self.active_track = Some(track.clone());
         self.sync_context_to_ui();
-        let is_seed = self.track_is_seed(&track);
+        let is_track_seed = self.track_is_seed(&track);
+        let is_artist_seed = self.artist_is_seed(&track);
         let Track {
             title,
             artist_name,
@@ -245,11 +280,8 @@ impl Terminal {
             song_rating,
             ..
         } = &track;
-        self.set_title_with_seed_and_rating(&title, *song_rating, is_seed);
-        self.siv.call_on_name("artist", |v: &mut TextView| {
-            debug!("Playing artist {artist_name}");
-            v.set_content(artist_name.clone());
-        });
+        self.set_title_with_seed_and_rating(title, *song_rating, is_track_seed);
+        self.set_artist_with_seed(artist_name, is_artist_seed);
         self.siv.call_on_name("album", |v: &mut TextView| {
             debug!("Playing album {album_name}");
             v.set_content(album_name.clone());
