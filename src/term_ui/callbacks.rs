@@ -90,7 +90,7 @@ pub(crate) fn remove_track_seed(s: &mut Cursive) {
         let seed_id = ctx
             .active_track
             .as_ref()
-            .and_then(|_track| ctx.station_seeds.as_ref())
+            .and(ctx.station_seeds.as_ref())
             .filter(|seeds| seeds.station_id == ctx.active_track.as_ref().unwrap().station_id)
             .and_then(|seeds| {
                 seeds
@@ -111,7 +111,7 @@ pub(crate) fn remove_artist_seed(s: &mut Cursive) {
         let seed_id = ctx
             .active_track
             .as_ref()
-            .and_then(|_track| ctx.station_seeds.as_ref())
+            .and(ctx.station_seeds.as_ref())
             .filter(|seeds| seeds.station_id == ctx.active_track.as_ref().unwrap().station_id)
             .and_then(|seeds| {
                 seeds

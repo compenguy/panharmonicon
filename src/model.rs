@@ -306,7 +306,10 @@ impl Model {
 
     async fn add_track_seed(&mut self) -> Result<()> {
         let track = self.get_playing().cloned().ok_or_else(|| {
-            anyhow::anyhow!(Error::invalid_operation_for_state("add_track_seed", "No track playing"))
+            anyhow::anyhow!(Error::invalid_operation_for_state(
+                "add_track_seed",
+                "No track playing"
+            ))
         })?;
         let station_id = self.tuned().ok_or_else(|| {
             anyhow::anyhow!(Error::invalid_operation_for_state(
@@ -628,8 +631,16 @@ impl Model {
                 use crate::messages::StationSeedsForUi;
                 let for_ui = StationSeedsForUi {
                     station_id: station_id.clone(),
-                    song_music_tokens: data.song_seeds.iter().map(|s| s.music_token.clone()).collect(),
-                    artist_names: data.artist_seeds.iter().map(|a| a.artist_name.clone()).collect(),
+                    song_music_tokens: data
+                        .song_seeds
+                        .iter()
+                        .map(|s| s.music_token.clone())
+                        .collect(),
+                    artist_names: data
+                        .artist_seeds
+                        .iter()
+                        .map(|a| a.artist_name.clone())
+                        .collect(),
                     song_seeds: data
                         .song_seeds
                         .iter()

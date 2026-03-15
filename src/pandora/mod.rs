@@ -307,7 +307,9 @@ pub(crate) async fn run_pandora_task(
                 let station_id = station_id.clone();
                 match sess.get_station_seeds(&station_id).await {
                     Ok(seeds) => {
-                        let _ = result_tx.send(PandoraResult::Seeds(station_id, seeds)).await;
+                        let _ = result_tx
+                            .send(PandoraResult::Seeds(station_id, seeds))
+                            .await;
                     }
                     Err(e) => {
                         error!("Pandora task: get_station_seeds failed: {e:#}");
