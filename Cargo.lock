@@ -2258,7 +2258,7 @@ dependencies = [
 
 [[package]]
 name = "panharmonicon"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "async-broadcast",
