@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use log::{debug, error, info, trace, warn};
 use redlux::rodio;
-use rodio::cpal;
-use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::stream::DeviceSinkBuilder;
 use rodio::Source;
 
 use crate::messages::{Request, State, StopReason};
@@ -47,32 +46,22 @@ impl Default for Volume {
     }
 }
 
-// We can't derive Debug or Clone since the rodio members
-// don't implement it
+// We can't derive Debug or Clone since the rodio members don't implement it.
+// rodio 0.22: MixerDeviceSink holds the stream; Player is the sequential sink.
 struct AudioDevice {
-    device: cpal::Device,
-    // If the stream gets dropped, the device (handle) closes
-    // so we hold it, but we don't ever use it
-    _stream: rodio::OutputStream,
-    handle: rodio::OutputStreamHandle,
-    sink: rodio::Sink,
+    _handle: rodio::stream::MixerDeviceSink,
+    player: rodio::Player,
     volume: Volume,
 }
 
 impl AudioDevice {
     pub(crate) fn new(volume: f32) -> Self {
-        let device = cpal::default_host()
-            .default_output_device()
-            .expect("Failed to locate default audio device");
-        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+        let handle = DeviceSinkBuilder::open_default_sink()
             .expect("Failed to initialize audio device for playback");
-        let sink =
-            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
+        let player = rodio::Player::connect_new(handle.mixer());
         Self {
-            device,
-            _stream,
-            handle,
-            sink,
+            _handle: handle,
+            player,
             volume: Volume::Unmuted(volume),
         }
     }
@@ -110,8 +99,9 @@ impl AudioDevice {
         self.reset();
 
         let start_paused = false;
-        self.sink.append(source.pausable(start_paused));
-        self.sink.play();
+        self.player.append(source.pausable(start_paused));
+        self.player.set_volume(self.volume.volume());
+        self.player.play();
         Ok(())
     }
 
@@ -132,21 +122,20 @@ impl AudioDevice {
     */
 
     fn reset(&mut self) {
-        self.sink = rodio::Sink::try_new(&self.handle)
-            .expect("Failed to initialize audio device for playback");
-        self.sink.set_volume(self.volume.volume());
+        self.player.clear();
+        self.player.set_volume(self.volume.volume());
     }
 
     fn active(&self) -> bool {
-        !self.sink.empty()
+        !self.player.empty()
     }
 
     fn pause(&mut self) {
-        self.sink.pause();
+        self.player.pause();
     }
 
     fn unpause(&mut self) {
-        self.sink.play()
+        self.player.play();
     }
 
     fn set_volume(&mut self, new_volume: f32) {
@@ -155,7 +144,7 @@ impl AudioDevice {
     }
 
     fn refresh_volume(&mut self) {
-        self.sink.set_volume(self.volume.volume());
+        self.player.set_volume(self.volume.volume());
     }
 
     fn mute(&mut self) {
@@ -171,29 +160,13 @@ impl AudioDevice {
 
 impl Clone for AudioDevice {
     fn clone(&self) -> Self {
-        // Since we can't clone the device, we're going to look for the device
-        // from the output devices list that has the same name as the our
-        // current one.  If none matches, we'll use the default output device.
-        let device = cpal::default_host()
-            .devices()
-            .map(|mut devs| devs.find(|d| d.name().ok() == self.device.name().ok()))
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| {
-                cpal::default_host()
-                    .default_output_device()
-                    .expect("Failed to locate default audio device")
-            });
-        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
+        // Cannot clone the underlying stream; open a new default sink and player.
+        let handle = DeviceSinkBuilder::open_default_sink()
             .expect("Failed to initialize audio device for playback");
-        let sink =
-            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
-
+        let player = rodio::Player::connect_new(handle.mixer());
         AudioDevice {
-            device,
-            _stream,
-            handle,
-            sink,
+            _handle: handle,
+            player,
             volume: self.volume,
         }
     }
@@ -201,22 +174,18 @@ impl Clone for AudioDevice {
 
 impl std::fmt::Debug for AudioDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let queued = format!("{} queued", self.sink.len());
-        let paused = if self.sink.is_paused() {
+        let queued = format!("{} queued", self.player.len());
+        let paused = if self.player.is_paused() {
             "paused"
         } else {
             "not paused"
         };
-
-        // rodio, around version 0.12, stopped making attributes of the
-        // underlying audio device available, so we can't report anything
-        // about it
         write!(
             f,
-            "AudioDevice {{ sink: ({}, {}, volume {:.2}), volume: {:?} }}",
+            "AudioDevice {{ player: ({}, {}, volume {:.2}), volume: {:?} }}",
             queued,
             paused,
-            self.sink.volume(),
+            self.player.volume(),
             self.volume
         )
     }
@@ -224,20 +193,7 @@ impl std::fmt::Debug for AudioDevice {
 
 impl Default for AudioDevice {
     fn default() -> Self {
-        let device = cpal::default_host()
-            .default_output_device()
-            .expect("Failed to locate default audio device");
-        let (_stream, handle) = rodio::OutputStream::try_from_device(&device)
-            .expect("Failed to initialize audio device for playback");
-        let sink =
-            rodio::Sink::try_new(&handle).expect("Failed to initialize audio device for playback");
-        Self {
-            device,
-            _stream,
-            handle,
-            sink,
-            volume: Volume::default(),
-        }
+        Self::new(Volume::default().volume())
     }
 }
 

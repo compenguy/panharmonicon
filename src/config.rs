@@ -224,9 +224,21 @@ impl std::cmp::PartialEq<Credentials> for Credentials {
     }
 }
 
+/// Deserializes `login` from JSON: `null` is treated as Session(None, None)
+/// so that config files written after "Don't Store" never crash on reload.
+fn deserialize_login_opt<'de, D>(d: D) -> Result<Option<Credentials>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    use serde::de::Deserialize;
+    let opt = Option::<Credentials>::deserialize(d)?;
+    Ok(opt.or_else(|| Some(Credentials::Session(None, None))))
+}
+
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename = "Config")]
 pub(crate) struct PartialConfig {
+    #[serde(default, deserialize_with = "deserialize_login_opt")]
     pub(crate) login: Option<Credentials>,
     pub(crate) policy: Option<CachePolicy>,
     pub(crate) station_id: Option<Option<String>>,

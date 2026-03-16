@@ -198,7 +198,11 @@ impl Model {
             self.stop(StopReason::Untuning).await?;
         }
 
-        self.publish_state(State::Connected).await?;
+        // Only notify "Connected" when we're still in a session; e.g. after AuthFailed we
+        // call clear_stations() -> untune() and must not publish Connected.
+        if self.session_connected {
+            self.publish_state(State::Connected).await?;
+        }
         Ok(())
     }
 

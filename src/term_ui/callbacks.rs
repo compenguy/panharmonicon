@@ -137,8 +137,18 @@ pub(crate) fn connect_button(s: &mut Cursive) {
             v.selection().map(|s| (*s))
         })
         .flatten();
+    let should_close = std::cell::Cell::new(false);
     s.with_user_data(|ctx: &mut TerminalContext| {
-        let new_cred = match store.unwrap_or_default() {
+        let store = store.unwrap_or_default();
+        // Keyring requires a non-empty password from the dialog when (re)saving
+        if matches!(store, Store::Keyring) {
+            let p = password.as_deref().unwrap_or("");
+            if p.is_empty() {
+                error!("Please enter your password to save to the keyring");
+                return;
+            }
+        }
+        let new_cred = match store {
             Store::Keyring => ctx
                 .config
                 .read()
@@ -173,13 +183,16 @@ pub(crate) fn connect_button(s: &mut Cursive) {
                     .update_from(&PartialConfig::default().login(c));
                 trace!("send request 'connect'");
                 let _ = ctx.publish_request(Request::Connect);
+                should_close.set(true);
             }
             Err(e) => {
                 error!("Failed while updating password: {e:?}");
             }
         }
     });
-    s.pop_layer();
+    if should_close.get() {
+        s.pop_layer();
+    }
 }
 
 pub(crate) fn ui_scale(s: &mut Cursive) {
