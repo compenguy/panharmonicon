@@ -195,9 +195,11 @@ pub(crate) fn connect_button(s: &mut Cursive) {
     }
 }
 
-pub(crate) fn ui_scale(s: &mut Cursive) {
+/// Re-layout the root stack for the current terminal size and clear the screen.
+/// Same steps as the window-resize handler so the full UI is recomputed and repainted.
+pub(crate) fn apply_screen_layout(s: &mut Cursive) {
     let size = s.screen_size();
-    trace!("Window resize. New size: {},{}", size.x, size.y);
+    trace!("Re-layout screen: size {},{}", size.x, size.y);
 
     // Hide the station selector if there's less than 6 vertical lines
     s.call_on_name("stations_hideable", |v: &mut HideableView<LinearLayout>| {
@@ -229,4 +231,9 @@ pub(crate) fn ui_scale(s: &mut Cursive) {
 
     // This is the default action for this event, which we have replaced
     s.clear();
+}
+
+pub(crate) fn ui_scale(s: &mut Cursive) {
+    trace!("Window resize.");
+    apply_screen_layout(s);
 }

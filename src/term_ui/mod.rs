@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use cursive::views::{EditView, LinearLayout, Panel, SelectView, SliderView, TextView};
@@ -50,6 +50,9 @@ impl TerminalContext {
     }
 }
 
+/// Interval for forcing a full interface redraw.
+const FULL_REDRAW_INTERVAL: Duration = Duration::from_secs(5);
+
 pub(crate) struct Terminal {
     siv: CursiveRunner<CursiveRunnable>,
     context: TerminalContext,
@@ -58,6 +61,8 @@ pub(crate) struct Terminal {
     /// Seeds for the current station (song music_tokens, artist names) for seed indicator.
     station_seeds: Option<StationSeedsForUi>,
     dirty: bool,
+    /// Last time we forced a full redraw (refresh).
+    last_full_redraw: Instant,
 }
 
 impl Terminal {
@@ -83,6 +88,7 @@ impl Terminal {
             active_track: None,
             station_seeds: None,
             dirty: true,
+            last_full_redraw: Instant::now(),
         };
         term.initialize();
         term
@@ -451,6 +457,17 @@ impl Terminal {
 
     fn drive_ui(&mut self) -> bool {
         self.dirty |= self.siv.step();
+        // Force a full redraw about once per second: clear the screen then refresh so
+        // every cell is repainted. This repairs regions corrupted by e.g. dependency
+        // libraries writing error text directly to the terminal.
+        if self.last_full_redraw.elapsed() >= FULL_REDRAW_INTERVAL {
+            self.last_full_redraw = Instant::now();
+            // Match window resize: relayout root stack for current size, then clear.
+            callbacks::apply_screen_layout(&mut *self.siv);
+            self.siv.refresh();
+            self.dirty = false;
+            return true;
+        }
         if self.dirty {
             trace!("forcing ui update");
             self.siv.refresh();
