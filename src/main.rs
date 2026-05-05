@@ -153,8 +153,7 @@ fn main() -> Result<()> {
     // Polling interval for main loop and worker tasks. ~50ms keeps UI/control latency low without extra CPU.
     let naptime = Duration::from_millis(50);
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .context("Failed to build tokio runtime")?;
