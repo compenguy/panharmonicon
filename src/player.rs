@@ -4,12 +4,20 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use log::{debug, error, info, trace, warn};
 use redlux::rodio;
+use rodio::cpal::BufferSize;
 use rodio::stream::DeviceSinkBuilder;
 use rodio::Source;
 
 use crate::messages::{Request, State, StopReason};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
+
+/// Playback is fully offline: the whole track is decoded from cache before we care about
+/// smooth output, with no live monitoring and no tight A/V sync, so extra milliseconds of
+/// end-to-end latency are acceptable.
+/// Rodio’s docs suggest 2048–4096 frames for stability-focused / background use.
+/// We pick the upper end to reduce callback frequency vs the default.
+const AUDIO_BUFFER_QUANTUM: u32 = 4096;
 
 #[derive(Debug, Clone, Copy)]
 enum Volume {
@@ -46,6 +54,30 @@ impl Default for Volume {
     }
 }
 
+/// Opens the default output device through rodio/cpal.
+///
+/// Default buffer behavior: [`DeviceSinkBuilder::open_default_sink`] negotiates a stream
+/// with cpal’s [`BufferSize::Default`]: the host (e.g. ALSA into PipeWire) chooses the
+/// period/buffer size. That path optimizes for low latency, not few wakeups, which results
+/// in heavy `cpal_alsa_out` / `libpipewire` time in profiles.
+///
+/// Choose a larger buffer to reduce callbacks and CPU overhead of playback.
+/// If the device rejects this size, we fall back to [`DeviceSinkBuilder::open_default_sink`].
+fn open_mixer_device_sink() -> rodio::stream::MixerDeviceSink {
+    match DeviceSinkBuilder::from_default_device()
+        .and_then(|b| b.with_buffer_size(BufferSize::Fixed(AUDIO_BUFFER_QUANTUM)).open_stream())
+    {
+        Ok(sink) => sink,
+        Err(e) => {
+            warn!(
+                "Could not open output with large cpal buffer ({AUDIO_BUFFER_QUANTUM} frames): {e:#}; using default stream"
+            );
+            DeviceSinkBuilder::open_default_sink()
+                .expect("Failed to initialize audio device for playback")
+        }
+    }
+}
+
 // We can't derive Debug or Clone since the rodio members don't implement it.
 // rodio 0.22: MixerDeviceSink holds the stream; Player is the sequential sink.
 struct AudioDevice {
@@ -56,8 +88,7 @@ struct AudioDevice {
 
 impl AudioDevice {
     pub(crate) fn new(volume: f32) -> Self {
-        let handle = DeviceSinkBuilder::open_default_sink()
-            .expect("Failed to initialize audio device for playback");
+        let handle = open_mixer_device_sink();
         let player = rodio::Player::connect_new(handle.mixer());
         Self {
             _handle: handle,
@@ -161,8 +192,7 @@ impl AudioDevice {
 impl Clone for AudioDevice {
     fn clone(&self) -> Self {
         // Cannot clone the underlying stream; open a new default sink and player.
-        let handle = DeviceSinkBuilder::open_default_sink()
-            .expect("Failed to initialize audio device for playback");
+        let handle = open_mixer_device_sink();
         let player = rodio::Player::connect_new(handle.mixer());
         AudioDevice {
             _handle: handle,
