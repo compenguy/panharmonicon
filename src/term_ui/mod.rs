@@ -463,7 +463,7 @@ impl Terminal {
         if self.last_full_redraw.elapsed() >= FULL_REDRAW_INTERVAL {
             self.last_full_redraw = Instant::now();
             // Match window resize: relayout root stack for current size, then clear.
-            callbacks::apply_screen_layout(&mut *self.siv);
+            callbacks::apply_screen_layout(&mut self.siv);
             self.siv.refresh();
             self.dirty = false;
             return true;

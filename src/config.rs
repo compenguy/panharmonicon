@@ -232,7 +232,7 @@ where
 {
     use serde::de::Deserialize;
     let opt = Option::<Credentials>::deserialize(d)?;
-    Ok(opt.or_else(|| Some(Credentials::Session(None, None))))
+    Ok(opt.or(Some(Credentials::Session(None, None))))
 }
 
 #[derive(Deserialize, Debug, Default)]
