@@ -196,7 +196,14 @@ fn main() -> Result<()> {
 
         // Fetcher: event-driven; wake on state (Quit) or timer for update.
         let fetcher_handle = tokio::spawn(async move {
+            // If the fetcher is idle, we want to put it to sleep for awhile
+            let long_sleep = std::time::Duration::from_secs(2);
             loop {
+                let sleep_duration = if fetcher.idle() {
+                    long_sleep
+                } else {
+                    naptime
+                };
                 tokio::select! {
                     biased;
                     result = state_receiver_fetcher.recv() => {
@@ -211,7 +218,7 @@ fn main() -> Result<()> {
                             }
                         }
                     }
-                    _ = tokio::time::sleep(naptime) => {
+                    _ = tokio::time::sleep(sleep_duration) => {
                         if let Err(e) = fetcher.update().await {
                             error!("Error updating fetcher state: {e:#}");
                         }

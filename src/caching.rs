@@ -367,4 +367,9 @@ impl TrackCacher {
         self.dirty = false;
         Ok(dirty)
     }
+
+    /// Returns whether there's any active work or work to be done
+    pub(crate) fn idle(&self) -> bool {
+        self.active_requests.is_empty() && self.pending_tracks.is_empty()
+    }
 }
