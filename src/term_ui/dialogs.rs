@@ -14,8 +14,9 @@ use crate::config::{Credentials, SharedConfig};
 use crate::messages::Request;
 use crate::term_ui::{callbacks, labels, TerminalContext};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Store {
+    #[default]
     Keyring,
     ConfigFile,
     Session,
@@ -28,12 +29,6 @@ impl From<Credentials> for Store {
             Credentials::ConfigFile(_, _) => Self::ConfigFile,
             Credentials::Session(_, _) => Self::Session,
         }
-    }
-}
-
-impl Default for Store {
-    fn default() -> Self {
-        Self::Keyring
     }
 }
 

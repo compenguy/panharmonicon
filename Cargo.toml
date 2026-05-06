@@ -26,9 +26,8 @@ serde = "1"
 either = "1"
 serde_derive = "1"
 serde_json = "1"
-# No default features: must enable a backend per platform or the mock store is used (no persistence).
-# Linux: Secret Service (libsecret / GNOME Keyring); macOS: Keychain; Windows: Credential Manager.
-keyring = { version = "3", features = ["sync-secret-service", "crypto-rust", "apple-native", "windows-native"] }
+keyring = "4"
+keyring-core = "1"
 pandora-api = "0.6"
 futures = "0.3"
 tokio = { version = "1", default-features = false, features = ["fs", "io-util", "macros", "rt", "sync", "time"] }
@@ -37,7 +36,7 @@ async-broadcast = "0.7"
 redlux = { version = "0.8", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.13"
 cursive = { version = "0.21", optional = true, default-features = false, features = ["crossterm-backend", "toml"] }
-mpris-server = { version = "0.9", optional = true }
+mpris-server = { version = "0.10", optional = true }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
@@ -5,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::{Context, Result};
 use clap::crate_name;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
@@ -13,12 +14,13 @@ use crate::errors::Error;
 /// Thread-safe shared config for use across model, term_ui, and pandora threads.
 pub(crate) type SharedConfig = Arc<RwLock<Config>>;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub(crate) enum CachePolicy {
     // This entry is now superceded by, and behaves the same as, EvictCompleted
     // and is kept only to preserve compatibility for config files generated
     // prior to the introduction of the new values
     CachePlayingEvictCompleted,
+    #[default]
     EvictCompleted,
     NoEviction,
 }
@@ -30,12 +32,6 @@ impl CachePolicy {
             Self::EvictCompleted => true,
             Self::NoEviction => false,
         }
-    }
-}
-
-impl Default for CachePolicy {
-    fn default() -> Self {
-        Self::EvictCompleted
     }
 }
 
@@ -170,10 +166,35 @@ impl Credentials {
 
     fn get_from_keyring(username: &str) -> Result<Option<String>> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Entry::new(&service, username)?;
+        let keyring = keyring_core::Entry::new(&service, username)?;
         match keyring.get_password() {
             Ok(p) => Ok(Some(p)),
-            Err(keyring::error::Error::NoEntry) => Ok(None),
+            Err(keyring_core::Error::NoEntry) => Ok(None),
+            Err(keyring_core::Error::Ambiguous(_)) => {
+                let entries = Credentials::search_keyring_entries(&service, username)?;
+                if entries.is_empty() {
+                    return Ok(None);
+                }
+                warn!(
+                    "Found {} keyring entries for user {}; using the first readable entry",
+                    entries.len(),
+                    username
+                );
+                for entry in entries {
+                    match entry.get_password() {
+                        Ok(p) => return Ok(Some(p)),
+                        Err(keyring_core::Error::NoEntry) => continue,
+                        Err(e) => {
+                            return Err(Error::from(e)).with_context(|| {
+                                format!(
+                                    "Error contacting session keyring for user {username} while resolving duplicate entries"
+                                )
+                            })
+                        }
+                    }
+                }
+                Ok(None)
+            }
             Err(e) => Err(Error::from(e))
                 .with_context(|| format!("Error contacting session keyring for user {username}")),
         }
@@ -181,13 +202,42 @@ impl Credentials {
 
     fn set_on_keyring(username: &str, password: &str) -> Result<()> {
         let service = String::from(crate_name!());
-        let keyring = keyring::Entry::new(&service, username)?;
-        keyring
-            .set_password(password)
-            .map_err(Error::from)
-            .with_context(|| {
+        let keyring = keyring_core::Entry::new(&service, username)?;
+        match keyring.set_password(password) {
+            Ok(()) => Ok(()),
+            Err(keyring_core::Error::Ambiguous(_)) => {
+                let entries = Credentials::search_keyring_entries(&service, username)?;
+                if entries.is_empty() {
+                    return Err(Error::from(keyring_core::Error::NoEntry)).with_context(|| {
+                        format!("Failed updating secret for user {username} on session keyring")
+                    });
+                }
+                warn!(
+                    "Found {} keyring entries for user {}; updating all matching entries",
+                    entries.len(),
+                    username
+                );
+                for entry in entries {
+                    entry
+                        .set_password(password)
+                        .map_err(Error::from)
+                        .with_context(|| {
+                            format!("Failed updating duplicate keyring entry for user {username}")
+                        })?;
+                }
+                Ok(())
+            }
+            Err(e) => Err(Error::from(e)).with_context(|| {
                 format!("Failed updating secret for user {username} on session keyring")
-            })
+            }),
+        }
+    }
+
+    fn search_keyring_entries(service: &str, username: &str) -> Result<Vec<keyring_core::Entry>> {
+        let spec = HashMap::from([("service", service), ("username", username)]);
+        keyring_core::Entry::search(&spec)
+            .map_err(Error::from)
+            .with_context(|| format!("Failed searching keyring entries for user {username}"))
     }
 }
 

@@ -9,7 +9,7 @@ pub(crate) enum Error {
     #[error("HTTP I/O failure: {0}")]
     HttpIoFailure(#[from] reqwest::Error),
     #[error("Error accessing session keyring {0}")]
-    KeyringFailure(#[from] keyring::error::Error),
+    KeyringFailure(#[from] keyring_core::Error),
     #[error("Error invalid operation {0} for state {1}")]
     InvalidOperationForState(String, String),
     #[error("Requested track not in cache ({0})")]

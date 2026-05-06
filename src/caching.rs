@@ -89,7 +89,6 @@ impl FetchRequest {
                 self.completed = false;
                 self.track.remove_from_cache();
                 self.task_handle = None;
-                return;
             } else {
                 trace!("Fetch task in progress for {task_elapsed_secs}s");
             }

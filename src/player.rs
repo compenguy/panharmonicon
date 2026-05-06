@@ -64,9 +64,10 @@ impl Default for Volume {
 /// Choose a larger buffer to reduce callbacks and CPU overhead of playback.
 /// If the device rejects this size, we fall back to [`DeviceSinkBuilder::open_default_sink`].
 fn open_mixer_device_sink() -> rodio::stream::MixerDeviceSink {
-    match DeviceSinkBuilder::from_default_device()
-        .and_then(|b| b.with_buffer_size(BufferSize::Fixed(AUDIO_BUFFER_QUANTUM)).open_stream())
-    {
+    match DeviceSinkBuilder::from_default_device().and_then(|b| {
+        b.with_buffer_size(BufferSize::Fixed(AUDIO_BUFFER_QUANTUM))
+            .open_stream()
+    }) {
         Ok(sink) => sink,
         Err(e) => {
             warn!(

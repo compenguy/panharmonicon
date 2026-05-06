@@ -5,7 +5,7 @@ use crate::messages::State;
 
 use anyhow::{Context, Result};
 use flexi_logger::{detailed_format, Logger};
-use log::{debug, error, trace};
+use log::{debug, error, trace, warn};
 
 mod errors;
 use crate::errors::Error;
@@ -123,6 +123,17 @@ fn main() -> Result<()> {
 
     debug!("{} version {}", clap::crate_name!(), clap::crate_version!());
 
+    // initialize keyring store
+    // Ideally, we would only call this if the config is set to Keyring
+    let init_result = keyring::use_native_store(true);
+    match init_result {
+        Ok(()) => debug!(
+            "Initialized keyring store backend: {}",
+            keyring::store_info()
+        ),
+        Err(e) => warn!("Unable to initialize keyring default store: {e}"),
+    }
+
     trace!("Loading user config");
     let gen_config = matches
         .get_one::<bool>("gen-config")
@@ -199,11 +210,7 @@ fn main() -> Result<()> {
             // If the fetcher is idle, we want to put it to sleep for awhile
             let long_sleep = std::time::Duration::from_secs(2);
             loop {
-                let sleep_duration = if fetcher.idle() {
-                    long_sleep
-                } else {
-                    naptime
-                };
+                let sleep_duration = if fetcher.idle() { long_sleep } else { naptime };
                 tokio::select! {
                     biased;
                     result = state_receiver_fetcher.recv() => {
