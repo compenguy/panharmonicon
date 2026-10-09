@@ -84,10 +84,7 @@ impl std::convert::From<&Track> for mpris_server::Metadata {
             .length(mpris_server::Time::from_millis(
                 track.track_length.as_millis() as i64,
             ))
-            .trackid(
-                mpris_server::TrackId::try_from(track.track_token.as_str())
-                    .expect("Failed to convert track token to TrackId"),
-            )
+            .trackid(track.mpris_track_id())
             .album(track.album_name.clone())
             .artist([track.artist_name.clone()])
             .title(track.title.clone())
@@ -96,6 +93,23 @@ impl std::convert::From<&Track> for mpris_server::Metadata {
 }
 
 impl Track {
+    /// Map the pandora track token to a D-Bus object path for use as an MPRIS
+    /// TrackId. Tokens are base64-like (e.g. "PMMcHL6AkIwE3_6fOPgvLWnG-LF-Nxu..."),
+    /// but object path elements may only contain [A-Za-z0-9_], so any other byte
+    /// (and '_' itself, to keep the mapping unique) is escaped as '_' + hex.
+    #[cfg(feature = "mpris_server")]
+    pub(crate) fn mpris_track_id(&self) -> mpris_server::TrackId {
+        let mut path = String::from("/org/panharmonicon/track/t");
+        for b in self.track_token.bytes() {
+            if b.is_ascii_alphanumeric() {
+                path.push(b as char);
+            } else {
+                path.push_str(&format!("_{b:02x}"));
+            }
+        }
+        mpris_server::TrackId::try_from(path).unwrap_or(mpris_server::TrackId::NO_TRACK)
+    }
+
     pub(crate) fn cached(&self) -> bool {
         // Ensure that the track in the cache is playable, it will be deleted if it isn't
         self.cache_path.exists() && self.get_m4a_decoder().is_ok()

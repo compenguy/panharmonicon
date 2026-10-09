@@ -55,12 +55,7 @@ impl MprisUi {
             state.playing = Some((track.clone(), Duration::ZERO, false));
             state.tracklist = vec![track.clone()];
         }
-        let metadata = Metadata::builder()
-            .length(Time::from_millis(track.track_length.as_millis() as i64))
-            .album(track.album_name.clone())
-            .artist([track.artist_name.clone()])
-            .title(track.title.clone())
-            .build();
+        let metadata = Metadata::from(&track);
         self.server
             .properties_changed([
                 Property::Metadata(metadata),

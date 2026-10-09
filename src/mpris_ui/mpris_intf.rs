@@ -247,7 +247,7 @@ impl TrackListInterface for MprisInterface {
             let md = guard
                 .tracklist
                 .iter()
-                .find(|t| t.track_token.as_str() == track_id.as_str())
+                .find(|t| t.mpris_track_id() == track_id)
                 .map(Metadata::from)
                 .unwrap_or_default();
             tracks_metadata.push(md);
@@ -280,7 +280,7 @@ impl TrackListInterface for MprisInterface {
         let tracklist: Vec<TrackId> = guard
             .tracklist
             .iter()
-            .filter_map(|t| TrackId::try_from(t.track_token.as_str()).ok())
+            .map(Track::mpris_track_id)
             .collect();
         Ok(tracklist)
     }
