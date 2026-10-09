@@ -9,7 +9,7 @@ use crate::messages::State;
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
-use mpris_server::{Metadata, Property, Signal, Time};
+use mpris_server::{Metadata, PlaybackStatus, Property, Signal, Time};
 mod mpris_intf;
 use mpris_intf::{MprisInterface, MprisState};
 
@@ -18,6 +18,9 @@ pub(crate) struct MprisUi {
     server: mpris_server::Server<MprisInterface>,
     state_receiver: StateReceiver,
     shared_state: Arc<RwLock<MprisState>>,
+    /// Last PlaybackStatus announced via PropertiesChanged, so repeated state
+    /// updates don't re-emit an unchanged status.
+    playback_status: Option<PlaybackStatus>,
 }
 
 impl MprisUi {
@@ -33,7 +36,18 @@ impl MprisUi {
             server,
             state_receiver,
             shared_state,
+            playback_status: None,
         })
+    }
+
+    /// Returns the PlaybackStatus property to announce, or None if it's unchanged
+    /// since the last announcement.
+    fn playback_status_change(&mut self, status: PlaybackStatus) -> Option<Property> {
+        if self.playback_status == Some(status) {
+            return None;
+        }
+        self.playback_status = Some(status);
+        Some(Property::PlaybackStatus(status))
     }
 
     async fn update_state_stopped(&mut self) -> Result<()> {
@@ -41,11 +55,9 @@ impl MprisUi {
             let mut state = self.shared_state.write().await;
             state.playing = None;
         }
-        self.server
-            .properties_changed([Property::PlaybackStatus(
-                mpris_server::PlaybackStatus::Stopped,
-            )])
-            .await?;
+        if let Some(property) = self.playback_status_change(PlaybackStatus::Stopped) {
+            self.server.properties_changed([property]).await?;
+        }
         Ok(())
     }
 
@@ -55,13 +67,9 @@ impl MprisUi {
             state.playing = Some((track.clone(), Duration::ZERO, false));
             state.tracklist = vec![track.clone()];
         }
-        let metadata = Metadata::from(&track);
-        self.server
-            .properties_changed([
-                Property::Metadata(metadata),
-                Property::PlaybackStatus(mpris_server::PlaybackStatus::Playing),
-            ])
-            .await?;
+        let mut properties = vec![Property::Metadata(Metadata::from(&track))];
+        properties.extend(self.playback_status_change(PlaybackStatus::Playing));
+        self.server.properties_changed(properties).await?;
         Ok(())
     }
 
@@ -74,13 +82,13 @@ impl MprisUi {
             }
         }
         let playback_status = if paused {
-            mpris_server::PlaybackStatus::Paused
+            PlaybackStatus::Paused
         } else {
-            mpris_server::PlaybackStatus::Playing
+            PlaybackStatus::Playing
         };
-        self.server
-            .properties_changed([Property::PlaybackStatus(playback_status)])
-            .await?;
+        if let Some(property) = self.playback_status_change(playback_status) {
+            self.server.properties_changed([property]).await?;
+        }
         self.server
             .emit(Signal::Seeked {
                 position: Time::from_millis(elapsed.as_millis() as i64),
