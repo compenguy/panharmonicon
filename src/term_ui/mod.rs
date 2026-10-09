@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -11,6 +13,7 @@ use crate::messages::{Request, State, StationSeedsForUi, StopReason};
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
+mod backend;
 mod callbacks;
 mod dialogs;
 
@@ -63,6 +66,8 @@ pub(crate) struct Terminal {
     dirty: bool,
     /// Last time we forced a full redraw (refresh).
     last_full_redraw: Instant,
+    /// When set, the backend repaints every cell on the next refresh.
+    force_repaint: Arc<AtomicBool>,
 }
 
 impl Terminal {
@@ -71,7 +76,17 @@ impl Terminal {
         state_receiver: StateReceiver,
         request_sender: RequestSender,
     ) -> Self {
-        let mut siv = cursive::crossterm().into_runner();
+        let force_repaint = Arc::new(AtomicBool::new(false));
+        let backend_force_repaint = force_repaint.clone();
+        let mut siv = CursiveRunnable::new(move || {
+            cursive::backends::crossterm::Backend::init().map(|b| {
+                Box::new(backend::RepaintableBackend::new(
+                    b,
+                    backend_force_repaint.clone(),
+                )) as Box<dyn cursive::backend::Backend>
+            })
+        })
+        .into_runner();
         let context = TerminalContext {
             config,
             request_sender,
@@ -89,6 +104,7 @@ impl Terminal {
             station_seeds: None,
             dirty: true,
             last_full_redraw: Instant::now(),
+            force_repaint,
         };
         term.initialize();
         term
@@ -457,14 +473,16 @@ impl Terminal {
 
     fn drive_ui(&mut self) -> bool {
         self.dirty |= self.siv.step();
-        // Force a full redraw about once per second: clear the screen then refresh so
-        // every cell is repainted. This repairs regions corrupted by e.g. dependency
-        // libraries writing error text directly to the terminal.
+        // Periodically repaint every cell. This repairs regions corrupted by e.g.
+        // dependency libraries writing error text directly to the terminal, which
+        // cursive's normal changed-cells-only refresh can't detect.
         if self.last_full_redraw.elapsed() >= FULL_REDRAW_INTERVAL {
             self.last_full_redraw = Instant::now();
-            // Match window resize: relayout root stack for current size, then clear.
+            // Match window resize: relayout root stack for current size.
             callbacks::apply_screen_layout(&mut self.siv);
+            self.force_repaint.store(true, Ordering::Relaxed);
             self.siv.refresh();
+            self.force_repaint.store(false, Ordering::Relaxed);
             self.dirty = false;
             return true;
         }
