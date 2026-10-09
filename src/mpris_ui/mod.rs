@@ -9,7 +9,7 @@ use crate::messages::State;
 use crate::model::{RequestSender, StateReceiver};
 use crate::track::Track;
 
-use mpris_server::{Metadata, PlaybackStatus, Property, Signal, Time};
+use mpris_server::{Metadata, PlaybackStatus, Property};
 mod mpris_intf;
 use mpris_intf::{MprisInterface, MprisState};
 
@@ -89,11 +89,6 @@ impl MprisUi {
         if let Some(property) = self.playback_status_change(playback_status) {
             self.server.properties_changed([property]).await?;
         }
-        self.server
-            .emit(Signal::Seeked {
-                position: Time::from_millis(elapsed.as_millis() as i64),
-            })
-            .await?;
         Ok(())
     }
 

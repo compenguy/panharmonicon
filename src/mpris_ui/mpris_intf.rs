@@ -159,8 +159,10 @@ impl PlayerInterface for MprisInterface {
         Ok(())
     }
 
+    // Playback only runs at normal speed. The spec forbids a Rate of 0.0, and
+    // clients rely on it to extrapolate the playback position.
     async fn rate(&self) -> zbus::fdo::Result<PlaybackRate> {
-        Ok(PlaybackRate::default())
+        Ok(1.0)
     }
 
     async fn set_rate(&self, _rate: PlaybackRate) -> zbus::Result<()> {
@@ -204,11 +206,11 @@ impl PlayerInterface for MprisInterface {
     }
 
     async fn minimum_rate(&self) -> zbus::fdo::Result<PlaybackRate> {
-        Ok(PlaybackRate::default())
+        Ok(1.0)
     }
 
     async fn maximum_rate(&self) -> zbus::fdo::Result<PlaybackRate> {
-        Ok(PlaybackRate::default())
+        Ok(1.0)
     }
 
     async fn can_go_next(&self) -> zbus::fdo::Result<bool> {
