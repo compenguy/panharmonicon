@@ -125,11 +125,11 @@ fn main() -> Result<()> {
 
     // initialize keyring store
     // Ideally, we would only call this if the config is set to Keyring
-    let init_result = keyring::use_native_store(true);
+    let init_result = keyring::Entry::store_status();
     match init_result {
         Ok(()) => debug!(
-            "Initialized keyring store backend: {}",
-            keyring::store_info()
+            "Initialized keyring store backend: {:?}",
+            keyring_core::get_default_store()
         ),
         Err(e) => warn!("Unable to initialize keyring default store: {e}"),
     }
