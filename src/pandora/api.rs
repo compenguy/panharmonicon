@@ -145,21 +145,19 @@ impl PandoraSession {
         }
 
         trace!("User login");
-        let username_opt = self
+        let credentials = self
             .config
             .read()
-            .expect("config read for user_login username")
+            .expect("config read for user_login credentials")
             .login
-            .username();
-        let username = username_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
-
-        let password_opt = self
-            .config
-            .read()
-            .expect("config read for user_login password")
-            .login
-            .password()?;
-        let password = password_opt.ok_or(Error::PanharmoniconMissingAuthToken)?;
+            .clone();
+        let username = credentials
+            .username()
+            .ok_or(Error::PanharmoniconMissingAuthToken)?;
+        let password = credentials
+            .password_async()
+            .await?
+            .ok_or(Error::PanharmoniconMissingAuthToken)?;
 
         UserLogin::new(&username, &password)
             .merge_response(&mut self.inner)

@@ -532,14 +532,13 @@ impl Model {
         //   Notify UI of player progress
         //   Check if track is completed
         if !self.connected() {
-            if self
+            let credentials = self
                 .config
                 .read()
                 .expect("config read for login check")
                 .login_credentials()
-                .get()
-                .is_some()
-            {
+                .clone();
+            if credentials.get_async().await.is_some() {
                 self.connect().await?;
             } else {
                 self.disconnect().await?;

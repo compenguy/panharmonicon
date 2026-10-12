@@ -3,6 +3,7 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::crate_name;
@@ -44,11 +45,21 @@ pub(crate) enum Credentials {
 }
 
 impl Credentials {
-    pub(crate) fn get(&self) -> Option<(String, String)> {
-        match (self.username(), self.password().ok().flatten()) {
-            (Some(u), Some(p)) if !u.is_empty() && !p.is_empty() => Some((u, p)),
-            _ => None,
-        }
+    pub(crate) async fn get_async(&self) -> Option<(String, String)> {
+        let username = self.username().filter(|u| !u.is_empty())?;
+        let password = self.password_async().await.ok().flatten()?;
+        (!password.is_empty()).then_some((username, password))
+    }
+
+    /// Like [`Credentials::password`], but safe to call from async code.
+    pub(crate) async fn password_async(&self) -> Result<Option<String>> {
+        const KEYRING_TIMEOUT: Duration = Duration::from_secs(60);
+        let credentials = self.clone();
+        let lookup = tokio::task::spawn_blocking(move || credentials.password());
+        tokio::time::timeout(KEYRING_TIMEOUT, lookup)
+            .await
+            .context("Timed out waiting for session keyring to respond")?
+            .context("Session keyring lookup task failed")?
     }
 
     pub(crate) fn username(&self) -> Option<String> {

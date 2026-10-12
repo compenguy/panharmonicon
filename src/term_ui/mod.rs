@@ -364,22 +364,24 @@ impl Terminal {
         self.dirty |= true;
     }
 
-    fn update_state_disconnected(&mut self, message: Option<String>) {
+    async fn update_state_disconnected(&mut self, message: Option<String>) {
         self.siv
             .call_on_name("playing", |v: &mut Panel<LinearLayout>| {
                 trace!("Playing panel title: disconnected");
                 v.set_title("Disconnected");
             });
-        if self.siv.find_name::<EditView>("username").is_none()
-            && self
+        let login_dialog_shown = self.siv.find_name::<EditView>("username").is_some();
+        let needs_login = !login_dialog_shown && {
+            let credentials = self
                 .context
                 .config
                 .read()
                 .expect("config read for login dialog check")
                 .login_credentials()
-                .get()
-                .is_none()
-        {
+                .clone();
+            credentials.get_async().await.is_none()
+        };
+        if needs_login {
             trace!("Activating login dialog");
 
             if let Some(dialog) = dialogs::login_dialog(self.context.config.clone(), message) {
@@ -442,9 +444,9 @@ impl Terminal {
         trace!("checking for player notifications...");
         while let Ok(message) = self.state_receiver.try_recv() {
             match message {
-                State::AuthFailed(r) => self.update_state_disconnected(Some(r.to_string())),
+                State::AuthFailed(r) => self.update_state_disconnected(Some(r.to_string())).await,
                 State::Connected => self.update_state_stopped(StopReason::Initializing),
-                State::Disconnected => self.update_state_disconnected(None),
+                State::Disconnected => self.update_state_disconnected(None).await,
                 State::AddStation(name, id) => self.added_station(name, id),
                 State::Tuned(name) => self.tuned_station(name),
                 State::StationSeeds(seeds) => self.station_seeds(seeds),
