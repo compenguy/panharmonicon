@@ -8,20 +8,24 @@ on:
   release:
     types: created
 
+# Needed for uploading assets to a release
+permissions:
+  contents: write
+
 jobs:
   build:
 
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             dependencies: libasound2-dev libdbus-1-dev
             program-ext: ''
             toolchain-prefix: ''
             release-name: panharmonicon-linux
-          - os: windows-2019
+          - os: windows-latest
             dependencies: ''
             program-ext: .exe
             toolchain-prefix: ''
@@ -33,13 +37,15 @@ jobs:
             release-name: panharmonicon-macos
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
 
     - name: Install missing dependencies (linux)
       if: contains(matrix.os, 'ubuntu')
-      run: sudo apt-get install ${{ matrix.dependencies }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install ${{ matrix.dependencies }}
 
 
     # add the --all-features flag to build versions with emoji_labels feature enabled
@@ -60,11 +66,10 @@ jobs:
     # but ONLY if this was triggered by a 'published' event
     - name: Publish release artifacts
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1.0.1
+      shell: bash
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./artifacts/${{ matrix.release-name }}.zip
-        asset_name: ${{ matrix.release-name }}.zip
-        asset_content_type: application/zip
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
+        TAG_NAME: ${{ github.event.release.tag_name }}
+        ARCHIVE_NAME: ${{ matrix.release-name }}
+      run: gh release upload "${TAG_NAME}" "artifacts/${ARCHIVE_NAME}.zip" --clobber

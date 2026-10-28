@@ -4,26 +4,32 @@ on:
   push:
     branches: [ master ]
 
+# Needed to push the updated license files
+permissions:
+  contents: write
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     - uses: dtolnay/rust-toolchain@stable
-    - name: Install license processing tools
+    - name: Install cargo-about
+      uses: taiki-e/install-action@cargo-about
+    - name: Install html processing tool
       run: |
-        cargo install cargo-about
-        sudo apt install html2text
+        sudo apt-get update
+        sudo apt-get install -y html2text
     - name: Update licensing notes
       run: |
         cargo about generate about.hbs > LICENSE.html
         html2text -width 88 -style compact -nobs -utf8 -o LICENSE.txt LICENSE.html
     - name: Commit changes
-      uses: EndBug/add-and-commit@v8
+      uses: EndBug/add-and-commit@v11
       with:
         # Git message
         message: Automated update to license notices
