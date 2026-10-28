@@ -16,7 +16,7 @@ use crate::config::{Config, SharedConfig};
 mod caching;
 mod messages;
 mod model;
-#[cfg(feature = "mpris_server")]
+#[cfg(mpris)]
 mod mpris_ui;
 mod pandora;
 mod player;
@@ -31,7 +31,7 @@ fn main() -> Result<()> {
         .ok_or(Error::AppDirNotFound)?
         .join(clap::crate_name!())
         .join("config.json");
-    let mut app = clap::command!("")
+    let app = clap::command!("")
         .arg(
             clap::Arg::new("gen-config")
                 .short('c')
@@ -58,16 +58,13 @@ fn main() -> Result<()> {
                 .hide(true)
                 .help("Whether to write a debug log file."),
         );
-    #[cfg(feature = "term_ui")]
-    {
-        app = app.arg(
-            clap::Arg::new("terminal")
-                .short('t')
-                .long("terminal")
-                .action(clap::ArgAction::SetTrue)
-                .help("Run with the terminal UI (only applies when MPRIS is also available)."),
-        );
-    }
+    #[cfg(all(feature = "term_ui", mpris))]
+    let app = app.arg(
+        clap::Arg::new("headless")
+            .long("headless")
+            .action(clap::ArgAction::SetTrue)
+            .help("Run without the terminal UI, controlled only through MPRIS (e.g. media keys)."),
+    );
     let matches = app.get_matches();
 
     let crate_log_level = match matches.get_count("debug") {
@@ -153,9 +150,9 @@ fn main() -> Result<()> {
     trace!("Initializing track fetcher");
     let mut fetcher = caching::TrackCacher::new(model.updates_channel(), model.request_channel());
 
-    #[cfg(all(feature = "term_ui", feature = "mpris_server"))]
-    let use_terminal_ui = matches.get_flag("terminal");
-    #[cfg(all(feature = "term_ui", not(feature = "mpris_server")))]
+    #[cfg(all(feature = "term_ui", mpris))]
+    let use_terminal_ui = !matches.get_flag("headless");
+    #[cfg(all(feature = "term_ui", not(mpris)))]
     let use_terminal_ui = true;
 
     trace!("Initializing player interface");
@@ -178,10 +175,10 @@ fn main() -> Result<()> {
 
         let mut state_receiver_main = model.updates_channel();
         let mut state_receiver_fetcher = model.updates_channel();
-        #[cfg(feature = "mpris_server")]
+        #[cfg(mpris)]
         let mut state_receiver_mpris = model.updates_channel();
 
-        #[cfg(feature = "mpris_server")]
+        #[cfg(mpris)]
         let mut mpris_ui = mpris_ui::MprisUi::new(model.updates_channel(), model.request_channel())
             .await
             .expect("Failed to create MPRIS UI");
@@ -234,7 +231,7 @@ fn main() -> Result<()> {
             }
         });
 
-        #[cfg(feature = "mpris_server")]
+        #[cfg(mpris)]
         let mpris_handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -283,7 +280,7 @@ fn main() -> Result<()> {
 
         let _ = model_handle.await;
         let _ = fetcher_handle.await;
-        #[cfg(feature = "mpris_server")]
+        #[cfg(mpris)]
         let _ = mpris_handle.await;
         let _ = pandora_handle.await;
     });

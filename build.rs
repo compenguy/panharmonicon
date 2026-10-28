@@ -58,4 +58,14 @@ mod app_res {
 fn main() {
     #[cfg(windows)]
     app_res::build();
+
+    // The mpris-server dependency only exists on Linux, so gate MPRIS code on
+    // this cfg rather than on the feature alone. Build scripts see the *target*
+    // OS through CARGO_CFG_TARGET_OS (`#[cfg]` here would be the host's).
+    println!("cargo:rustc-check-cfg=cfg(mpris)");
+    let mpris_feature = std::env::var_os("CARGO_FEATURE_MPRIS_SERVER").is_some();
+    let target_linux = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux");
+    if mpris_feature && target_linux {
+        println!("cargo:rustc-cfg=mpris");
+    }
 }

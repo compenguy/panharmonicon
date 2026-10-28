@@ -75,9 +75,9 @@ impl std::convert::TryFrom<&PlaylistTrack> for Track {
     }
 }
 
-#[cfg(feature = "mpris_server")]
+#[cfg(mpris)]
 use std::convert::TryFrom;
-#[cfg(feature = "mpris_server")]
+#[cfg(mpris)]
 impl std::convert::From<&Track> for mpris_server::Metadata {
     fn from(track: &Track) -> mpris_server::Metadata {
         mpris_server::Metadata::builder()
@@ -97,7 +97,7 @@ impl Track {
     /// TrackId. Tokens are base64-like (e.g. "PMMcHL6AkIwE3_6fOPgvLWnG-LF-Nxu..."),
     /// but object path elements may only contain [A-Za-z0-9_], so any other byte
     /// (and '_' itself, to keep the mapping unique) is escaped as '_' + hex.
-    #[cfg(feature = "mpris_server")]
+    #[cfg(mpris)]
     pub(crate) fn mpris_track_id(&self) -> mpris_server::TrackId {
         let mut path = String::from("/org/panharmonicon/track/t");
         for b in self.track_token.bytes() {

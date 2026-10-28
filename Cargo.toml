@@ -8,7 +8,8 @@ license = "Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND 
 repository = "https://github.com/compenguy/panharmonicon"
 
 [features]
-default = ["emoji_labels", "term_ui"]
+default = ["emoji_labels", "term_ui", "mpris_server"]
+# MPRIS is Linux-only; on other platforms this feature is accepted but does nothing.
 mpris_server = ["dep:mpris-server"]
 term_ui = ["dep:cursive"]
 emoji_labels = []
@@ -36,6 +37,8 @@ async-broadcast = "0.7"
 redlux = { version = "0.8", git = "https://github.com/compenguy/redlux.git" }
 mp4ameta = "0.13"
 cursive = { version = "0.21", optional = true, default-features = false, features = ["crossterm-backend", "toml"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
 mpris-server = { version = "0.10", optional = true }
 
 [target.'cfg(windows)'.build-dependencies]
